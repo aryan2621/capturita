@@ -14,6 +14,7 @@ Captions and AI editing run on your Mac. Your recordings are never uploaded unle
 
 **[⬇ Download for macOS](https://github.com/aryan2621/capturita/releases/latest/download/Capturita_0.1.0_aarch64.dmg)**
 · macOS 15+, Apple silicon · [all downloads](https://github.com/aryan2621/capturita/releases/latest)
+· **macOS only:** recording uses Apple's ScreenCaptureKit, so there's no Windows version yet.
 
 📖 **[User guide](docs/user.md)** — recording, every editing tool, shortcuts, export and upload
 ☁️ **[Google setup](docs/google-setup.md)** — upload to YouTube and Drive with your own Google account
