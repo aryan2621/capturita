@@ -8,7 +8,7 @@
 
 ## Install
 
-1. Download [`Capturita_0.1.0_aarch64.dmg`](https://github.com/aryan2621/desktop-apps/releases/latest/download/Capturita_0.1.0_aarch64.dmg)
+1. Download [`Capturita_0.1.0_aarch64.dmg`](https://github.com/aryan2621/capturita/releases/latest/download/Capturita_0.1.0_aarch64.dmg)
    (macOS 15 or later, Apple silicon).
 2. Open it, drag **Capturita** into **Applications**, and open Capturita.
 

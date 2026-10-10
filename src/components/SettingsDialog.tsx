@@ -353,7 +353,7 @@ function CaptionsSection() {
     );
 }
 
-const GUIDE_URL = 'https://github.com/aryan2621/desktop-apps/blob/main/capturita/docs/google-setup.md';
+const GUIDE_URL = 'https://github.com/aryan2621/capturita/blob/main/docs/google-setup.md';
 
 /** Uploads use the user's own Google Cloud client; the steps to make one live in the guide. */
 export function GoogleSection() {

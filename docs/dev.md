@@ -8,6 +8,7 @@ Needs macOS 15+, Node 22, Rust (stable), Xcode or its command line tools (Swift)
 (for llama.cpp's server).
 
 ```bash
+git clone https://github.com/aryan2621/capturita.git
 cd capturita
 npm install
 npx tauri build --bundles app
