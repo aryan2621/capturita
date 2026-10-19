@@ -3,7 +3,7 @@
 // model than reasoning in seconds); this file turns its answer into exact times and edits.
 import { invoke } from '@tauri-apps/api/core';
 import type { CursorData, Project } from '../lib/api';
-import { cutSource, newId, speedSource, ZOOM_HOLD, ZOOM_LEAD_IN, type Caption, type CaptionWord, type Edit, type TextOverlay, type Zoom } from './model';
+import { cutSource, newId, recordingCaptions, speedSource, ZOOM_HOLD, ZOOM_LEAD_IN, type Caption, type CaptionWord, type Edit, type TextOverlay, type Zoom } from './model';
 
 /** One proposed edit, shown with a checkbox before it's applied. Times are source times. */
 export interface Proposal {
@@ -83,7 +83,7 @@ export function transcriptLines(captions: Caption[], duration: number) {
 
 /** Asks the model for edits that fulfil `request`. */
 export async function askAi(request: string, edit: Edit, project: Project, cursor: CursorData | null): Promise<AiResult> {
-    const lines = transcriptLines(edit.captions.items, project.duration);
+    const lines = transcriptLines(recordingCaptions(edit.captions.items), project.duration);
     const transcript = lines.map((l, i) => `#${i + 1} [${l.start.toFixed(1)}-${l.end.toFixed(1)}] ${l.text}`).join('\n');
     const clicks = (cursor?.clicks ?? []).map(([t]) => t.toFixed(1)).join(', ') || 'none';
     const user = `Recording length: ${project.duration.toFixed(1)} s.\nTranscript:\n${transcript}\nClicks at (s): ${clicks}\n\nRequest: ${request}`;
@@ -137,17 +137,17 @@ export function toProposals(actions: RawAction[], lines: { start: number; end: n
 
 /** Applies the chosen proposals to the edit. */
 export function applyProposals(edit: Edit, proposals: Proposal[]): Edit {
-    let clips = edit.clips;
+    let items = edit.items;
     const zooms: Zoom[] = [...edit.zooms];
     const texts: TextOverlay[] = [...edit.texts];
     for (const p of proposals) {
-        if (p.type === 'cut') clips = cutSource(clips, p.start, p.end);
-        else if (p.type === 'speed') clips = speedSource(clips, p.start, p.end, p.speed ?? 2);
+        if (p.type === 'cut') items = cutSource(items, p.start, p.end);
+        else if (p.type === 'speed') items = speedSource(items, p.start, p.end, p.speed ?? 2);
         else if (p.type === 'zoom') zooms.push({ id: newId(), start: p.start, end: p.end, scale: edit.zoomScale, mode: 'follow', x: 0.5, y: 0.5, auto: false });
         else if (p.type === 'text')
             texts.push({ id: newId(), start: p.start, end: p.end, text: p.text ?? '', x: 0.5, y: 0.18, size: 0.07, color: '#ffffff', bold: true, background: 'box', font: 'system', animation: 'rise' });
     }
-    return { ...edit, clips, zooms: zooms.sort((a, b) => a.start - b.start), texts: texts.sort((a, b) => a.start - b.start) };
+    return { ...edit, items, zooms: zooms.sort((a, b) => a.start - b.start), texts: texts.sort((a, b) => a.start - b.start) };
 }
 
 // ---- One-click clean-ups (no model needed: the word timings are exact) ----

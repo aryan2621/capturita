@@ -1,6 +1,6 @@
 import { fileUrl, type CursorData, type Project } from '../lib/api';
 import { cameraViewport, cursorVisibility, smoothCursorAt } from './motion';
-import { captionAt, fontStack, hideActive, textFrame, type Caption, type CaptionStyle, type HideRegion, type TextFrame, type Background, type CursorShape, type Edit, type NormalizedRect, type TextOverlay } from './model';
+import { captionAtOutput, fontStack, hideActive, textFrame, type Caption, type CaptionStyle, type HideRegion, type LayerFx, type TextFrame, type Background, type CursorShape, type Edit, type NormalizedRect, type TextOverlay } from './model';
 
 /** Cursor height in screen points before scaling. */
 const CURSOR_POINTS = 22;
@@ -247,11 +247,6 @@ export function drawFrame(ctx: CanvasRenderingContext2D, width: number, height: 
         if (frame.alpha > 0 && text.text.trim()) drawText(ctx, text, width, height, frame);
     }
 
-    if (edit.captions.visible) {
-        const caption = captionAt(edit.captions.items, time);
-        if (caption && caption.text.trim()) drawCaption(ctx, caption, edit.captions.style, time, width, height);
-    }
-
     ctx.restore();
     return content;
 }
@@ -377,6 +372,16 @@ export function layoutCaption(ctx: CanvasRenderingContext2D, caption: Caption, s
     return { fontSize, lines, lineHeight, top };
 }
 
+/**
+ * Burns in the caption at output time `outputTime`, over everything else (recording, scenes and
+ * overlays), so captions carry on through scenes. Preview and export both call this.
+ */
+export function drawCaptions(ctx: CanvasRenderingContext2D, edit: Edit, outputTime: number, width: number, height: number) {
+    if (!edit.captions.visible) return;
+    const shown = captionAtOutput(edit, outputTime);
+    if (shown && shown.caption.text.trim()) drawCaption(ctx, shown.caption, edit.captions.style, shown.time, width, height);
+}
+
 function drawCaption(ctx: CanvasRenderingContext2D, caption: Caption, style: CaptionStyle, time: number, width: number, height: number) {
     const { fontSize, lines, lineHeight, top } = layoutCaption(ctx, caption, style, width, height);
     ctx.save();
@@ -399,13 +404,49 @@ function drawCaption(ctx: CanvasRenderingContext2D, caption: Caption, style: Cap
             ctx.shadowOffsetY = fontSize * 0.05;
         }
         for (const word of line.words) {
-            const speaking = style.highlight && time >= word.start && time < word.end;
-            ctx.fillStyle = speaking ? style.highlight! : style.color;
-            ctx.fillText(word.text, left + word.x, centreY);
+            const speaking = !!style.highlight && time >= word.start && time < word.end;
+            const kind = style.highlightStyle ?? 'color';
+            const x = left + word.x;
+            if (speaking && kind === 'box') {
+                ctx.save();
+                ctx.shadowColor = 'transparent';
+                ctx.fillStyle = style.highlight!;
+                roundRect(ctx, { x: x - fontSize * 0.14, y: centreY - lineHeight / 2 + padY * 0.5, width: word.width + fontSize * 0.28, height: lineHeight - padY }, fontSize * 0.18);
+                ctx.fill();
+                ctx.restore();
+                ctx.fillStyle = contrastText(style.highlight!);
+                ctx.fillText(word.text, x, centreY);
+            } else if (speaking && kind === 'underline') {
+                ctx.fillStyle = style.color;
+                ctx.fillText(word.text, x, centreY);
+                ctx.save();
+                ctx.shadowColor = 'transparent';
+                ctx.fillStyle = style.highlight!;
+                ctx.fillRect(x, centreY + fontSize * 0.5, word.width, Math.max(2, fontSize * 0.09));
+                ctx.restore();
+            } else if (speaking && kind === 'pop') {
+                ctx.save();
+                ctx.translate(x + word.width / 2, centreY);
+                ctx.scale(1.12, 1.12);
+                ctx.fillStyle = style.highlight!;
+                ctx.fillText(word.text, -word.width / 2, 0);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = speaking ? style.highlight! : style.color;
+                ctx.fillText(word.text, x, centreY);
+            }
         }
         ctx.shadowColor = 'transparent';
     });
     ctx.restore();
+}
+
+/** Black or white, whichever reads better on `color` (a #rrggbb hex). */
+function contrastText(color: string) {
+    const hex = /^#?([0-9a-f]{6})$/i.exec(color)?.[1];
+    if (!hex) return '#000000';
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? '#111111' : '#ffffff';
 }
 
 const TEXT_LINE_HEIGHT = 1.2;
@@ -528,7 +569,40 @@ export async function preloadBackground(project: Project, background: Background
     if (!image.complete) await image.decode().catch(() => {});
 }
 
-function fillBackground(ctx: CanvasRenderingContext2D, background: Background, width: number, height: number, project: Project) {
+/**
+ * Draws one layer (a rendered scene frame, or the recording drawn on its own canvas) with a
+ * transition look: clipped, moved, scaled about the centre, blurred and faded. The preview's
+ * scene layers apply the same values as CSS (SceneLayer).
+ */
+export function drawLayer(ctx: CanvasRenderingContext2D, image: CanvasImageSource, fx: LayerFx, width: number, height: number) {
+    if (fx.opacity <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = fx.opacity;
+    if (fx.clip) {
+        const { top, right, bottom, left } = fx.clip;
+        ctx.beginPath();
+        ctx.rect(left * width, top * height, Math.max(0, (1 - left - right) * width), Math.max(0, (1 - top - bottom) * height));
+        ctx.clip();
+    }
+    ctx.translate(fx.x * width + width / 2, fx.y * height + height / 2);
+    ctx.scale(fx.scale, fx.scale);
+    ctx.translate(-width / 2, -height / 2);
+    if (fx.blur > 0) ctx.filter = `blur(${(fx.blur * Math.min(width, height)).toFixed(2)}px)`;
+    ctx.drawImage(image, 0, 0, width, height);
+    ctx.restore();
+}
+
+/** The colour wash of a dip transition, over the items and under overlays. */
+export function drawDip(ctx: CanvasRenderingContext2D, dip: { color: string; opacity: number } | null, width: number, height: number) {
+    if (!dip || dip.opacity <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = dip.opacity;
+    ctx.fillStyle = dip.color;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+}
+
+export function fillBackground(ctx: CanvasRenderingContext2D, background: Background, width: number, height: number, project: Project) {
     if (background.type === 'image') {
         const image = loadImage(fileUrl(project, background.file));
         ctx.fillStyle = '#3a3a3a';

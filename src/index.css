@@ -44,6 +44,9 @@
   --lane-cut: #f87171;
   --lane-hide: #ec4899;
   --lane-caption: #38bdf8;
+  --lane-scene: #84cc16;
+  --lane-voice: #e879f9;
+  --lane-sfx: #fb923c;
   --shadow-lg: 0 20px 50px -12px rgb(0 0 0 / 0.6);
   --scrollbar: #4c4b46;
 }
@@ -75,6 +78,9 @@
   --lane-cut: #ef4444;
   --lane-hide: #db2777;
   --lane-caption: #0284c7;
+  --lane-scene: #65a30d;
+  --lane-voice: #c026d3;
+  --lane-sfx: #ea580c;
   --shadow-lg: 0 20px 50px -16px rgb(31 30 29 / 0.22);
   --scrollbar: #d6d3c6;
 }
@@ -109,6 +115,9 @@
   --color-lane-audio: var(--lane-audio);
   --color-lane-hide: var(--lane-hide);
   --color-lane-caption: var(--lane-caption);
+  --color-lane-scene: var(--lane-scene);
+  --color-lane-voice: var(--lane-voice);
+  --color-lane-sfx: var(--lane-sfx);
   --color-lane-cut: var(--lane-cut);
   --shadow-panel: var(--shadow-lg);
   --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;

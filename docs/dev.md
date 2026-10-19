@@ -18,11 +18,18 @@ cp -R src-tauri/target/release/bundle/macos/Capturita.app /Applications/
 ```bash
 npm run tauri dev          # run with hot reload
 npm run build:recorder     # rebuild only the Swift recorder helper
+npm run build:app          # universal (Apple silicon + Intel) release build
 ```
 
-Both `tauri dev` and `tauri build` first build two sidecars into `src-tauri/binaries/`:
+Both `tauri dev` and `tauri build` first build three sidecars into `src-tauri/binaries/`:
 - `scripts/build-recorder.sh` builds the Swift recorder helper (`recorder/`).
 - `scripts/build-llama-server.sh` builds llama.cpp's server for AI editing (static, Metal).
+- `scripts/build-studio-renderer.sh` fetches Node for the motion-scene renderer and stages
+  `src-tauri/studio-runtime/` (prebuilt scenes, `@remotion/renderer`, both compositors).
+
+Each is named for Tauri's build target (`TAURI_ENV_TARGET_TRIPLE`). With
+`--target universal-apple-darwin` (`npm run build:app`) every sidecar is built for arm64 and
+x86_64 and joined with `lipo`; this needs `rustup target add x86_64-apple-darwin`.
 
 Launch with `CAPTURITA_KEEP_WINDOW=1` to keep the window visible while recording (to film
 Capturita itself). Rebuilding changes the app's ad-hoc signature, so macOS may ask for Screen

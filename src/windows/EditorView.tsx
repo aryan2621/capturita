@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import { ArrowLeft, Check, CircleAlert, Crop, Download, FastForward, FolderOpen, Gauge, Keyboard, Loader2, Minus, Pause, Play, Plus, Redo2, Rewind, RotateCcw, Scissors, SquareSplitHorizontal, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, Check, CircleAlert, Crop, Download, FastForward, FolderOpen, Gauge, Keyboard, Loader2, Minus, Pause, Play, Plus, Redo2, Rewind, RotateCcw, Scissors, Sparkles, SquareSplitHorizontal, Trash2, Undo2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, errorMessage, fileUrl, formatDuration, type CursorData, type Project } from '../lib/api';
-import { Button, IconButton, Popover, RangeInput, Select, cx } from '../components/ui';
+import { Button, IconButton, Popover, RangeInput, Segmented, Select, cx } from '../components/ui';
 import { CropOverlay } from '../editor/CropOverlay';
 import { ExportDialog } from '../editor/ExportDialog';
 import { ShortcutsSheet } from '../editor/ShortcutsSheet';
@@ -20,12 +20,22 @@ import {
     autoZooms,
     defaultEdit,
     hideActive,
+    insertScene,
+    isRecording,
+    itemStarts,
     MIN_ZOOM,
     outputTimeOf,
     newId,
+    type OverlayClip,
     normalizeEdit,
+    overlaysAt,
+    audioFiles,
+    recordingCaptions,
+    captionSpans,
+    dropOrphanVoiceCaptions,
+    isIdentityFx,
     positionAt,
-    removeClip,
+    removeItem,
     removeRange,
     splitAt,
     TEXT_FADE,
@@ -34,13 +44,33 @@ import {
     totalDuration,
     type Caption,
     type Captions,
-    type Clip,
     type Edit,
     type HideRegion,
+    type SceneClip,
     type TextOverlay,
+    type TimelineItem,
     type Zoom,
 } from '../editor/model';
-import { drawFrame, layoutFrame, screenView, videoFrame } from '../editor/render';
+import { drawCaptions, drawDip, drawFrame, drawLayer, fillBackground, layoutFrame, screenView, videoFrame } from '../editor/render';
+import { exportSize } from '../editor/export';
+import { SceneLayer, type SceneLayerHandle } from '../studio/SceneLayer';
+import { canBeOverlay, canBeScene, SCENES } from '../studio/scenes';
+import type { Segment, TargetRect } from '../studio/scenes/assets';
+import { useProjectBrand } from '../studio/brandKits';
+import { initialSceneProps, previewAssets, recordingInfo } from '../studio/sceneEnv';
+import { TargetPicker } from '../studio/TargetPicker';
+
+/** The ✨ menu: scenes to add at the playhead. */
+const SCENE_CHOICES = [
+    { id: 'LogoSting', hint: 'Your logo, revealed' },
+    { id: 'TitleReveal', hint: 'A title card', overlayHint: 'A title over the video' },
+    { id: 'KineticStatement', hint: 'A bold line, word by word', overlayHint: 'Big words over the video' },
+    { id: 'DeviceShowcase', hint: 'The recording in a laptop or window' },
+    { id: 'FeatureCallout', hint: 'Zoom in and point at one thing' },
+    { id: 'StatCounter', hint: 'Numbers that count up' },
+    { id: 'LowerThird', hint: '', overlayHint: 'A name and title bar' },
+    { id: 'EndCard', hint: 'Call to action, link and QR code' },
+];
 import { useHistory } from '../editor/useHistory';
 import { usePlayback } from '../editor/usePlayback';
 import { useThumbnails } from '../editor/useThumbnails';
@@ -61,6 +91,11 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
     const [selectedHideId, setSelectedHideId] = useState<string | null>(null);
     const [selectedCaptionId, setSelectedCaptionId] = useState<string | null>(null);
+    const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+    /** A selected voiceover or sound effect. */
+    const [selectedAudioId, setSelectedAudioId] = useState<string | null>(null);
+    /** What the ✨ menu adds: a scene in the timeline, or an overlay drawn over it. */
+    const [addAs, setAddAs] = useState<'scene' | 'overlay'>('scene');
     /** True when the recording had no edit.json yet, so auto-zoom runs once the cursor loads. */
     const freshRef = useRef(false);
     const [cropping, setCropping] = useState(false);
@@ -82,12 +117,12 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const [stage, setStage] = useState({ width: 0, height: 0 });
 
     const clickTimes = useMemo(() => cursor?.clicks.map(([t]) => t) ?? [], [cursor]);
-    const playback = usePlayback(project, edit.clips, {
+    const playback = usePlayback(project, edit.items, {
         enabled: edit.cursor.clickSound,
         type: edit.cursor.clickSoundType,
         volume: edit.cursor.clickVolume,
         times: clickTimes,
-    }, edit.audio);
+    }, edit.audio, edit.overlays, useMemo(() => audioFiles(edit), [edit.items, edit.overlays, edit.audio]));
     const playbackRef = useRef(playback);
     playbackRef.current = playback;
 
@@ -118,6 +153,14 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const clampZoom = (value: number) => Math.min(MAX_TIMELINE_ZOOM, Math.max(MIN_TIMELINE_ZOOM, value));
     const thumbnails = useThumbnails(project);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const sceneLayerRef = useRef<SceneLayerHandle>(null);
+    /** Off-screen canvas the recording is drawn on during a transition, before it is moved or faded. */
+    const layerCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    /** Captions, drawn over the scene and overlay players. */
+    const captionCanvasRef = useRef<HTMLCanvasElement>(null);
+    const overlayLayerRef = useRef<SceneLayerHandle>(null);
+    const voiceCaptionSpans = useMemo(() => captionSpans(edit).filter((span) => span.item.voice), [edit.items, edit.captions.items, edit.audio.voiceovers]);
+    const scenePieces = useMemo(() => edit.items.filter((item) => item.kind === 'scene'), [edit.items]);
     const stageRef = useRef<HTMLDivElement>(null);
     const timelineRef = useRef<TimelineHandle>(null);
     const editRef = useRef(edit);
@@ -228,6 +271,10 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const aspect = aspectRatio(edit, project);
     const frameWidth = Math.max(1, Math.min(stage.width, stage.height * aspect));
     const frameHeight = frameWidth / aspect;
+    /** Scenes are laid out at the size of a 1080p export, and scaled to the preview. */
+    const sceneSize = exportSize(edit, project, 1080);
+    const brand = useProjectBrand(project, edit.brandKit);
+    const sceneEnv = useMemo(() => ({ brand, recording: recordingInfo(project), assets: previewAssets(project, previewFile) }), [brand, project, previewFile]);
 
     // One loop draws every frame and moves the playhead; React state updates are throttled.
     const lastTimeUpdate = useRef(0);
@@ -276,7 +323,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             const ctx = canvas?.getContext('2d');
             if (canvas && ctx) {
                 const current = editRef.current;
-                const position = positionAt(current.clips, t);
+                const position = positionAt(current.items, t);
                 // While playing, draw the zoom and cursor for the frame the video is actually
                 // showing (it can trail the audio clock slightly), so they never drift apart.
                 const video = playback.screenRef.current;
@@ -286,7 +333,19 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                 }
                 const camera = project.tracks.camera;
                 const cameraLocal = camera ? position.source - camera.offset : -1;
-                drawFrame(ctx, canvas.width, canvas.height, {
+                // Scenes are drawn by their Players over the canvas; with no recording under them,
+                // the canvas shows only the background (seen through transparent scenes).
+                // During a transition the recording is drawn on its own canvas, then moved, clipped
+                // or faded over the background, as the export does.
+                const transitioning = position.recording && !isIdentityFx(position.recordingFx);
+                const target = transitioning ? (layerCanvasRef.current ??= document.createElement('canvas')) : canvas;
+                if (target !== canvas && (target.width !== canvas.width || target.height !== canvas.height)) {
+                    target.width = canvas.width;
+                    target.height = canvas.height;
+                }
+                const targetCtx = target === canvas ? ctx : target.getContext('2d')!;
+                if (!position.recording || transitioning) fillBackground(ctx, current.background, canvas.width, canvas.height, project);
+                if (position.recording) drawFrame(targetCtx, canvas.width, canvas.height, {
                     edit: current,
                     project,
                     screen: videoFrame(playback.screenRef.current),
@@ -298,6 +357,20 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                     noZoom: placingFocusRef.current && !playback.playing,
                     preview: true,
                 });
+                if (transitioning) drawLayer(ctx, target, position.recordingFx, canvas.width, canvas.height);
+                // With no scene on screen the wash goes on the canvas; otherwise over the scene players.
+                if (position.scenes.length === 0) drawDip(ctx, position.dip, canvas.width, canvas.height);
+                sceneLayerRef.current?.update(
+                    position.scenes.map((s) => ({ id: s.item.id, time: s.time, opacity: s.opacity, fx: s.fx })),
+                    position.scenes.length > 0 ? position.dip : null
+                );
+                overlayLayerRef.current?.update(overlaysAt(current.overlays, t).map((o) => ({ id: o.item.id, time: o.time, opacity: 1 })));
+                const captionCanvas = captionCanvasRef.current;
+                const captionCtx = captionCanvas?.getContext('2d');
+                if (captionCanvas && captionCtx) {
+                    captionCtx.clearRect(0, 0, captionCanvas.width, captionCanvas.height);
+                    drawCaptions(captionCtx, current, t, captionCanvas.width, captionCanvas.height);
+                }
             }
             frame = requestAnimationFrame(loop);
         };
@@ -305,8 +378,9 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         return () => cancelAnimationFrame(frame);
     }, [project, cursor]);
 
-    const setClips = useCallback((clips: Clip[], key?: string) => history.set((e) => ({ ...e, clips }), key), [history]);
-    const change = useCallback((partial: Partial<Edit>, key: string) => history.set((e) => ({ ...e, ...partial }), key), [history]);
+    const setItems = useCallback((items: TimelineItem[], key?: string) => history.set((e) => ({ ...e, items }), key), [history]);
+    // A deleted voiceover takes its captions with it.
+    const change = useCallback((partial: Partial<Edit>, key: string) => history.set((e) => (partial.audio ? dropOrphanVoiceCaptions({ ...e, ...partial }) : { ...e, ...partial }), key), [history]);
 
     /** Saves a picture as the recording's thumbnail (thumb.jpg), as a JPEG at most 1280 px wide. */
     const saveThumbnail = async (source: CanvasImageSource, width: number, height: number) => {
@@ -347,7 +421,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
 
     /** First press shows two markers around the playhead; the second cuts out what's between them. */
     const cut = () => {
-        const total = totalDuration(edit.clips);
+        const total = totalDuration(edit.items);
         if (!cutRange) {
             const width = Math.min(5, total * 0.2);
             const center = Math.min(Math.max(playback.now(), width / 2), total - width / 2);
@@ -358,12 +432,12 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             toast.info('Drag the red markers apart to choose what to cut.');
             return;
         }
-        const clips = removeRange(edit.clips, cutRange[0], cutRange[1]);
-        if (!clips) {
+        const items = removeRange(edit.items, cutRange[0], cutRange[1]);
+        if (!items) {
             toast.info('That would cut the whole video. Move a marker to keep some of it.');
             return;
         }
-        setClips(clips);
+        setItems(items);
         setCutRange(null);
         setSelectedId(null);
         playback.seek(Math.min(...cutRange));
@@ -371,16 +445,55 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const cancelCut = () => setCutRange(null);
     /** Splits the clip under the playhead in two, so each part can get its own speed or be removed. */
     const split = () => {
-        const result = splitAt(edit.clips, playback.now());
+        const result = splitAt(edit.items, playback.now());
         if (!result) {
-            toast.info('Move the playhead away from the clip edges to split it.');
+            toast.info(positionAt(edit.items, playback.now()).item.kind === 'scene' ? 'Scenes can’t be split.' : 'Move the playhead away from the clip edges to split it.');
             return;
         }
-        setClips(result.clips);
+        setItems(result.items);
         select('clip', result.selected);
     };
+    /** Puts a motion scene at the playhead (splitting the clip there) and shows it. */
+    const addScene = (id = 'TitleReveal') => {
+        const definition = SCENES[id];
+        const props = initialSceneProps(id, edit.items, playback.now(), project, cursor);
+        const scene: SceneClip = { kind: 'scene', id: newId(), scene: id, props, duration: definition.defaultDuration };
+        const items = insertScene(edit.items, playback.now(), scene);
+        setItems(items);
+        select('clip', scene.id);
+        // Seek once the longer timeline has reached the player.
+        const index = items.findIndex((item) => item.id === scene.id);
+        requestAnimationFrame(() => playback.seek(itemStarts(items)[index] + Math.min(1.5, scene.duration / 2)));
+    };
 
-    const selected = edit.clips.find((clip) => clip.id === selectedId) ?? null;
+    /** Puts an overlay at the playhead (it stays inside the timeline) and shows it. */
+    const addOverlay = (id: string) => {
+        const total = totalDuration(edit.items);
+        const duration = Math.min(SCENES[id].defaultDuration, total);
+        const start = Math.max(0, Math.min(playback.now(), total - duration));
+        const overlay: OverlayClip = { id: newId(), scene: id, props: initialSceneProps(id, edit.items, start, project, cursor), start, duration };
+        setOverlays([...edit.overlays, overlay]);
+        select('overlay', overlay.id);
+        playback.seek(start + Math.min(1.5, duration / 2));
+    };
+
+    const selectedItem = edit.items.find((item) => item.id === selectedId) ?? null;
+    const selected = selectedItem && isRecording(selectedItem) ? selectedItem : null;
+    const selectedScene = selectedItem?.kind === 'scene' ? selectedItem : null;
+    // The selected scene's target, while it's being drawn on the preview.
+    const [pickingTarget, setPickingTarget] = useState(false);
+    useEffect(() => setPickingTarget(false), [selectedId]);
+    const targetField = selectedScene ? SCENES[selectedScene.scene]?.fields.find((f) => f.type === 'rect') : undefined;
+    const picker =
+        pickingTarget && selectedScene && targetField?.type === 'rect'
+            ? {
+                  scene: selectedScene,
+                  name: targetField.name,
+                  rect: { ...(SCENES[selectedScene.scene].defaultProps[targetField.name] as TargetRect), ...(selectedScene.props[targetField.name] as TargetRect) },
+                  segment: (selectedScene.props[targetField.segment] ?? SCENES[selectedScene.scene].defaultProps[targetField.segment]) as Segment,
+              }
+            : null;
+    const recordingCount = edit.items.filter(isRecording).length;
     const selectedZoom = edit.zooms.find((zoom) => zoom.id === selectedZoomId) ?? null;
     const setZooms = useCallback((zooms: Zoom[], key?: string) => history.set((e) => ({ ...e, zooms }), key), [history]);
     const selectedText = edit.texts.find((text) => text.id === selectedTextId) ?? null;
@@ -389,8 +502,18 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const setHides = useCallback((hides: HideRegion[], key?: string) => history.set((e) => ({ ...e, hides }), key), [history]);
     const setCaptions = useCallback((captions: Captions, key?: string) => history.set((e) => ({ ...e, captions }), key), [history]);
     const setCaptionItems = useCallback((items: Caption[], key?: string) => history.set((e) => ({ ...e, captions: { ...e.captions, items } }), key), [history]);
-    /** Only one thing (clip, zoom, text, hidden area or caption) is selected at a time. */
-    const select = (kind: 'clip' | 'zoom' | 'text' | 'hide' | 'caption', id: string | null) => {
+    const selectedOverlay = edit.overlays.find((overlay) => overlay.id === selectedOverlayId) ?? null;
+    const selectedAudio = useMemo(() => {
+        const voice = edit.audio.voiceovers.find((c) => c.id === selectedAudioId);
+        if (voice) return { clip: voice, kind: 'voice' as const };
+        const effect = edit.audio.effects.find((c) => c.id === selectedAudioId);
+        return effect ? { clip: effect, kind: 'sfx' as const } : null;
+    }, [edit.audio, selectedAudioId]);
+    const setOverlays = useCallback((overlays: OverlayClip[], key?: string) => history.set((e) => ({ ...e, overlays }), key), [history]);
+    /** Only one thing (clip, zoom, text, hidden area, caption or overlay) is selected at a time. */
+    const select = (kind: 'clip' | 'zoom' | 'text' | 'hide' | 'caption' | 'overlay' | 'audio', id: string | null) => {
+        setSelectedOverlayId(kind === 'overlay' ? id : null);
+        setSelectedAudioId(kind === 'audio' ? id : null);
         setSelectedId(kind === 'clip' ? id : null);
         setSelectedZoomId(kind === 'zoom' ? id : null);
         setSelectedTextId(kind === 'text' ? id : null);
@@ -399,22 +522,27 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     };
     /** Output time of a source time; inside a cut, the start of the next kept clip. */
     const outputTimeAt = (source: number) => {
-        const index = edit.clips.findIndex((clip) => source < clip.end);
-        if (index < 0) return playback.total;
-        return outputTimeOf(edit.clips, index, Math.max(source, edit.clips[index].start));
+        const index = edit.items.findIndex((item) => isRecording(item) && source < item.end);
+        const clip = edit.items[index];
+        if (!clip || !isRecording(clip)) return playback.total;
+        return outputTimeOf(edit.items, index, Math.max(source, clip.start));
     };
     /** Selecting a hidden area moves the playhead into it, so its box shows on the preview. */
     const selectHide = (id: string | null) => {
         select('hide', id);
         const hide = edit.hides.find((h) => h.id === id);
-        if (!hide || hideActive(hide, positionAt(edit.clips, playback.now()).source)) return;
-        const segment = timedSegments(edit.clips, [hide])[0];
+        if (!hide || hideActive(hide, positionAt(edit.items, playback.now()).source)) return;
+        const segment = timedSegments(edit.items, [hide])[0];
         if (segment) playback.seek(Math.min(segment.to, segment.from + 0.05));
     };
     const selectCaption = (id: string | null) => select('caption', id);
     /** Adds a 5-second hidden area at the playhead, in the middle of what's on screen. */
     const addHide = () => {
-        const { clip, source } = positionAt(edit.clips, playback.now());
+        const { clip, source, recording } = positionAt(edit.items, playback.now());
+        if (!recording) {
+            toast.info('Move the playhead onto the recording to hide part of it.');
+            return;
+        }
         let start = source;
         let end = Math.min(clip.end, start + 5);
         if (end - start < MIN_ZOOM) start = Math.max(clip.start, end - 5);
@@ -440,14 +568,18 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         select('text', id);
         const text = edit.texts.find((t) => t.id === id);
         if (!text) return;
-        const current = positionAt(edit.clips, playback.now()).source;
+        const current = positionAt(edit.items, playback.now()).source;
         if (textAmount(text, current) > 0) return;
-        const segment = timedSegments(edit.clips, [text])[0];
+        const segment = timedSegments(edit.items, [text])[0];
         if (segment) playback.seek(Math.min(segment.to, segment.from + TEXT_FADE));
     };
     /** Adds a 3-second text starting at the playhead (inside the current clip). */
     const addText = () => {
-        const { clip, source } = positionAt(edit.clips, playback.now());
+        const { clip, source, recording } = positionAt(edit.items, playback.now());
+        if (!recording) {
+            toast.info('Move the playhead onto the recording to add text.');
+            return;
+        }
         let start = source;
         let end = Math.min(clip.end, start + 3);
         if (end - start < MIN_ZOOM) start = Math.max(clip.start, end - 3);
@@ -470,7 +602,11 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     };
     /** Adds a 3-second zoom at the playhead, or at an output time (inside that clip). */
     const addZoom = (at?: number) => {
-        const { clip, source } = positionAt(edit.clips, at ?? playback.now());
+        const { clip, source, recording } = positionAt(edit.items, at ?? playback.now());
+        if (!recording) {
+            toast.info('Move the playhead onto the recording to zoom.');
+            return;
+        }
         let start = source;
         let end = Math.min(clip.end, start + 3);
         if (end - start < MIN_ZOOM) start = Math.max(clip.start, end - 3);
@@ -515,15 +651,26 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             deleteZoom(selectedZoom.id);
             return;
         }
-        if (!selected || edit.clips.length <= 1) return;
-        setClips(removeClip(edit.clips, selected.id));
+        if (selectedOverlay) {
+            setOverlays(edit.overlays.filter((o) => o.id !== selectedOverlay.id));
+            setSelectedOverlayId(null);
+            return;
+        }
+        if (selectedAudio) {
+            const lane = selectedAudio.kind === 'voice' ? 'voiceovers' : 'effects';
+            change({ audio: { ...edit.audio, [lane]: edit.audio[lane].filter((c) => c.id !== selectedAudio.clip.id) } }, `${lane}-delete`);
+            setSelectedAudioId(null);
+            return;
+        }
+        if (!selectedItem || (selected && recordingCount <= 1)) return;
+        setItems(removeItem(edit.items, selectedItem.id));
         setSelectedId(null);
     };
     /** Speed applies to the selected clip, or to the clip under the playhead when none is selected. */
-    const speedTarget = selected ?? positionAt(edit.clips, time).clip;
+    const speedTarget = selected ?? positionAt(edit.items, time).clip;
     const setSpeed = (speed: number) => {
-        setClips(
-            edit.clips.map((clip) => (clip.id === speedTarget.id ? { ...clip, speed } : clip)),
+        setItems(
+            edit.items.map((item) => (item.id === speedTarget.id ? { ...speedTarget, speed } : item)),
             `speed-${speedTarget.id}`
         );
     };
@@ -612,7 +759,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
 
     const pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
     const cropFrame = cropping ? layoutFrame(edit, project, frameWidth, frameHeight, true) : null;
-    const sourceTime = positionAt(edit.clips, time).source;
+    const sourceTime = positionAt(edit.items, time).source;
     const cropped = edit.crop.x > 0 || edit.crop.y > 0 || edit.crop.width < 1 || edit.crop.height < 1;
     const placingFocus = !cropping && !playback.playing && selectedZoom?.mode === 'fixed';
     placingFocusRef.current = placingFocus;
@@ -683,6 +830,32 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                 className='h-full w-full rounded-lg shadow-2xl'
                                 onClick={() => !cropping && playback.ready && togglePlay()}
                             />
+                            <SceneLayer ref={sceneLayerRef} pieces={scenePieces} env={sceneEnv} width={sceneSize.width} height={sceneSize.height} />
+                            <SceneLayer ref={overlayLayerRef} pieces={edit.overlays} overlay env={sceneEnv} width={sceneSize.width} height={sceneSize.height} />
+                            <canvas
+                                ref={captionCanvasRef}
+                                width={Math.round(frameWidth * pixelRatio)}
+                                height={Math.round(frameHeight * pixelRatio)}
+                                className='pointer-events-none absolute inset-0 h-full w-full rounded-lg'
+                                aria-hidden
+                            />
+                            {picker && (
+                                <TargetPicker
+                                    project={project}
+                                    previewFile={previewFile}
+                                    segment={picker.segment}
+                                    rect={picker.rect}
+                                    width={frameWidth}
+                                    height={frameHeight}
+                                    onChange={(rect) =>
+                                        setItems(
+                                            edit.items.map((item) => (item.id === picker.scene.id ? { ...picker.scene, props: { ...picker.scene.props, [picker.name]: rect } } : item)),
+                                            `scene-${picker.scene.id}-${picker.name}`
+                                        )
+                                    }
+                                    onDone={() => setPickingTarget(false)}
+                                />
+                            )}
                             {cropFrame && <CropOverlay frame={cropFrame} crop={edit.crop} onChange={(crop) => change({ crop }, 'crop')} />}
                             {!cropping && selectedHide && hideActive(selectedHide, sourceTime) && (
                                 <HideHandle
@@ -730,6 +903,44 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                 <IconButton label='Split the clip at the playhead (S)' onClick={split}>
                                     <SquareSplitHorizontal className='h-4 w-4' />
                                 </IconButton>
+                                <Popover
+                                    side='top'
+                                    trigger={(open, toggle) => (
+                                        <IconButton label='Add a motion scene or overlay at the playhead' onClick={toggle} variant={open ? 'subtle' : 'ghost'}>
+                                            <Sparkles className='h-4 w-4' />
+                                        </IconButton>
+                                    )}
+                                >
+                                    {(close) => (
+                                        <div className='w-56 space-y-0.5'>
+                                            <div className='px-1 pb-1.5 pt-0.5'>
+                                                <Segmented
+                                                    size='sm'
+                                                    value={addAs}
+                                                    onChange={setAddAs}
+                                                    options={[
+                                                        { value: 'scene', label: 'Scene', hint: 'Full screen, in the timeline' },
+                                                        { value: 'overlay', label: 'Overlay', hint: 'Drawn over the video' },
+                                                    ]}
+                                                />
+                                            </div>
+                                            {SCENE_CHOICES.filter(({ id }) => (addAs === 'scene' ? canBeScene(id) : canBeOverlay(id))).map(({ id, hint, overlayHint }) => (
+                                                <button
+                                                    key={id}
+                                                    onClick={() => {
+                                                        close();
+                                                        if (addAs === 'scene') addScene(id);
+                                                        else addOverlay(id);
+                                                    }}
+                                                    className='block w-full rounded-lg px-2 py-1.5 text-left hover:bg-panel-2'
+                                                >
+                                                    <div className='text-sm text-fg'>{SCENES[id].label}</div>
+                                                    <div className='text-xs text-muted'>{addAs === 'scene' ? hint : overlayHint}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </Popover>
                                 <IconButton
                                     label={cutRange ? 'Cut out the marked part (C)' : 'Mark a part to cut (C)'}
                                     variant={cutRange ? 'danger' : 'ghost'}
@@ -753,10 +964,16 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                                 ? 'Delete selected text (⌫)'
                                                 : selectedZoom
                                                   ? 'Delete selected zoom (⌫)'
-                                                  : 'Delete selected clip (⌫)'
+                                                  : selectedOverlay
+                                                    ? 'Delete selected overlay (⌫)'
+                                                    : selectedAudio
+                                                    ? `Delete selected ${selectedAudio.kind === 'voice' ? 'voiceover' : 'sound effect'} (⌫)`
+                                                    : selectedScene
+                                                    ? 'Delete selected scene (⌫)'
+                                                    : 'Delete selected clip (⌫)'
                                     }
                                     onClick={deleteSelected}
-                                    disabled={!selectedHide && !selectedCaptionId && !selectedText && !selectedZoom && (!selected || edit.clips.length <= 1)}
+                                    disabled={!selectedHide && !selectedCaptionId && !selectedText && !selectedZoom && !selectedOverlay && !selectedAudio && (!selectedItem || (!!selected && recordingCount <= 1))}
                                 >
                                     <Trash2 className='h-4 w-4' />
                                 </IconButton>
@@ -812,7 +1029,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                             size='sm'
                                             onClick={toggle}
                                             title={
-                                                edit.clips.length === 1
+                                                recordingCount === 1
                                                     ? 'Speed of the whole video'
                                                     : selected
                                                       ? 'Speed of the selected clip'
@@ -827,7 +1044,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                 >
                                     <div className='w-60 space-y-3 p-1'>
                                         <div className='flex justify-between text-xs'>
-                                            <span>{edit.clips.length === 1 ? 'Video speed' : selected ? 'Selected clip speed' : 'Speed of the clip at the playhead'}</span>
+                                            <span>{recordingCount === 1 ? 'Video speed' : selected ? 'Selected clip speed' : 'Speed of the clip at the playhead'}</span>
                                             <span className='font-mono text-muted'>{speedTarget.speed}×</span>
                                         </div>
                                         <RangeInput min={0.5} max={4} step={0.25} value={speedTarget.speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label='Clip speed' />
@@ -852,7 +1069,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                         </div>
                         <Timeline
                             ref={timelineRef}
-                            clips={edit.clips}
+                            items={edit.items}
                             sourceDuration={project.duration}
                             thumbnails={thumbnails}
                             waveform={waveform}
@@ -861,7 +1078,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                             selectedId={selectedId}
                             onSelect={selectClip}
                             onSeek={playback.seek}
-                            onClipsChange={setClips}
+                            onTimelineChange={setItems}
                             range={cutRange}
                             onRangeChange={setCutRange}
                             zooms={edit.zooms}
@@ -876,14 +1093,25 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                             selectedHideId={selectedHideId}
                             onSelectHide={selectHide}
                             onHidesChange={setHides}
-                            captions={edit.captions.items}
+                            captions={recordingCaptions(edit.captions.items)}
+                            voiceCaptions={voiceCaptionSpans}
                             selectedCaptionId={selectedCaptionId}
                             onSelectCaption={selectCaption}
-                            onCaptionsChange={setCaptionItems}
+                            onCaptionsChange={(items, key) => setCaptionItems([...items, ...edit.captions.items.filter((c) => c.voice)], key)}
                             onAddZoomAt={(t) => {
                                 addZoom(t);
                                 playback.seek(t);
                             }}
+                            overlays={edit.overlays}
+                            selectedOverlayId={selectedOverlayId}
+                            onSelectOverlay={(id) => select('overlay', id)}
+                            onOverlaysChange={setOverlays}
+                            voiceovers={edit.audio.voiceovers}
+                            effects={edit.audio.effects}
+                            clipPeaks={playback.clipPeaks}
+                            selectedAudioId={selectedAudioId}
+                            onSelectAudio={(id) => select('audio', id)}
+                            onAudioClipsChange={(lane, clips, key) => change({ audio: { ...edit.audio, [lane === 'voice' ? 'voiceovers' : 'effects']: clips } }, key)}
                         />
                     </div>
                 </div>
@@ -920,8 +1148,24 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                         onSelectCaption={selectCaption}
                         onCaptionsChange={setCaptions}
                         onSeekSource={(source) => playback.seek(outputTimeAt(source))}
+                        onSeekOutput={playback.seek}
                         cursor={cursor}
                         onReplaceEdit={(next, key) => history.set(() => next, key)}
+                        selectedScene={selectedScene}
+                        sceneTargetPicking={pickingTarget}
+                        onSceneTargetPicking={setPickingTarget}
+                        onTimelineChange={setItems}
+                        onSceneDelete={(id) => {
+                            setItems(removeItem(edit.items, id));
+                            setSelectedId(null);
+                        }}
+                        selectedOverlay={selectedOverlay}
+                        onOverlaysChange={setOverlays}
+                        selectedAudio={selectedAudio}
+                        onSelectAudio={(id) => select('audio', id)}
+                        playhead={playback.now}
+                        sceneEnv={sceneEnv}
+                        sceneSize={sceneSize}
                     />
                 </aside>
             </div>

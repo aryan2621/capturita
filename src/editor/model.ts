@@ -6,9 +6,12 @@ import type { CursorAnimation, ScreenAnimation } from './motion';
  * the recorded files themselves are never modified.
  */
 export interface Edit {
-    version: 1;
-    /** Kept parts of the recording, in order, as source-time ranges. Gaps between clips are cuts. */
-    clips: Clip[];
+    version: 2;
+    /**
+     * The timeline, in order: kept parts of the recording (source-time ranges; gaps between them
+     * are cuts) and generated motion scenes. There is always at least one recording clip.
+     */
+    items: TimelineItem[];
     background: Background;
     /** Space around the screen, as a fraction of the shorter side of the frame. */
     padding: number;
@@ -27,10 +30,14 @@ export interface Edit {
     /** Zoom amount used for auto-zoom and newly added zooms. */
     zoomScale: number;
     texts: TextOverlay[];
+    /** Generated pieces drawn over everything else (lower thirds, labels), in drawing order. */
+    overlays: OverlayClip[];
     /** Parts of the screen hidden for privacy (pixelated, blurred or covered). */
     hides: HideRegion[];
     captions: Captions;
     audio: AudioMix;
+    /** The brand kit motion scenes use (an id from the app-wide kits), or absent for the default look. */
+    brandKit?: string;
     /** When a custom thumbnail was set (thumb.jpg in the project), or absent for the automatic one. */
     thumbnail?: number;
 }
@@ -62,14 +69,29 @@ export interface CaptionWord {
     text: string;
 }
 
-/** One caption on screen. Times are source times; `words` drive the word highlight. */
+/**
+ * One caption on screen; `words` drive the word highlight. Times are source times, or, with
+ * `voice` set, seconds into that voiceover clip's file (so the caption moves with the clip).
+ */
 export interface Caption {
     id: string;
     start: number;
     end: number;
     text: string;
     words: CaptionWord[];
+    /** Id of the voiceover clip this caption transcribes. */
+    voice?: string;
 }
+
+/** How the word being spoken stands out. */
+export type CaptionHighlightStyle = 'color' | 'box' | 'underline' | 'pop';
+
+export const CAPTION_HIGHLIGHT_STYLES: { value: CaptionHighlightStyle; label: string; hint: string }[] = [
+    { value: 'color', label: 'Colour', hint: 'The word changes colour' },
+    { value: 'box', label: 'Box', hint: 'A coloured box behind the word' },
+    { value: 'underline', label: 'Line', hint: 'A coloured line under the word' },
+    { value: 'pop', label: 'Pop', hint: 'The word changes colour and grows a little' },
+];
 
 export type CaptionBackground = 'box' | 'shadow' | 'none';
 
@@ -83,6 +105,7 @@ export interface CaptionStyle {
     position: 'bottom' | 'top';
     /** Colour of the word being spoken, or null for no highlight. */
     highlight: string | null;
+    highlightStyle: CaptionHighlightStyle;
 }
 
 export interface Captions {
@@ -104,6 +127,7 @@ export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
     background: 'box',
     position: 'bottom',
     highlight: '#ffd200',
+    highlightStyle: 'color',
 };
 
 /** Text shown over the video. Times are source times, like zooms. */
@@ -168,6 +192,58 @@ export interface AudioMix {
     fadeOut: number;
     /** Background music, played along the edited timeline. */
     music: MusicTrack | null;
+    /** Narration placed at output times (the Voiceover lane). */
+    voiceovers: AudioClip[];
+    /** Sound effects placed at output times (the SFX lane). */
+    effects: AudioClip[];
+    /** Lowers the music while someone speaks. */
+    ducking: Ducking;
+}
+
+/**
+ * A sound file placed on the output timeline (a voiceover or a sound effect). The file is a copy
+ * inside the project's `audio/` folder; `offset` and `duration` pick the part that plays.
+ */
+export interface AudioClip {
+    id: string;
+    /** Path inside the project folder (audio/voice-….m4a). */
+    file: string;
+    /** The original file name, for display. */
+    name: string;
+    /** Output second the clip starts at. */
+    start: number;
+    /** Seconds into the file the clip starts from. */
+    offset: number;
+    duration: number;
+    /** Length of the whole file, so trimming can't run past it. */
+    length: number;
+    /** 0 to 2 (200%). */
+    volume: number;
+    /** Seconds of fade at the clip's start and end. */
+    fadeIn: number;
+    fadeOut: number;
+}
+
+export interface Ducking {
+    enabled: boolean;
+    /** How far the music drops while someone speaks, in dB (negative). */
+    amount: number;
+    /** Seconds the music takes to go down, and to come back up. */
+    attack: number;
+    release: number;
+    /** Also duck under the recording's microphone, not only voiceovers. */
+    underRecording: boolean;
+}
+
+export const DEFAULT_DUCKING: Ducking = { enabled: true, amount: -12, attack: 0.08, release: 0.4, underRecording: false };
+
+/** A sound played automatically: at a transition's midpoint, or at a scene's beat. */
+export interface SoundCue {
+    /** Path inside the project folder (audio/sfx-….wav). */
+    file: string;
+    name: string;
+    /** 0 to 2. */
+    volume: number;
 }
 
 /** A song copied into the project folder. */
@@ -209,12 +285,73 @@ export interface Motion {
     blur: number;
 }
 
+/** Kinds of transition that blend two items over a stretch of time (everything but a cut). */
+export type TransitionKind = 'crossfade' | 'slide' | 'push' | 'wipe' | 'zoom' | 'blur' | 'dip';
+/** The way motion runs on screen (slide, push, wipe). */
+export type TransitionDirection = 'left' | 'right' | 'up' | 'down';
+
+export const TRANSITION_KINDS: TransitionKind[] = ['crossfade', 'slide', 'push', 'wipe', 'zoom', 'blur', 'dip'];
+export const DIRECTED_TRANSITIONS: TransitionKind[] = ['slide', 'push', 'wipe'];
+export const TRANSITION_LABELS: Record<string, string> = { cut: 'Cut', crossfade: 'Crossfade', slide: 'Slide', push: 'Push', wipe: 'Wipe', zoom: 'Zoom through', blur: 'Blur', dip: 'Dip to colour' };
+
+/** How a timeline item enters from the one before it. */
+export type Transition = { type: 'cut'; sound?: SoundCue } | { type: TransitionKind; duration: number; direction?: TransitionDirection; color?: string; sound?: SoundCue };
+
+/** A kept part of the recording, as a source-time range. */
 export interface Clip {
+    kind: 'recording';
     id: string;
     start: number;
     end: number;
     speed: number;
+    transition?: Transition;
 }
+
+/** A generated motion scene: a composition from the scene registry (src/studio/scenes) and its props. */
+export interface SceneClip {
+    kind: 'scene';
+    id: string;
+    /** Composition id in the scene registry. */
+    scene: string;
+    props: Record<string, unknown>;
+    /** Seconds on the timeline. */
+    duration: number;
+    transition?: Transition;
+    /** Played at the scene's beat (its definition's `beat`). */
+    sound?: SoundCue;
+    /** The props the AI last wrote; a prop that differs from it was changed by hand, and AI edits keep it. */
+    ai?: Record<string, unknown>;
+}
+
+export type TimelineItem = Clip | SceneClip;
+
+/**
+ * A scene drawn over the timeline instead of replacing it. Times are output seconds; overlays
+ * don't change the timeline's length and may overlap each other.
+ */
+export interface OverlayClip {
+    id: string;
+    /** Composition id in the scene registry (one that can be an overlay). */
+    scene: string;
+    props: Record<string, unknown>;
+    start: number;
+    duration: number;
+    /** Played at the scene's beat (its definition's `beat`). */
+    sound?: SoundCue;
+    /** The props the AI last wrote; a prop that differs from it was changed by hand, and AI edits keep it. */
+    ai?: Record<string, unknown>;
+}
+
+/** An overlay on screen at some output time. */
+export interface OverlayPosition {
+    item: OverlayClip;
+    /** Seconds into the overlay. */
+    time: number;
+}
+
+/** Overlays on screen at an output time, bottom to top. */
+export const overlaysAt = (overlays: OverlayClip[], outputTime: number): OverlayPosition[] =>
+    overlays.filter((o) => outputTime >= o.start && outputTime < o.start + o.duration).map((item) => ({ item, time: outputTime - item.start }));
 
 export interface NormalizedRect {
     x: number;
@@ -307,8 +444,8 @@ export const newId = () => Math.random().toString(36).slice(2, 10);
 
 export function defaultEdit(project: Project): Edit {
     return {
-        version: 1,
-        clips: [{ id: newId(), start: 0, end: sourceDuration(project), speed: 1 }],
+        version: 2,
+        items: [{ kind: 'recording', id: newId(), start: 0, end: sourceDuration(project), speed: 1 }],
         background: GRADIENTS[0],
         padding: 0.06,
         radius: 0.012,
@@ -334,9 +471,10 @@ export function defaultEdit(project: Project): Edit {
         zooms: [],
         zoomScale: DEFAULT_ZOOM_SCALE,
         texts: [],
+        overlays: [],
         hides: [],
         captions: { visible: true, language: 'auto', style: DEFAULT_CAPTION_STYLE, items: [] },
-        audio: { system: { volume: 1, muted: false }, microphone: { volume: 1, muted: false }, fadeIn: 0, fadeOut: 0, music: null },
+        audio: { system: { volume: 1, muted: false }, microphone: { volume: 1, muted: false }, fadeIn: 0, fadeOut: 0, music: null, voiceovers: [], effects: [], ducking: DEFAULT_DUCKING },
     };
 }
 
@@ -360,6 +498,14 @@ export function normalizeEdit(project: Project, raw: unknown): Edit {
     edit.texts = Array.isArray(edit.texts)
         ? edit.texts.filter((t) => t.end - t.start >= MIN_ZOOM / 2).map((t) => ({ ...t, font: t.font ?? 'system', animation: t.animation ?? 'rise' }))
         : [];
+    edit.overlays = (Array.isArray(edit.overlays) ? edit.overlays : []).flatMap((raw): OverlayClip[] => {
+        const o = raw as Partial<OverlayClip> | null;
+        if (!o || typeof o.scene !== 'string' || !(Number(o.duration) >= MIN_CLIP)) return [];
+        const props = o.props && typeof o.props === 'object' ? o.props : {};
+        const sound = normalizeCue(o.sound);
+        const ai = o.ai && typeof o.ai === 'object' ? { ai: o.ai } : {};
+        return [{ id: o.id ?? newId(), scene: o.scene, props, start: Math.max(0, Number(o.start) || 0), duration: Number(o.duration), ...(sound ? { sound } : {}), ...ai }];
+    });
     edit.hides = Array.isArray(edit.hides) ? edit.hides.filter((h) => h.end - h.start >= MIN_ZOOM / 2) : [];
     edit.captions = {
         ...base.captions,
@@ -373,109 +519,390 @@ export function normalizeEdit(project: Project, raw: unknown): Edit {
         system: { ...base.audio.system, ...edit.audio?.system },
         microphone: { ...base.audio.microphone, ...edit.audio?.microphone },
         music: edit.audio?.music ?? null,
+        voiceovers: normalizeAudioClips(edit.audio?.voiceovers),
+        effects: normalizeAudioClips(edit.audio?.effects),
+        ducking: { ...DEFAULT_DUCKING, ...edit.audio?.ducking },
     };
     edit.crop = { ...base.crop, ...edit.crop };
     edit.zooms = Array.isArray(edit.zooms) ? edit.zooms.filter((z) => z.end - z.start >= MIN_ZOOM / 2) : [];
+    // Version 1 had only recording clips, in `clips`.
     const duration = sourceDuration(project);
-    edit.clips = (edit.clips ?? [])
-        .map((c) => ({ ...c, start: Math.max(0, c.start), end: Math.min(duration, c.end), speed: c.speed || 1 }))
-        .filter((c) => c.end - c.start >= MIN_CLIP / 2);
-    if (edit.clips.length === 0) edit.clips = base.clips;
+    const rawItems = (raw as { items?: unknown; clips?: unknown }).items ?? (raw as { clips?: unknown }).clips;
+    edit.items = (Array.isArray(rawItems) ? rawItems : []).flatMap((item) => normalizeItem(item, duration));
+    if (!edit.items.some(isRecording)) edit.items = [...base.items, ...edit.items];
+    delete (edit as Partial<{ clips: unknown }>).clips;
+    edit.version = 2;
     return edit;
+}
+
+const isAudioFile = (file: unknown): file is string => typeof file === 'string' && file.startsWith('audio/') && !file.includes('..');
+
+function normalizeCue(raw: unknown): SoundCue | undefined {
+    const cue = raw as Partial<SoundCue> | null | undefined;
+    if (!cue || !isAudioFile(cue.file)) return undefined;
+    return { file: cue.file, name: typeof cue.name === 'string' ? cue.name : cue.file, volume: Math.max(0, Math.min(2, Number(cue.volume) || 1)) };
+}
+
+function normalizeAudioClips(raw: unknown): AudioClip[] {
+    return (Array.isArray(raw) ? raw : []).flatMap((raw): AudioClip[] => {
+        const c = raw as Partial<AudioClip> | null;
+        if (!c || !isAudioFile(c.file) || !(Number(c.duration) > 0.05)) return [];
+        const offset = Math.max(0, Number(c.offset) || 0);
+        const length = Math.max(offset + Number(c.duration), Number(c.length) || 0);
+        return [
+            {
+                id: c.id ?? newId(),
+                file: c.file,
+                name: typeof c.name === 'string' ? c.name : c.file,
+                start: Math.max(0, Number(c.start) || 0),
+                offset,
+                duration: Number(c.duration),
+                length,
+                volume: Math.max(0, Math.min(2, c.volume ?? 1)),
+                fadeIn: Math.max(0, Number(c.fadeIn) || 0),
+                fadeOut: Math.max(0, Number(c.fadeOut) || 0),
+            },
+        ];
+    });
+}
+
+/** Every project audio file the mix plays besides the recording and music (clips and cues). */
+export function audioFiles(edit: Pick<Edit, 'items' | 'overlays' | 'audio'>): string[] {
+    const files = new Set<string>();
+    for (const clip of [...edit.audio.voiceovers, ...edit.audio.effects]) files.add(clip.file);
+    for (const item of edit.items) {
+        if (item.transition?.sound) files.add(item.transition.sound.file);
+        if (item.kind === 'scene' && item.sound) files.add(item.sound.file);
+    }
+    for (const overlay of edit.overlays) if (overlay.sound) files.add(overlay.sound.file);
+    return [...files].sort();
+}
+
+function normalizeItem(raw: unknown, duration: number): TimelineItem[] {
+    if (!raw || typeof raw !== 'object') return [];
+    const item = raw as Partial<Omit<Clip, 'kind'>> & Partial<Omit<SceneClip, 'kind'>> & { kind?: string };
+    const saved = item.transition as Partial<{ type: string; duration: number; direction: string; color: unknown; sound: unknown }> | undefined;
+    const cue = normalizeCue(saved?.sound);
+    const sound = cue ? { sound: cue } : {};
+    const transition: Transition | undefined =
+        saved?.type === 'cut'
+            ? { type: 'cut', ...sound }
+            : saved && TRANSITION_KINDS.includes(saved.type as TransitionKind) && Number(saved.duration) > 0
+            ? {
+                  ...sound,
+                  type: saved.type as TransitionKind,
+                  duration: Number(saved.duration),
+                  ...(saved.direction && ['left', 'right', 'up', 'down'].includes(saved.direction) ? { direction: saved.direction as TransitionDirection } : {}),
+                  ...(typeof saved.color === 'string' ? { color: saved.color } : {}),
+              }
+            : undefined;
+    if (item.kind === 'scene') {
+        if (typeof item.scene !== 'string' || !(Number(item.duration) >= MIN_CLIP)) return [];
+        const props = item.props && typeof item.props === 'object' ? item.props : {};
+        const beatSound = normalizeCue(item.sound);
+        const ai = item.ai && typeof item.ai === 'object' ? { ai: item.ai } : {};
+        return [{ kind: 'scene', id: item.id ?? newId(), scene: item.scene, props, duration: Number(item.duration), transition, ...(beatSound ? { sound: beatSound } : {}), ...ai }];
+    }
+    const start = Math.max(0, Number(item.start) || 0);
+    const end = Math.min(duration, Number(item.end) || 0);
+    if (end - start < MIN_CLIP / 2) return [];
+    return [{ kind: 'recording', id: item.id ?? newId(), start, end, speed: item.speed || 1, transition }];
 }
 
 export function sourceDuration(project: Project) {
     return project.duration;
 }
 
-// ---- Timeline math: output time (what the viewer sees) ↔ source time (the recording) ----
+// ---- Timeline math: output time (what the viewer sees) ↔ items and source time (the recording) ----
+
+export const isRecording = (item: TimelineItem): item is Clip => item.kind === 'recording';
 
 export const clipLength = (clip: Clip) => (clip.end - clip.start) / clip.speed;
 
-export const totalDuration = (clips: Clip[]) => clips.reduce((sum, clip) => sum + clipLength(clip), 0);
+export const itemLength = (item: TimelineItem) => (item.kind === 'scene' ? item.duration : clipLength(item));
 
-/** Output time at which each clip starts. */
-export function clipStarts(clips: Clip[]) {
+export const DEFAULT_CROSSFADE = 0.5;
+export const MAX_CROSSFADE = 2;
+
+/**
+ * Transitions (other than cuts) need a scene on at least one side: the preview has one recording
+ * video, so two parts of the recording can't be on screen at once.
+ */
+export const canCrossfade = (items: TimelineItem[], index: number) => index > 0 && index < items.length && !(isRecording(items[index]) && isRecording(items[index - 1]));
+
+/**
+ * Seconds item `index` overlaps the one before it (its crossfade). At most half of either item,
+ * so two transitions never meet.
+ */
+export function overlapAt(items: TimelineItem[], index: number) {
+    const item = items[index];
+    const transition = item?.transition;
+    if (!transition || transition.type === 'cut' || !canCrossfade(items, index)) return 0;
+    return Math.max(0, Math.min(transition.duration, itemLength(item) / 2, itemLength(items[index - 1]) / 2));
+}
+
+/** Output time at which each item starts (crossfades pull an item back over the previous one). */
+export function itemStarts(items: TimelineItem[]) {
     const starts: number[] = [];
-    let t = 0;
-    for (const clip of clips) {
-        starts.push(t);
-        t += clipLength(clip);
-    }
+    let end = 0;
+    items.forEach((item, index) => {
+        const start = Math.max(0, end - overlapAt(items, index));
+        starts.push(start);
+        end = start + itemLength(item);
+    });
     return starts;
 }
 
-export interface Position {
+export function totalDuration(items: TimelineItem[]) {
+    const starts = itemStarts(items);
+    return items.reduce((max, item, index) => Math.max(max, starts[index] + itemLength(item)), 0);
+}
+
+/** A scene on screen at some output time. */
+export interface ScenePosition {
     index: number;
-    clip: Clip;
-    /** Source time. */
-    source: number;
-}
-
-export function positionAt(clips: Clip[], outputTime: number): Position {
-    const starts = clipStarts(clips);
-    for (let index = clips.length - 1; index >= 0; index--) {
-        if (outputTime >= starts[index] || index === 0) {
-            const clip = clips[index];
-            const source = Math.min(clip.end, clip.start + Math.max(0, outputTime - starts[index]) * clip.speed);
-            return { index, clip, source };
-        }
-    }
-    const clip = clips[0];
-    return { index: 0, clip, source: clip.start };
-}
-
-/** Output time of a source time inside a given clip. */
-export function outputTimeOf(clips: Clip[], index: number, source: number) {
-    const clip = clips[index];
-    return clipStarts(clips)[index] + (source - clip.start) / clip.speed;
-}
-
-export function splitAt(clips: Clip[], outputTime: number): { clips: Clip[]; selected: string } | null {
-    const { index, clip, source } = positionAt(clips, outputTime);
-    if (source - clip.start < MIN_CLIP || clip.end - source < MIN_CLIP) return null;
-    const left = { ...clip, end: source };
-    const right = { ...clip, id: newId(), start: source };
-    return { clips: [...clips.slice(0, index), left, right, ...clips.slice(index + 1)], selected: right.id };
+    item: SceneClip;
+    /** Seconds into the scene. */
+    time: number;
+    /** 0 to 1; below 1 during a crossfade. */
+    opacity: number;
+    /** How it's drawn during a transition (identity otherwise). */
+    fx: LayerFx;
 }
 
 /**
- * Cuts out everything between two output times, even across several clips.
- * Returns null if nothing would be left.
+ * How one layer (the recording or a scene) is drawn during a transition. Offsets are fractions
+ * of the frame's width and height, `clip` insets are fractions of the frame per edge, `blur` is
+ * a fraction of the frame's short side. The same values drive the preview and the export.
  */
-export function removeRange(clips: Clip[], from: number, to: number): Clip[] | null {
+export interface LayerFx {
+    opacity: number;
+    x: number;
+    y: number;
+    scale: number;
+    clip: { top: number; right: number; bottom: number; left: number } | null;
+    blur: number;
+}
+
+export const IDENTITY_FX: LayerFx = { opacity: 1, x: 0, y: 0, scale: 1, clip: null, blur: 0 };
+export const isIdentityFx = (fx: LayerFx) => fx.opacity >= 1 && fx.x === 0 && fx.y === 0 && fx.scale === 1 && !fx.clip && fx.blur <= 0;
+
+const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
+const DIRECTION_VECTOR: Record<TransitionDirection, [number, number]> = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
+
+/**
+ * The outgoing and incoming layers' looks at progress `mix` (0 → 1) through a transition.
+ * `incomingOnTop` says which is drawn above: the recording is always the bottom layer, so when
+ * it's the incoming item, effects that need the top layer apply to the outgoing scene instead.
+ * Also returns a colour wash drawn over both (dip to colour).
+ */
+export function transitionFx(transition: Exclude<Transition, { type: 'cut' }>, mix: number, incomingOnTop: boolean): { outgoing: LayerFx; incoming: LayerFx; dip: { color: string; opacity: number } | null } {
+    const p = clamp01(mix);
+    const e = easeInOutCubic(p);
+    const [dx, dy] = DIRECTION_VECTOR[transition.direction ?? 'left'];
+    const fade = (opacity: number): LayerFx => ({ ...IDENTITY_FX, opacity });
+    switch (transition.type) {
+        case 'slide': {
+            // The top layer moves: in from the far edge when it's incoming, out the near edge when it's outgoing.
+            if (incomingOnTop) return { outgoing: IDENTITY_FX, incoming: { ...IDENTITY_FX, x: -dx * (1 - e), y: -dy * (1 - e) }, dip: null };
+            return { outgoing: { ...IDENTITY_FX, x: dx * e, y: dy * e }, incoming: IDENTITY_FX, dip: null };
+        }
+        case 'push':
+            return { outgoing: { ...IDENTITY_FX, x: dx * e, y: dy * e }, incoming: { ...IDENTITY_FX, x: -dx * (1 - e), y: -dy * (1 - e) }, dip: null };
+        case 'wipe': {
+            // A hard edge travels in the direction of motion; the top layer is cut along it. Moving
+            // left, the incoming item is hidden left of the edge, the outgoing one right of it.
+            const inset = (share: number, fromTrailing: boolean) => {
+                const clip = { top: 0, right: 0, bottom: 0, left: 0 };
+                const side = dx < 0 ? 'left' : dx > 0 ? 'right' : dy < 0 ? 'top' : 'bottom';
+                const opposite = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' } as const;
+                clip[fromTrailing ? opposite[side] : side] = share;
+                return clip;
+            };
+            if (incomingOnTop) return { outgoing: IDENTITY_FX, incoming: { ...IDENTITY_FX, clip: inset(1 - e, false) }, dip: null };
+            return { outgoing: { ...IDENTITY_FX, clip: inset(e, true) }, incoming: IDENTITY_FX, dip: null };
+        }
+        case 'zoom': {
+            // Through the outgoing item: it grows and fades as the incoming one settles from slightly small.
+            const outgoing: LayerFx = { ...IDENTITY_FX, scale: 1 + 0.5 * e, opacity: incomingOnTop ? 1 : 1 - e };
+            const incoming: LayerFx = { ...IDENTITY_FX, scale: 0.85 + 0.15 * e, opacity: incomingOnTop ? e : 1 };
+            return { outgoing, incoming, dip: null };
+        }
+        case 'blur': {
+            const blur = Math.sin(Math.PI * p) * 0.03;
+            return { outgoing: { ...IDENTITY_FX, blur, opacity: incomingOnTop ? 1 : 1 - p }, incoming: { ...IDENTITY_FX, blur, opacity: incomingOnTop ? p : 1 }, dip: null };
+        }
+        case 'dip': {
+            // Out to the colour over the first half, in from it over the second.
+            const wash = 1 - Math.abs(2 * p - 1);
+            return { outgoing: fade(p < 0.5 ? 1 : 0), incoming: fade(p < 0.5 ? 0 : 1), dip: { color: transition.color ?? '#000000', opacity: easeInOutCubic(wash) } };
+        }
+        default:
+            return { outgoing: fade(incomingOnTop ? 1 : 1 - p), incoming: fade(incomingOnTop ? p : 1), dip: null };
+    }
+}
+
+export interface Position {
+    /** The item under the playhead; during a crossfade, the incoming one. */
+    index: number;
+    item: TimelineItem;
+    /**
+     * The recording clip whose frame is shown. While only scenes are on screen, the clip the
+     * video waits in: the next one (so it can continue without seeking), else the previous one.
+     */
+    clipIndex: number;
+    clip: Clip;
+    /** Source time of the recording frame. */
+    source: number;
+    /** Whether the recording is on screen (scenes may be drawn over it). */
+    recording: boolean;
+    /** Scenes on screen, bottom to top. */
+    scenes: ScenePosition[];
+    /** How the recording is drawn (identity outside transitions). */
+    recordingFx: LayerFx;
+    /** A colour wash over the items (dip to colour), drawn under overlays. */
+    dip: { color: string; opacity: number } | null;
+}
+
+export function positionAt(items: TimelineItem[], outputTime: number): Position {
+    const starts = itemStarts(items);
+    const t = Math.max(0, outputTime);
+    let index = 0;
+    for (let i = items.length - 1; i > 0; i--) {
+        if (t >= starts[i]) {
+            index = i;
+            break;
+        }
+    }
+    const item = items[index];
+    const overlap = overlapAt(items, index);
+    const fading = overlap > 0 && t < starts[index] + overlap;
+    const mix = fading ? (t - starts[index]) / overlap : 1;
+    const previous = fading ? index - 1 : -1;
+    // Layers bottom to top: the recording, the outgoing scene, the incoming scene. A scene fades
+    // over whatever is under it, so an outgoing scene fades out over an incoming recording.
+    const scenes: ScenePosition[] = [];
+    const before = items[previous];
+    const looks = fading && item.transition && item.transition.type !== 'cut' ? transitionFx(item.transition, mix, item.kind === 'scene') : null;
+    if (before?.kind === 'scene') {
+        const fx = looks?.outgoing ?? IDENTITY_FX;
+        scenes.push({ index: previous, item: before, time: t - starts[previous], opacity: fx.opacity, fx });
+    }
+    if (item.kind === 'scene') {
+        const fx = looks?.incoming ?? IDENTITY_FX;
+        scenes.push({ index, item, time: t - starts[index], opacity: fx.opacity, fx });
+    }
+    const dip = looks?.dip ?? null;
+
+    const shown = isRecording(item) ? index : before && isRecording(before) ? previous : -1;
+    if (shown >= 0) {
+        const clip = items[shown] as Clip;
+        const source = Math.min(clip.end, clip.start + Math.max(0, t - starts[shown]) * clip.speed);
+        const recordingFx = looks ? (shown === index ? looks.incoming : looks.outgoing) : IDENTITY_FX;
+        return { index, item, clipIndex: shown, clip, source, recording: true, scenes, recordingFx, dip };
+    }
+    let waiting = items.findIndex((it, i) => i > index && isRecording(it));
+    let atEnd = false;
+    if (waiting < 0) {
+        atEnd = true;
+        for (let i = index - 1; i >= 0 && waiting < 0; i--) if (isRecording(items[i])) waiting = i;
+    }
+    const clip = items[waiting] as Clip;
+    return { index, item, clipIndex: waiting, clip, source: atEnd ? clip.end : clip.start, recording: false, scenes, recordingFx: IDENTITY_FX, dip };
+}
+
+/** Output time of a source time inside the recording clip at `index`. */
+export function outputTimeOf(items: TimelineItem[], index: number, source: number) {
+    const clip = items[index] as Clip;
+    return itemStarts(items)[index] + (source - clip.start) / clip.speed;
+}
+
+export function splitAt(items: TimelineItem[], outputTime: number): { items: TimelineItem[]; selected: string } | null {
+    const { index, item, source } = positionAt(items, outputTime);
+    if (!isRecording(item) || source - item.start < MIN_CLIP || item.end - source < MIN_CLIP) return null;
+    const left = { ...item, end: source };
+    const right: Clip = { ...item, id: newId(), start: source, transition: undefined };
+    return { items: [...items.slice(0, index), left, right, ...items.slice(index + 1)], selected: right.id };
+}
+
+/**
+ * Cuts out everything between two output times, even across several items. Scenes are removed
+ * only when wholly inside the range. Returns null if no recording would be left.
+ */
+export function removeRange(items: TimelineItem[], from: number, to: number): TimelineItem[] | null {
     const a = Math.min(from, to);
     const b = Math.max(from, to);
-    const starts = clipStarts(clips);
-    const result: Clip[] = [];
-    clips.forEach((clip, index) => {
-        const clipFrom = starts[index];
-        const clipTo = clipFrom + clipLength(clip);
-        const cutFrom = Math.max(a, clipFrom);
-        const cutTo = Math.min(b, clipTo);
-        if (cutTo <= cutFrom) {
-            result.push(clip);
+    const starts = itemStarts(items);
+    const result: TimelineItem[] = [];
+    items.forEach((item, index) => {
+        const itemFrom = starts[index];
+        const itemTo = itemFrom + itemLength(item);
+        if (!isRecording(item)) {
+            if (itemFrom < a || itemTo > b) result.push(item);
             return;
         }
-        const sourceFrom = clip.start + (cutFrom - clipFrom) * clip.speed;
-        const sourceTo = clip.start + (cutTo - clipFrom) * clip.speed;
-        const keepLeft = sourceFrom - clip.start >= MIN_CLIP / 2;
-        if (keepLeft) result.push({ ...clip, end: sourceFrom });
-        if (clip.end - sourceTo >= MIN_CLIP / 2) result.push({ ...clip, id: keepLeft ? newId() : clip.id, start: sourceTo });
+        const cutFrom = Math.max(a, itemFrom);
+        const cutTo = Math.min(b, itemTo);
+        if (cutTo <= cutFrom) {
+            result.push(item);
+            return;
+        }
+        const sourceFrom = item.start + (cutFrom - itemFrom) * item.speed;
+        const sourceTo = item.start + (cutTo - itemFrom) * item.speed;
+        const keepLeft = sourceFrom - item.start >= MIN_CLIP / 2;
+        if (keepLeft) result.push({ ...item, end: sourceFrom });
+        if (item.end - sourceTo >= MIN_CLIP / 2) result.push({ ...item, id: keepLeft ? newId() : item.id, start: sourceTo, transition: keepLeft ? undefined : item.transition });
     });
-    return result.length > 0 ? result : null;
+    return result.some(isRecording) ? result : null;
 }
 
-export function removeClip(clips: Clip[], id: string) {
-    if (clips.length <= 1) return clips;
-    return clips.filter((clip) => clip.id !== id);
+/** Removes an item, unless it's the last recording clip. */
+export function removeItem(items: TimelineItem[], id: string) {
+    const item = items.find((i) => i.id === id);
+    if (!item || (isRecording(item) && items.filter(isRecording).length <= 1)) return items;
+    return items.filter((i) => i.id !== id);
 }
 
-/** Limits for dragging a clip edge: it can't pass its neighbours or get shorter than MIN_CLIP. */
-export function edgeLimits(clips: Clip[], index: number, edge: 'start' | 'end', duration: number) {
-    const clip = clips[index];
-    if (edge === 'start') return { min: index > 0 ? clips[index - 1].end : 0, max: clip.end - MIN_CLIP };
-    return { min: clip.start + MIN_CLIP, max: index < clips.length - 1 ? clips[index + 1].start : duration };
+/**
+ * Limits for dragging a recording clip's edge: it can't pass the neighbouring recording clips
+ * (in source time) or get shorter than MIN_CLIP.
+ */
+export function edgeLimits(items: TimelineItem[], index: number, edge: 'start' | 'end', duration: number) {
+    const clip = items[index] as Clip;
+    if (edge === 'start') {
+        const before = items.slice(0, index).filter(isRecording).pop();
+        return { min: before ? before.end : 0, max: clip.end - MIN_CLIP };
+    }
+    const after = items.slice(index + 1).find(isRecording);
+    return { min: clip.start + MIN_CLIP, max: after ? after.start : duration };
+}
+
+/**
+ * Puts a scene on the timeline at an output time: splits the recording clip there, or goes
+ * before/after the item under the playhead when near its edge. It and the item after it
+ * crossfade.
+ */
+export function insertScene(items: TimelineItem[], outputTime: number, scene: SceneClip): TimelineItem[] {
+    const crossfade: Transition = { type: 'crossfade', duration: DEFAULT_CROSSFADE };
+    const withScene = (list: TimelineItem[], at: number) => {
+        const next = list[at];
+        return [...list.slice(0, at), { ...scene, transition: at > 0 ? crossfade : undefined }, ...(next ? [{ ...next, transition: crossfade }] : []), ...list.slice(at + 1)];
+    };
+    const split = splitAt(items, outputTime);
+    if (split) return withScene(split.items, split.items.findIndex((i) => i.id === split.selected));
+    const { index } = positionAt(items, outputTime);
+    const start = itemStarts(items)[index];
+    return withScene(items, outputTime - start < itemLength(items[index]) / 2 ? index : index + 1);
+}
+
+/** Moves an item one place earlier (-1) or later (1). */
+export function moveItem(items: TimelineItem[], id: string, step: -1 | 1) {
+    const index = items.findIndex((i) => i.id === id);
+    const target = index + step;
+    if (index < 0 || target < 0 || target >= items.length) return items;
+    const result = [...items];
+    [result[index], result[target]] = [result[target], result[index]];
+    return result;
 }
 
 export function aspectRatio(edit: Edit, project: Project) {
@@ -554,11 +981,12 @@ export interface TimedItem {
 }
 
 /** Pieces of each timed item (zoom, text) as they appear on the edited timeline; an item can span a cut. */
-export function timedSegments<T extends TimedItem>(clips: Clip[], items: T[]) {
-    const starts = clipStarts(clips);
+export function timedSegments<T extends TimedItem>(timeline: TimelineItem[], items: T[]) {
+    const starts = itemStarts(timeline);
     const segments: { item: T; clipIndex: number; from: number; to: number; startsItem: boolean; endsItem: boolean }[] = [];
     for (const zoom of items) {
-        clips.forEach((clip, clipIndex) => {
+        timeline.forEach((clip, clipIndex) => {
+            if (!isRecording(clip)) return;
             const a = Math.max(zoom.start, clip.start);
             const b = Math.min(zoom.end, clip.end);
             if (b <= a) return;
@@ -739,42 +1167,86 @@ export function retimeCaption(caption: Caption, text: string): Caption {
 /** The caption on screen at source time t, if any. */
 export const captionAt = (captions: Caption[], t: number) => captions.find((c) => t >= c.start && t < c.end) ?? null;
 
+/** What placing captions on the output timeline needs. */
+export type CaptionTimeline = { items: TimelineItem[]; captions: Pick<Captions, 'items'>; audio: Pick<AudioMix, 'voiceovers'> };
+
+/** Captions of the recording's own sound (source times), leaving out voiceover captions. */
+export const recordingCaptions = (captions: Caption[]) => captions.filter((c) => !c.voice);
+
+/**
+ * The caption on screen at output time t, and the time to highlight its words at (in the
+ * caption's own timebase). Voiceover captions win over the recording's; the recording's show
+ * only while the recording is on screen (not under a full-screen scene).
+ */
+export function captionAtOutput(edit: CaptionTimeline, t: number): { caption: Caption; time: number } | null {
+    const items = edit.captions.items;
+    for (let i = edit.audio.voiceovers.length - 1; i >= 0; i--) {
+        const clip = edit.audio.voiceovers[i];
+        if (t < clip.start || t >= clip.start + clip.duration) continue;
+        const time = clip.offset + (t - clip.start);
+        const caption = items.find((c) => c.voice === clip.id && time >= c.start && time < c.end);
+        if (caption) return { caption, time };
+    }
+    const position = positionAt(edit.items, t);
+    if (!position.recording) return null;
+    const caption = items.find((c) => !c.voice && position.source >= c.start && position.source < c.end);
+    return caption ? { caption, time: position.source } : null;
+}
+
+/** Drops voiceover captions whose clip is no longer in the mix. */
+export function dropOrphanVoiceCaptions<T extends { captions: Captions; audio: Pick<AudioMix, 'voiceovers'> }>(edit: T): T {
+    const ids = new Set(edit.audio.voiceovers.map((c) => c.id));
+    const items = edit.captions.items.filter((c) => !c.voice || ids.has(c.voice));
+    return items.length === edit.captions.items.length ? edit : { ...edit, captions: { ...edit.captions, items } };
+}
+
+/** Every caption as it appears on the output timeline (cut and trimmed), sorted by time. */
+export function captionSpans(edit: CaptionTimeline): { item: Caption; from: number; to: number }[] {
+    const spans: { item: Caption; from: number; to: number }[] = timedSegments(edit.items, recordingCaptions(edit.captions.items));
+    for (const caption of edit.captions.items) {
+        const clip = caption.voice ? edit.audio.voiceovers.find((c) => c.id === caption.voice) : undefined;
+        if (!clip) continue;
+        const a = Math.max(caption.start, clip.offset);
+        const b = Math.min(caption.end, clip.offset + clip.duration);
+        if (b > a) spans.push({ item: caption, from: clip.start + (a - clip.offset), to: clip.start + (b - clip.offset) });
+    }
+    return spans.sort((a, b) => a.from - b.from);
+}
+
 const srtTime = (seconds: number) => {
     const ms = Math.max(0, Math.round(seconds * 1000));
     const pad = (n: number, width = 2) => n.toString().padStart(width, '0');
     return `${pad(Math.floor(ms / 3_600_000))}:${pad(Math.floor(ms / 60_000) % 60)}:${pad(Math.floor(ms / 1000) % 60)},${pad(ms % 1000, 3)}`;
 };
 
-/** Captions as an .srt file on the edited timeline (cuts and speed applied). */
-export function toSrt(clips: Clip[], captions: Caption[]) {
-    const cues = timedSegments(clips, captions)
-        .filter((s) => s.to - s.from >= 0.2 && s.item.text.trim())
-        .sort((a, b) => a.from - b.from);
+/** Captions as an .srt file on the edited timeline (cuts, speed and voiceovers applied). */
+export function toSrt(edit: CaptionTimeline) {
+    const cues = captionSpans(edit).filter((s) => s.to - s.from >= 0.2 && s.item.text.trim());
     return cues.map((s, i) => `${i + 1}\n${srtTime(s.from)} --> ${srtTime(s.to)}\n${s.item.text.trim()}\n`).join('\n');
 }
 
 // ---- Edits in source time (used by AI editing) ----
 
-/** Removes source time a..b from the kept clips. Returns the clips unchanged if nothing would be left. */
-export function cutSource(clips: Clip[], a: number, b: number): Clip[] {
-    const out: Clip[] = [];
-    for (const clip of clips) {
-        if (b <= clip.start || a >= clip.end) {
+/** Removes source time a..b from the kept clips. Returns the items unchanged if no recording would be left. */
+export function cutSource(items: TimelineItem[], a: number, b: number): TimelineItem[] {
+    const out: TimelineItem[] = [];
+    for (const clip of items) {
+        if (!isRecording(clip) || b <= clip.start || a >= clip.end) {
             out.push(clip);
             continue;
         }
         const keepLeft = a - clip.start >= MIN_CLIP / 2;
         if (keepLeft) out.push({ ...clip, end: a });
-        if (clip.end - b >= MIN_CLIP / 2) out.push({ ...clip, id: keepLeft ? newId() : clip.id, start: b });
+        if (clip.end - b >= MIN_CLIP / 2) out.push({ ...clip, id: keepLeft ? newId() : clip.id, start: b, transition: keepLeft ? undefined : clip.transition });
     }
-    return out.length > 0 ? out : clips;
+    return out.some(isRecording) ? out : items;
 }
 
 /** Plays source time a..b at `speed`, splitting the clips around it. */
-export function speedSource(clips: Clip[], a: number, b: number, speed: number): Clip[] {
-    const out: Clip[] = [];
-    for (const clip of clips) {
-        if (b <= clip.start || a >= clip.end) {
+export function speedSource(items: TimelineItem[], a: number, b: number, speed: number): TimelineItem[] {
+    const out: TimelineItem[] = [];
+    for (const clip of items) {
+        if (!isRecording(clip) || b <= clip.start || a >= clip.end) {
             out.push(clip);
             continue;
         }
@@ -782,8 +1254,8 @@ export function speedSource(clips: Clip[], a: number, b: number, speed: number):
         const to = Math.min(b, clip.end);
         const keepLeft = from - clip.start >= MIN_CLIP / 2;
         if (keepLeft) out.push({ ...clip, end: from });
-        out.push({ ...clip, id: keepLeft ? newId() : clip.id, start: keepLeft ? from : clip.start, end: clip.end - to < MIN_CLIP / 2 ? clip.end : to, speed });
-        if (clip.end - to >= MIN_CLIP / 2) out.push({ ...clip, id: newId(), start: to });
+        out.push({ ...clip, id: keepLeft ? newId() : clip.id, start: keepLeft ? from : clip.start, end: clip.end - to < MIN_CLIP / 2 ? clip.end : to, speed, transition: keepLeft ? undefined : clip.transition });
+        if (clip.end - to >= MIN_CLIP / 2) out.push({ ...clip, id: newId(), start: to, transition: undefined });
     }
     return out;
 }

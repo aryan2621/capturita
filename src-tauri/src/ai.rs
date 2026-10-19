@@ -101,6 +101,10 @@ pub struct EditRequest {
     system: String,
     user: String,
     schema: Value,
+    /// Defaults to 0.2: edits should follow the request, not be creative.
+    temperature: Option<f32>,
+    /// Defaults to 1500.
+    max_tokens: Option<u32>,
 }
 
 fn model(id: &str) -> Result<&'static Model, String> {
@@ -345,9 +349,8 @@ pub async fn ai_edit(app: AppHandle, ai: State<'_, Ai>, request: EditRequest) ->
             { "role": "system", "content": request.system },
             { "role": "user", "content": request.user },
         ],
-        // Low temperature: edits should follow the request, not be creative.
-        "temperature": 0.2,
-        "max_tokens": 1500,
+        "temperature": request.temperature.unwrap_or(0.2).clamp(0.0, 1.5),
+        "max_tokens": request.max_tokens.unwrap_or(1500).clamp(64, 4096),
         "response_format": { "type": "json_schema", "json_schema": { "name": "edits", "schema": request.schema } },
     });
     let client = reqwest::Client::new();

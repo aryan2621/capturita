@@ -1,9 +1,12 @@
 mod ai;
+mod brand;
 mod captions;
 mod export;
 mod google;
 mod helper;
 mod recording;
+mod sounds;
+mod studio;
 
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
@@ -31,6 +34,7 @@ pub fn run() {
         .manage(google::Google::default())
         .manage(captions::Captions::default())
         .manage(ai::Ai::default())
+        .manage(studio::Studio::default())
         .setup(move |app| {
             if let Err(error) = app.global_shortcut().register(record_shortcut) {
                 eprintln!("Could not register the ⌘⇧R shortcut: {error}");
@@ -78,9 +82,20 @@ pub fn run() {
             captions::cancel_transcription,
             captions::save_export_text,
             export::export_open,
+            export::export_rendered,
             export::export_write,
             export::export_close,
             export::copy_file_to_clipboard,
+            studio::studio_render,
+            brand::brand_kits,
+            brand::save_brand_kits,
+            brand::import_brand_logo,
+            brand::use_brand_logo,
+            sounds::import_audio,
+            sounds::list_sounds,
+            sounds::import_sound,
+            sounds::use_sound,
+            studio::studio_render_cancel,
             google::google_status,
             google::google_save_client,
             google::google_remove_client,

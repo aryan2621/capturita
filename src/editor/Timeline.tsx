@@ -1,10 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { AudioLines, Captions as CaptionsIcon, EyeOff, Film, Type, ZoomIn } from 'lucide-react';
+import { AudioLines, Captions as CaptionsIcon, EyeOff, Film, Mic, Sparkles, Type, Volume2, ZoomIn } from 'lucide-react';
 import { formatDuration } from '../lib/api';
 import { cx } from '../components/ui';
-import { clipLength, clipStarts, edgeLimits, HIDE_STYLES, MIN_ZOOM, snapTo, timedSegments, totalDuration, type Caption, type Clip, type HideRegion, type TextOverlay, type TimedItem, type Zoom } from './model';
+import { edgeLimits, HIDE_STYLES, TRANSITION_LABELS, isRecording, itemLength, itemStarts, MIN_CLIP, MIN_ZOOM, overlapAt, snapTo, timedSegments, totalDuration, type AudioClip, type Caption, type Clip, type HideRegion, type OverlayClip, type TextOverlay, type TimedItem, type TimelineItem, type Zoom } from './model';
 import type { Thumbnail } from './useThumbnails';
 import { peakBetween } from './waveform';
+import { sceneLabel } from '../studio/scenes';
 
 export interface TimelineHandle {
     /** Moves the playhead without re-rendering React (called every frame while playing). */
@@ -15,18 +16,21 @@ export const MIN_TIMELINE_ZOOM = 1;
 export const MAX_TIMELINE_ZOOM = 20;
 
 interface TimelineProps {
-    clips: Clip[];
+    /** Recording clips and scenes, in order. */
+    items: TimelineItem[];
     sourceDuration: number;
     thumbnails: Thumbnail[];
     /** Audio peaks over source time (see waveform.ts), or null while loading. */
     waveform: Float32Array | null;
+    /** Peaks of each voiceover/sound file over its own time, drawn inside the Voice and SFX clips. */
+    clipPeaks: ReadonlyMap<string, Float32Array>;
     /** Horizontal zoom: 1 fits the whole video, up to MAX_TIMELINE_ZOOM. */
     zoom: number;
     onZoomChange: (zoom: number) => void;
     selectedId: string | null;
     onSelect: (id: string | null) => void;
     onSeek: (outputTime: number) => void;
-    onClipsChange: (clips: Clip[], key: string) => void;
+    onTimelineChange: (items: TimelineItem[], key: string) => void;
     /** Output-time range marked for cutting, shown as two draggable markers. */
     range: [number, number] | null;
     onRangeChange: (range: [number, number]) => void;
@@ -43,11 +47,35 @@ interface TimelineProps {
     onSelectHide: (id: string | null) => void;
     onHidesChange: (hides: HideRegion[], key: string) => void;
     captions: Caption[];
+    /** Voiceover captions placed at output time (they move with their clip, so they can't be dragged here). */
+    voiceCaptions: { item: Caption; from: number; to: number }[];
     selectedCaptionId: string | null;
     onSelectCaption: (id: string | null) => void;
     onCaptionsChange: (captions: Caption[], key: string) => void;
     /** Clicking an empty spot on the zoom lane adds a zoom there (output time). */
     onAddZoomAt: (outputTime: number) => void;
+    overlays: OverlayClip[];
+    selectedOverlayId: string | null;
+    onSelectOverlay: (id: string | null) => void;
+    onOverlaysChange: (overlays: OverlayClip[], key: string) => void;
+    voiceovers: AudioClip[];
+    effects: AudioClip[];
+    selectedAudioId: string | null;
+    onSelectAudio: (id: string | null) => void;
+    onAudioClipsChange: (lane: 'voice' | 'sfx', clips: AudioClip[], key: string) => void;
+}
+
+/** Sub-row of each item so overlapping ones don't cover each other (first row free at its start), and the row count. */
+function stackRows(items: { start: number; duration: number }[]) {
+    const rows: number[] = [];
+    const ends: number[] = [];
+    for (const item of items) {
+        let row = ends.findIndex((end) => end <= item.start + 1e-6);
+        if (row < 0) row = ends.length;
+        ends[row] = item.start + item.duration;
+        rows.push(row);
+    }
+    return { rows, count: Math.max(1, ends.length) };
 }
 
 /** A row of timed items (zooms, texts) under the clips. */
@@ -73,25 +101,30 @@ const ROW_HEIGHT = 24;
 const AUDIO_HEIGHT = 34;
 const GAP = 6;
 const HANDLE_WIDTH = 10;
+const MIN_SCENE = MIN_CLIP * 5;
+const MAX_SCENE = 30;
 /** Edges snap to targets within this many pixels; hold Option to drag freely. */
 const SNAP_PIXELS = 6;
 /** A press that moves less than this is a click (select), not a drag. */
 const DRAG_THRESHOLD = 3;
 
-type LaneKey = 'clips' | 'zoom' | 'text' | 'hide' | 'captions' | 'audio';
+type LaneKey = 'clips' | 'overlay' | 'zoom' | 'text' | 'hide' | 'captions' | 'audio' | 'voice' | 'sfx';
 
 const LANE_INFO: Record<LaneKey, { label: string; hint: string; icon: ReactNode; height: number }> = {
-    clips: { label: 'Clips', hint: 'Clips — drag an edge to trim', icon: <Film className='h-3.5 w-3.5' />, height: CLIP_HEIGHT },
+    clips: { label: 'Clips', hint: 'Recording clips and scenes — drag an edge to trim', icon: <Film className='h-3.5 w-3.5' />, height: CLIP_HEIGHT },
+    overlay: { label: 'Overlays', hint: 'Overlays drawn over the video — drag to move, drag an edge to trim', icon: <Sparkles className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
     zoom: { label: 'Zoom', hint: 'Zooms — click an empty spot to add one', icon: <ZoomIn className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
     text: { label: 'Text', hint: 'Text', icon: <Type className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
     hide: { label: 'Hide', hint: 'Hidden areas', icon: <EyeOff className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
     captions: { label: 'Captions', hint: 'Captions', icon: <CaptionsIcon className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
     audio: { label: 'Audio', hint: 'Audio', icon: <AudioLines className='h-3.5 w-3.5' />, height: AUDIO_HEIGHT },
+    voice: { label: 'Voice', hint: 'Voiceovers — drag to move, drag an edge to trim', icon: <Mic className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
+    sfx: { label: 'SFX', hint: 'Sound effects — drag to move, drag an edge to trim', icon: <Volume2 className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
 };
 
 /** Lanes stacked top to bottom; lanes with nothing on them are left out, except clips, zoom and audio. */
-function laneLayout(present: Record<LaneKey, boolean>) {
-    const order: LaneKey[] = ['clips', 'zoom', 'text', 'hide', 'captions', 'audio'];
+function laneLayout(present: Record<LaneKey, boolean>, heights: Partial<Record<LaneKey, number>> = {}) {
+    const order: LaneKey[] = ['clips', 'overlay', 'zoom', 'text', 'hide', 'captions', 'audio', 'voice', 'sfx'];
     const tops = {} as Record<LaneKey, number>;
     const lanes: { key: LaneKey; top: number }[] = [];
     let top = 0;
@@ -99,14 +132,14 @@ function laneLayout(present: Record<LaneKey, boolean>) {
         if (!present[key]) continue;
         tops[key] = top;
         lanes.push({ key, top });
-        top += LANE_INFO[key].height + GAP;
+        top += (heights[key] ?? LANE_INFO[key].height) + GAP;
     }
     return { tops, lanes, height: top - GAP };
 }
 
 export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timeline(props, ref) {
     const {
-        clips,
+        items,
         sourceDuration,
         thumbnails,
         waveform,
@@ -115,7 +148,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
         selectedId,
         onSelect,
         onSeek,
-        onClipsChange,
+        onTimelineChange,
         range,
         onRangeChange,
         zooms,
@@ -131,19 +164,40 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
         onSelectHide,
         onHidesChange,
         captions,
+        voiceCaptions,
         selectedCaptionId,
         onSelectCaption,
         onCaptionsChange,
         onAddZoomAt,
+        overlays,
+        selectedOverlayId,
+        onSelectOverlay,
+        onOverlaysChange,
+        voiceovers,
+        effects,
+        clipPeaks,
+        selectedAudioId,
+        onSelectAudio,
+        onAudioClipsChange,
     } = props;
-    const { tops, lanes, height: LANES_HEIGHT } = laneLayout({
-        clips: true,
-        zoom: true,
+    const { rows: overlayRows, count: overlayRowCount } = stackRows(overlays);
+    const voiceRows = stackRows(voiceovers);
+    const sfxRows = stackRows(effects);
+    const laneHeight = (count: number) => count * (ROW_HEIGHT + 2) - 2;
+    const { tops, lanes, height: LANES_HEIGHT } = laneLayout(
+        {
+            clips: true,
+            overlay: overlays.length > 0,
+            zoom: true,
         text: texts.length > 0,
         hide: hides.length > 0,
-        captions: captions.length > 0,
-        audio: true,
-    });
+            captions: captions.length > 0 || voiceCaptions.length > 0,
+            audio: true,
+            voice: voiceovers.length > 0,
+            sfx: effects.length > 0,
+        },
+        { overlay: laneHeight(overlayRowCount), voice: laneHeight(voiceRows.count), sfx: laneHeight(sfxRows.count) }
+    );
     const AUDIO_TOP = tops.audio;
     const [menu, setMenu] = useState<{ x: number; y: number; items: { label: string; action: () => void; danger?: boolean }[] } | null>(null);
     useEffect(() => {
@@ -166,10 +220,10 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
     const [frozenScale, setFrozenScale] = useState<number | null>(null);
     const [snapLine, setSnapLine] = useState<number | null>(null);
 
-    const total = totalDuration(clips);
+    const total = totalDuration(items);
     const contentWidth = Math.max(viewWidth, viewWidth * zoom);
     const scale = frozenScale ?? (total > 0 ? contentWidth / total : 0); // pixels per output second
-    const starts = clipStarts(clips);
+    const starts = itemStarts(items);
 
     useEffect(() => {
         const element = viewportRef.current;
@@ -233,10 +287,11 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
 
     /** Output times that edges snap to: the playhead, clip boundaries, zoom/text edges and cut markers. */
     const snapTargets = (exclude?: string) => {
-        const targets = [0, total, lastPlayhead.current, ...starts, ...clips.map((clip, i) => starts[i] + clipLength(clip))];
-        for (const segment of timedSegments(clips, [...zooms, ...texts, ...hides])) {
+        const targets = [0, total, lastPlayhead.current, ...starts, ...items.map((item, i) => starts[i] + itemLength(item))];
+        for (const segment of timedSegments(items, [...zooms, ...texts, ...hides])) {
             if (segment.item.id !== exclude) targets.push(segment.from, segment.to);
         }
+        for (const overlay of [...overlays, ...voiceovers, ...effects]) if (overlay.id !== exclude) targets.push(overlay.start, overlay.start + overlay.duration);
         if (range) targets.push(...range);
         return targets;
     };
@@ -276,10 +331,10 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
     const startTrim = (event: ReactPointerEvent, index: number, edge: 'start' | 'end') => {
         event.stopPropagation();
         if (event.button !== 0) return;
-        const clip = clips[index];
+        const clip = items[index] as Clip;
         const originX = event.clientX;
         const original = clip[edge];
-        const limits = edgeLimits(clips, index, edge, sourceDuration);
+        const limits = edgeLimits(items, index, edge, sourceDuration);
         const dragScale = scale;
         setFrozenScale(dragScale);
         onSelect(clip.id);
@@ -290,9 +345,33 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                 // The end edge moves on the timeline, so it can snap; trimming the start slides the content instead.
                 if (edge === 'end') value = clip.start + (snap(starts[index] + (value - clip.start) / clip.speed, e) - starts[index]) * clip.speed;
                 value = Math.min(limits.max, Math.max(limits.min, value));
-                onClipsChange(
-                    clips.map((c, i) => (i === index ? { ...c, [edge]: value } : c)),
+                onTimelineChange(
+                    items.map((c, i) => (i === index ? { ...c, [edge]: value } : c)),
                     `trim-${clip.id}-${edge}`
+                );
+            },
+            () => setFrozenScale(null)
+        );
+    };
+
+    /** Drags the end of a scene: it plays longer or shorter, and what follows moves with it. */
+    const startSceneTrim = (event: ReactPointerEvent, index: number) => {
+        event.stopPropagation();
+        if (event.button !== 0) return;
+        const scene = items[index];
+        if (isRecording(scene)) return;
+        const originX = event.clientX;
+        const dragScale = scale;
+        setFrozenScale(dragScale);
+        onSelect(scene.id);
+        drag(
+            event,
+            (e) => {
+                const end = snap(starts[index] + scene.duration + (e.clientX - originX) / dragScale, e, scene.id);
+                const duration = Math.min(MAX_SCENE, Math.max(MIN_SCENE, end - starts[index]));
+                onTimelineChange(
+                    items.map((item, i) => (i === index ? { ...scene, duration } : item)),
+                    `scene-length-${scene.id}`
                 );
             },
             () => setFrozenScale(null)
@@ -303,7 +382,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
     const startItemEdge = <T extends TimedItem>(event: ReactPointerEvent, row: RowSpec<T>, item: T, clipIndex: number, edge: 'start' | 'end') => {
         event.stopPropagation();
         if (event.button !== 0) return;
-        const clip = clips[clipIndex];
+        const clip = items[clipIndex] as Clip;
         const originX = event.clientX;
         const original = item[edge];
         const dragScale = scale;
@@ -342,7 +421,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
         if (event.button !== 0) return;
         event.stopPropagation();
         row.onSelectItem(item.id);
-        const clip = clips[clipIndex];
+        const clip = items[clipIndex] as Clip;
         const originX = event.clientX;
         const length = item.end - item.start;
         const { before, after } = neighbours(row, item);
@@ -382,6 +461,111 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
         setMenu({ x: event.clientX, y: event.clientY, items });
     };
 
+    /** Press on an overlay: a click selects it, a drag moves it (output time); its edges trim it. */
+    const startOverlayDrag = (event: ReactPointerEvent, overlay: OverlayClip, mode: 'move' | 'start' | 'end') => {
+        if (event.button !== 0) return;
+        event.stopPropagation();
+        onSelectOverlay(overlay.id);
+        const originX = event.clientX;
+        const end = overlay.start + overlay.duration;
+        let moving = mode !== 'move';
+        drag(event, (e) => {
+            if (!moving && Math.abs(e.clientX - originX) < DRAG_THRESHOLD) return;
+            moving = true;
+            const delta = (e.clientX - originX) / scale;
+            let next: Pick<OverlayClip, 'start' | 'duration'>;
+            if (mode === 'move') {
+                // Snap whichever edge is nearer something.
+                const start = overlay.start + delta;
+                const byStart = snap(start, e, overlay.id) - start;
+                const byEnd = snap(start + overlay.duration, e, overlay.id) - (start + overlay.duration);
+                const shift = Math.abs(byEnd) > 1e-9 && (Math.abs(byStart) < 1e-9 || Math.abs(byEnd) < Math.abs(byStart)) ? byEnd : byStart;
+                next = { start: Math.min(Math.max(0, total - overlay.duration), Math.max(0, start + shift)), duration: overlay.duration };
+            } else if (mode === 'start') {
+                const start = Math.min(end - MIN_SCENE, Math.max(0, snap(overlay.start + delta, e, overlay.id)));
+                next = { start, duration: end - start };
+            } else {
+                const to = Math.min(total, overlay.start + MAX_SCENE, Math.max(overlay.start + MIN_SCENE, snap(end + delta, e, overlay.id)));
+                next = { start: overlay.start, duration: to - overlay.start };
+            }
+            onOverlaysChange(
+                overlays.map((o) => (o.id === overlay.id ? { ...o, ...next } : o)),
+                `overlay-${overlay.id}-${mode}`
+            );
+        });
+    };
+
+    /**
+     * Press on a voiceover or sound effect: a click selects it, a drag moves it (output time);
+     * its edges trim it, the start edge moving where in the file it starts from.
+     */
+    const startAudioDrag = (event: ReactPointerEvent, lane: 'voice' | 'sfx', clip: AudioClip, mode: 'move' | 'start' | 'end') => {
+        if (event.button !== 0) return;
+        event.stopPropagation();
+        onSelectAudio(clip.id);
+        const clips = lane === 'voice' ? voiceovers : effects;
+        const originX = event.clientX;
+        const end = clip.start + clip.duration;
+        const minLength = Math.min(clip.duration, 0.1);
+        let moving = mode !== 'move';
+        drag(event, (e) => {
+            if (!moving && Math.abs(e.clientX - originX) < DRAG_THRESHOLD) return;
+            moving = true;
+            const delta = (e.clientX - originX) / scale;
+            let next: Pick<AudioClip, 'start' | 'duration' | 'offset'>;
+            if (mode === 'move') {
+                const start = Math.max(0, snap(clip.start + delta, e, clip.id));
+                next = { start: Math.min(start, Math.max(0, total - 0.05)), duration: clip.duration, offset: clip.offset };
+            } else if (mode === 'start') {
+                // Not before the file's start, nor before the timeline's.
+                const start = Math.min(end - minLength, Math.max(0, clip.start - clip.offset, snap(clip.start + delta, e, clip.id)));
+                next = { start, duration: end - start, offset: clip.offset + (start - clip.start) };
+            } else {
+                const to = Math.min(clip.start + clip.length - clip.offset, Math.max(clip.start + minLength, snap(end + delta, e, clip.id)));
+                next = { start: clip.start, duration: to - clip.start, offset: clip.offset };
+            }
+            onAudioClipsChange(
+                lane,
+                clips.map((c) => (c.id === clip.id ? { ...c, ...next } : c)),
+                `${lane}-${clip.id}-${mode}`
+            );
+        });
+    };
+
+    const renderAudioLane = (lane: 'voice' | 'sfx', clips: AudioClip[], stack: { rows: number[]; count: number }) => {
+        const top = tops[lane];
+        const color = lane === 'voice' ? { idle: 'border-lane-voice/60 bg-lane-voice/30 hover:bg-lane-voice/50', selected: 'border-fg bg-lane-voice text-black' } : { idle: 'border-lane-sfx/60 bg-lane-sfx/30 hover:bg-lane-sfx/50', selected: 'border-fg bg-lane-sfx text-black' };
+        const what = lane === 'voice' ? 'Voiceover' : 'Sound effect';
+        return (
+            <>
+                <div className='pointer-events-none absolute inset-x-0 rounded bg-panel-2/70' style={{ top, height: laneHeight(stack.count) }} />
+                {clips.map((clip, i) => (
+                    <div
+                        key={clip.id}
+                        className={cx(
+                            'absolute flex cursor-grab items-center gap-1 overflow-hidden rounded-md border px-2 text-[10px] font-medium active:cursor-grabbing',
+                            clip.id === selectedAudioId ? `z-10 ${color.selected}` : `text-fg ${color.idle}`
+                        )}
+                        style={{ top: top + stack.rows[i] * (ROW_HEIGHT + 2), height: ROW_HEIGHT, left: clip.start * scale, width: Math.max(6, clip.duration * scale) }}
+                        onPointerDown={(e) => startAudioDrag(e, lane, clip, 'move')}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onSelectAudio(clip.id);
+                            setMenu({ x: e.clientX, y: e.clientY, items: [{ label: 'Delete', danger: true, action: () => onAudioClipsChange(lane, clips.filter((c) => c.id !== clip.id), `${lane}-${clip.id}-delete`) }] });
+                        }}
+                        title={`${what}: ${clip.name} — drag to move, right-click for options`}
+                    >
+                        {clipPeaks.get(clip.file) && <AudioClipWaveform peaks={clipPeaks.get(clip.file)!} clip={clip} width={Math.max(4, clip.duration * scale - 2)} height={ROW_HEIGHT - 2} scale={scale} />}
+                        <span className='pointer-events-none relative truncate'>{clip.name}</span>
+                        <div className='absolute inset-y-0 left-0 w-2 cursor-ew-resize hover:bg-white/40' onPointerDown={(e) => startAudioDrag(e, lane, clip, 'start')} title='Drag to trim the start (hold ⌥ to skip snapping)' />
+                        <div className='absolute inset-y-0 right-0 w-2 cursor-ew-resize hover:bg-white/40' onPointerDown={(e) => startAudioDrag(e, lane, clip, 'end')} title='Drag to trim the end (hold ⌥ to skip snapping)' />
+                    </div>
+                ))}
+            </>
+        );
+    };
+
     /** Drags one of the two cut markers. */
     const startMarker = (event: ReactPointerEvent, which: 0 | 1) => {
         event.stopPropagation();
@@ -412,7 +596,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
             ) : (
                 <div className='pointer-events-none absolute inset-x-0 rounded bg-panel-2/70' style={{ top: row.top, height: ROW_HEIGHT }} />
             )}
-            {timedSegments(clips, row.items).map(({ item, clipIndex, from, to, startsItem, endsItem }) => (
+            {timedSegments(items, row.items).map(({ item, clipIndex, from, to, startsItem, endsItem }) => (
                 <div
                     key={`${item.id}-${clipIndex}`}
                     className={cx(
@@ -487,10 +671,46 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                 <div style={{ width: total > 0 ? total * scale : contentWidth }}>
                     <Ruler total={total} scale={scale} onPointerDown={startScrub} />
                     <div ref={containerRef} className='relative' style={{ height: LANES_HEIGHT }} onPointerDown={startScrub}>
-                        {clips.map((clip, index) => {
+                        {items.map((clip, index) => {
                             const left = starts[index] * scale;
-                            const clipWidth = clipLength(clip) * scale;
+                            const clipWidth = itemLength(clip) * scale;
                             const selected = clip.id === selectedId;
+                            const overlap = overlapAt(items, index);
+                            const crossfade = overlap > 0 && (
+                                <div
+                                    key={`fade-${clip.id}`}
+                                    className='pointer-events-none absolute top-0 z-20 rounded-md bg-gradient-to-r from-transparent via-white/45 to-transparent'
+                                    style={{ left, width: overlap * scale, height: CLIP_HEIGHT }}
+                                    title={`${TRANSITION_LABELS[clip.transition?.type ?? 'crossfade'] ?? 'Transition'} ${overlap.toFixed(1)} s`}
+                                />
+                            );
+                            if (!isRecording(clip)) {
+                                return (
+                                    <div key={clip.id}>
+                                        <div
+                                            className={cx(
+                                                'absolute top-0 flex items-center gap-1.5 overflow-hidden rounded-md border-2 bg-lane-scene/30 px-2 text-[11px] font-medium text-fg',
+                                                selected ? 'z-10 border-accent' : 'z-[5] border-lane-scene/60 hover:border-lane-scene'
+                                            )}
+                                            style={{ left, width: Math.max(4, clipWidth - 2), height: CLIP_HEIGHT }}
+                                            onPointerDown={(e) => {
+                                                if (e.button === 0) onSelect(clip.id);
+                                            }}
+                                            title={`${sceneLabel(clip.scene)} scene · ${clip.duration.toFixed(1)} s`}
+                                        >
+                                            <Sparkles className='h-3.5 w-3.5 shrink-0 text-lane-scene' />
+                                            <span className='truncate'>{typeof clip.props.title === 'string' && clip.props.title ? clip.props.title : sceneLabel(clip.scene)}</span>
+                                            <div
+                                                className='absolute inset-y-0 right-0 cursor-ew-resize bg-accent/0 hover:bg-accent/60'
+                                                style={{ width: HANDLE_WIDTH }}
+                                                onPointerDown={(e) => startSceneTrim(e, index)}
+                                                title='Drag to change how long the scene plays (hold ⌥ to skip snapping)'
+                                            />
+                                        </div>
+                                        {crossfade}
+                                    </div>
+                                );
+                            }
                             return (
                                 <div key={clip.id}>
                                     <div
@@ -537,9 +757,48 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                                     >
                                         {waveform && <ClipWaveform peaks={waveform} clip={clip} width={Math.max(4, clipWidth - 2)} height={AUDIO_HEIGHT} scale={scale} />}
                                     </div>
+                                    {crossfade}
                                 </div>
                             );
                         })}
+                        {overlays.length > 0 && (
+                            <>
+                                <div className='pointer-events-none absolute inset-x-0 rounded bg-panel-2/70' style={{ top: tops.overlay, height: laneHeight(overlayRowCount) }} />
+                                {overlays.map((overlay, i) => (
+                                    <div
+                                        key={overlay.id}
+                                        className={cx(
+                                            'absolute flex cursor-grab items-center gap-1 overflow-hidden rounded-md border px-2 text-[10px] font-medium active:cursor-grabbing',
+                                            overlay.id === selectedOverlayId ? 'z-10 border-fg bg-lane-scene text-black' : 'border-lane-scene/60 bg-lane-scene/30 text-fg hover:bg-lane-scene/50'
+                                        )}
+                                        style={{ top: tops.overlay + overlayRows[i] * (ROW_HEIGHT + 2), height: ROW_HEIGHT, left: overlay.start * scale, width: Math.max(6, overlay.duration * scale) }}
+                                        onPointerDown={(e) => startOverlayDrag(e, overlay, 'move')}
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            onSelectOverlay(overlay.id);
+                                            setMenu({ x: e.clientX, y: e.clientY, items: [{ label: 'Delete', danger: true, action: () => onOverlaysChange(overlays.filter((o) => o.id !== overlay.id), `overlay-${overlay.id}-delete`) }] });
+                                        }}
+                                        title={`Overlay: ${sceneLabel(overlay.scene)} — drag to move, right-click for options`}
+                                    >
+                                        <Sparkles className='pointer-events-none h-3 w-3 shrink-0' />
+                                        <span className='pointer-events-none truncate'>{sceneLabel(overlay.scene)}</span>
+                                        <div
+                                            className='absolute inset-y-0 left-0 w-2 cursor-ew-resize hover:bg-white/40'
+                                            onPointerDown={(e) => startOverlayDrag(e, overlay, 'start')}
+                                            title='Drag to change when the overlay starts (hold ⌥ to skip snapping)'
+                                        />
+                                        <div
+                                            className='absolute inset-y-0 right-0 w-2 cursor-ew-resize hover:bg-white/40'
+                                            onPointerDown={(e) => startOverlayDrag(e, overlay, 'end')}
+                                            title='Drag to change when the overlay ends (hold ⌥ to skip snapping)'
+                                        />
+                                    </div>
+                                ))}
+                            </>
+                        )}
+                        {voiceovers.length > 0 && renderAudioLane('voice', voiceovers, voiceRows)}
+                        {effects.length > 0 && renderAudioLane('sfx', effects, sfxRows)}
                         {renderRow<Zoom>({
                             top: tops.zoom,
                             items: zooms,
@@ -586,6 +845,25 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                             title: (caption) => `Caption: ${caption.text}`,
                             className: { idle: 'border-lane-caption/50 bg-lane-caption/25 text-fg hover:bg-lane-caption/45', selected: 'border-fg bg-lane-caption text-black' },
                         })}
+                        {voiceCaptions.map(({ item, from, to }) => (
+                            <div
+                                key={`vo-${item.id}`}
+                                className={cx(
+                                    'absolute z-[5] flex cursor-pointer items-center overflow-hidden rounded-md border border-dashed text-[10px] font-medium',
+                                    item.id === selectedCaptionId ? 'z-10 border-fg bg-lane-caption text-black' : 'border-lane-caption/70 bg-lane-caption/20 text-fg hover:bg-lane-caption/40'
+                                )}
+                                style={{ top: tops.captions, height: ROW_HEIGHT, left: from * scale, width: Math.max(6, (to - from) * scale) }}
+                                onPointerDown={(e) => {
+                                    if (e.button !== 0) return;
+                                    e.stopPropagation();
+                                    onSelectCaption(item.id);
+                                    onSeek(from);
+                                }}
+                                title={`Voiceover caption: ${item.text} — moves with its voiceover clip`}
+                            >
+                                <span className='pointer-events-none truncate px-2'>VO · {item.text}</span>
+                            </div>
+                        ))}
                         {range && (
                             <>
                                 <div
@@ -634,6 +912,24 @@ function ClipWaveform({ peaks, clip, width, height, scale }: { peaks: Float32Arr
     }
     return (
         <svg className='pointer-events-none absolute inset-0 text-lane-audio' width={width} height={height} aria-hidden>
+            <path d={bars.join('')} stroke='currentColor' strokeWidth={Math.min(1.5, step * 0.7)} strokeLinecap='round' />
+        </svg>
+    );
+}
+
+/** A voiceover's or sound's own envelope inside its clip: the file from `offset` for `duration`. */
+function AudioClipWaveform({ peaks, clip, width, height, scale }: { peaks: Float32Array; clip: AudioClip; width: number; height: number; scale: number }) {
+    const step = Math.max(2, width / 2000);
+    const bars: string[] = [];
+    const middle = height / 2;
+    for (let x = step / 2; x < width; x += step) {
+        const from = clip.offset + (x - step / 2) / scale;
+        const to = clip.offset + (x + step / 2) / scale;
+        const half = Math.max(0.5, peakBetween(peaks, from, to) * (height / 2 - 2) * Math.min(1, clip.volume));
+        bars.push(`M${x.toFixed(1)} ${(middle - half).toFixed(1)}V${(middle + half).toFixed(1)}`);
+    }
+    return (
+        <svg className='pointer-events-none absolute inset-0 opacity-50' width={width} height={height} aria-hidden>
             <path d={bars.join('')} stroke='currentColor' strokeWidth={Math.min(1.5, step * 0.7)} strokeLinecap='round' />
         </svg>
     );

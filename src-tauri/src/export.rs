@@ -16,14 +16,9 @@ pub struct Export {
     file: Mutex<Option<(PathBuf, File)>>,
 }
 
-/// Starts a new export file (`mp4` or `gif`) in ~/Movies/Capturita/Exports and returns its path.
-#[tauri::command]
-pub fn export_open(app: AppHandle, export: State<'_, Export>, name: String, ext: Option<String>) -> Result<String, String> {
-    let ext = match ext.as_deref() {
-        Some("gif") => "gif",
-        _ => "mp4",
-    };
-    let dir = recordings_root(&app)?.join("Exports");
+/// A path in ~/Movies/Capturita/Exports for `name`, with a number added if the name is taken.
+fn free_export_path(app: &AppHandle, name: &str, ext: &str) -> Result<PathBuf, String> {
+    let dir = recordings_root(app)?.join("Exports");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     // Keep only characters that are safe in a file name.
     let stem: String = name
@@ -40,8 +35,34 @@ pub fn export_open(app: AppHandle, export: State<'_, Export>, name: String, ext:
         path = dir.join(format!("{stem} {n}.{ext}"));
         n += 1;
     }
+    Ok(path)
+}
+
+/// Starts a new export file (`mp4` or `gif`) in ~/Movies/Capturita/Exports and returns its path.
+#[tauri::command]
+pub fn export_open(app: AppHandle, export: State<'_, Export>, name: String, ext: Option<String>) -> Result<String, String> {
+    let ext = match ext.as_deref() {
+        Some("gif") => "gif",
+        _ => "mp4",
+    };
+    let path = free_export_path(&app, &name, ext)?;
     let file = File::create(&path).map_err(|e| e.to_string())?;
     *export.file.lock().unwrap() = Some((path.clone(), file));
+    Ok(path.to_string_lossy().into_owned())
+}
+
+/// Saves a transparent `.mov` the studio renderer made (in a recording's folder) to
+/// ~/Movies/Capturita/Exports as `name`, and returns its path. The rendered file stays as a cache;
+/// on APFS the copy is a clone, so it takes no time or extra space.
+#[tauri::command]
+pub fn export_rendered(app: AppHandle, name: String, from: String) -> Result<String, String> {
+    let root = std::fs::canonicalize(recordings_root(&app)?).map_err(|e| e.to_string())?;
+    let from = std::fs::canonicalize(&from).map_err(|e| e.to_string())?;
+    if !from.starts_with(&root) || from.extension().and_then(|e| e.to_str()) != Some("mov") || !from.is_file() {
+        return Err("Only rendered scene files can be exported".into());
+    }
+    let path = free_export_path(&app, &name, "mov")?;
+    std::fs::copy(&from, &path).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
 }
 

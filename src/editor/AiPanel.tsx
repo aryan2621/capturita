@@ -6,7 +6,9 @@ import { api, errorMessage, type CaptionProgress, type CursorData, type Project 
 import { Button, cx } from '../components/ui';
 import { askAi, applyProposals, fillerCuts, pauseCuts, type Proposal } from './aiEdit';
 import { defaultCaptionSource, makeCaptions, speechSources } from './captions';
-import type { Edit } from './model';
+import { recordingCaptions, type Edit } from './model';
+import { SceneAiSection } from '../studio/SceneAiSection';
+import type { SceneEnv } from '../studio/scenes/assets';
 
 const EXAMPLES = ['Cut the part where I talk about pricing', 'Remove anything off-topic', 'Speed up the parts where nothing happens', 'Add a title at the start', 'Zoom in when I click'];
 
@@ -24,6 +26,9 @@ export function AiPanel({
     cursor,
     onApply,
     onSeek,
+    sceneEnv,
+    sceneSize,
+    playhead,
 }: {
     project: Project;
     edit: Edit;
@@ -32,6 +37,11 @@ export function AiPanel({
     onApply: (next: Edit, key: string) => void;
     /** Jump to a source time. */
     onSeek: (source: number) => void;
+    sceneEnv: SceneEnv;
+    /** Export size; generated scenes are checked at it. */
+    sceneSize: { width: number; height: number };
+    /** Current output time (where new scenes go). */
+    playhead: () => number;
 }) {
     const [model, setModel] = useState<{ name: string; downloaded: boolean; sizeMb: number } | null>(null);
     const [download, setDownload] = useState<number | null>(null);
@@ -40,7 +50,7 @@ export function AiPanel({
     const [result, setResult] = useState<{ summary: string; proposals: Proposal[] } | null>(null);
     const [chosen, setChosen] = useState<Set<string>>(new Set());
     const hasSpeech = speechSources(project).length > 0;
-    const transcribed = edit.captions.items.length > 0;
+    const transcribed = recordingCaptions(edit.captions.items).length > 0;
 
     useEffect(() => {
         api.aiModel().then(setModel).catch(() => {});
@@ -55,7 +65,7 @@ export function AiPanel({
     }, []);
 
     const fillers = useMemo(() => fillerCuts(edit.captions.fillers ?? []), [edit.captions.fillers]);
-    const pauses = useMemo(() => pauseCuts(edit.captions.items, project.duration), [edit.captions.items, project.duration]);
+    const pauses = useMemo(() => pauseCuts(recordingCaptions(edit.captions.items), project.duration), [edit.captions.items, project.duration]);
 
     const startDownload = async () => {
         setDownload(0);
@@ -102,7 +112,7 @@ export function AiPanel({
     const cleanup = async (kind: 'fillers' | 'pauses') => {
         try {
             const current = await ensureTranscript();
-            const proposals = kind === 'fillers' ? fillerCuts(current.captions.fillers ?? []) : pauseCuts(current.captions.items, project.duration);
+            const proposals = kind === 'fillers' ? fillerCuts(current.captions.fillers ?? []) : pauseCuts(recordingCaptions(current.captions.items), project.duration);
             review(proposals.length ? `Found ${proposals.length} ${kind === 'fillers' ? 'filler words' : 'long pauses'}.` : `No ${kind === 'fillers' ? 'filler words' : 'long pauses'} found.`, proposals);
         } catch (error) {
             toast.error(errorMessage(error));
@@ -127,14 +137,7 @@ export function AiPanel({
         </h3>
     );
 
-    if (!hasSpeech) {
-        return (
-            <section className='space-y-3'>
-                {header}
-                <p className='text-xs text-muted'>AI editing works from what's said in the recording, and this one has no sound.</p>
-            </section>
-        );
-    }
+    const scenes = <SceneAiSection project={project} edit={edit} cursor={cursor} env={sceneEnv} size={sceneSize} playhead={playhead} onApply={onApply} />;
 
     if (model && !model.downloaded) {
         return (
@@ -164,6 +167,16 @@ export function AiPanel({
                         </Button>
                     </div>
                 )}
+            </section>
+        );
+    }
+
+    if (!hasSpeech) {
+        return (
+            <section className='space-y-3'>
+                {header}
+                <p className='text-xs text-muted'>AI editing works from what's said in the recording, and this one has no sound. It can still make scenes.</p>
+                {scenes}
             </section>
         );
     }
@@ -281,6 +294,7 @@ export function AiPanel({
                     {!transcribed && <p className='text-xs text-muted'>The first request reads the recording's speech on this Mac (like captions, but hidden).</p>}
                 </>
             )}
+            {!busy && !result && scenes}
         </section>
     );
 }

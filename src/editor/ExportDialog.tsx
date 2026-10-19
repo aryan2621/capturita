@@ -7,7 +7,8 @@ import { api, errorMessage, formatDuration, GOOGLE_SCOPES, type CursorData, type
 import { Button, Modal, ProgressBar, Segmented, cx } from '../components/ui';
 import { GoogleSection } from '../components/SettingsDialog';
 import { defaultExportName, ExportCancelled, exportSize, exportVideo, type ExportProgress, type ExportSettings, type Quality, type Resolution } from './export';
-import { totalDuration, type Edit } from './model';
+import { ASPECTS, totalDuration, type Aspect, type Edit } from './model';
+import { SCENE_FPS } from '../studio/scenes';
 
 const SETTINGS_KEY = 'capturita.export';
 type Target = 'file' | Destination;
@@ -55,6 +56,8 @@ const PRIVACY: { value: Privacy; label: string }[] = [
     { value: 'public', label: 'Public' },
 ];
 const PHASES: Record<ExportProgress['phase'], string> = {
+    browser: 'Downloading the scene renderer (once, about 100 MB)…',
+    scenes: 'Rendering motion scenes…',
     audio: 'Mixing audio…',
     video: 'Rendering video…',
     finishing: 'Finishing file…',
@@ -71,10 +74,10 @@ function loadSettings(): Remembered {
 
 type State =
     | { status: 'idle' }
-    | { status: 'exporting'; progress: ExportProgress }
+    | { status: 'exporting'; progress: ExportProgress; part?: string }
     | { status: 'signing-in' }
     | { status: 'uploading'; path: string; sent: number; total: number }
-    | { status: 'done'; path: string; url?: string; seconds: number; lockedPrivate?: boolean }
+    | { status: 'done'; path: string; paths?: string[]; url?: string; seconds: number; lockedPrivate?: boolean }
     | { status: 'error'; message: string; path?: string };
 
 export function ExportDialog({ project, edit, cursor, onClose }: { project: Project; edit: Edit; cursor: CursorData | null; onClose: () => void }) {
@@ -86,14 +89,22 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
     const [title, setTitle] = useState(project.source.name);
     const [fileName, setFileName] = useState(() => defaultExportName(project));
     const [description, setDescription] = useState('');
+    /** Extra aspect ratios to export in the same go; empty means just the edit's own. */
+    const [aspects, setAspects] = useState<Aspect[]>([]);
     const abortRef = useRef<AbortController | null>(null);
     const startedAt = useRef(0);
 
-    const size = exportSize(edit, project, settings.resolution);
+    /** One file per picked aspect, or the edit's own aspect when none is picked. */
+    const targets: Aspect[] = aspects.length > 0 ? ASPECT_ORDER.filter((a) => aspects.includes(a)) : [edit.aspect];
+    const multi = targets.length > 1;
     const gif = settings.format === 'gif';
-    const uploading = settings.target !== 'file' && !gif;
+    const mov = settings.format === 'mov';
+    /** GIFs and transparent MOVs are only saved as files, never uploaded. */
+    const fileOnly = gif || mov || multi;
+    const uploading = settings.target !== 'file' && !fileOnly;
     const preset = PRESETS.find((p) => samePreset(p.settings, settings))?.id ?? null;
-    const extension = gif ? '.gif' : '.mp4';
+    const extension = `.${settings.format}`;
+    const formatLabel = gif ? 'GIF' : mov ? 'Transparent MOV (ProRes 4444)' : 'MP4';
     const busy = state.status === 'exporting' || state.status === 'signing-in' || state.status === 'uploading';
     const needsSetup = uploading && google !== null && !google.configured;
 
@@ -171,29 +182,42 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
         abortRef.current = controller;
         startedAt.current = performance.now();
         setState({ status: 'exporting', progress: { phase: 'audio', progress: 0 } });
-        let path: string;
+        const paths: string[] = [];
         try {
-            path = await exportVideo({
-                project,
-                edit,
-                cursor,
-                settings,
-                fileName,
-                signal: controller.signal,
-                onProgress: (progress) => setState({ status: 'exporting', progress }),
-            });
+            for (const [index, aspect] of targets.entries()) {
+                const part = multi ? `${aspect} (${index + 1} of ${targets.length})` : undefined;
+                const name = fileName.trim().replace(/\.(mp4|gif|mov)$/i, '').trim() || defaultExportName(project);
+                paths.push(
+                    await exportVideo({
+                        project,
+                        edit: aspect === edit.aspect ? edit : { ...edit, aspect },
+                        cursor,
+                        settings,
+                        fileName: multi || aspect !== edit.aspect ? `${name} ${aspect.replace(':', 'x')}` : name,
+                        signal: controller.signal,
+                        onProgress: (progress) => setState({ status: 'exporting', progress, part }),
+                    })
+                );
+            }
         } catch (error) {
-            setState(error instanceof ExportCancelled ? { status: 'idle' } : { status: 'error', message: errorMessage(error) });
+            if (error instanceof ExportCancelled) setState(paths.length ? { status: 'done', path: paths[0], paths, seconds: (performance.now() - startedAt.current) / 1000 } : { status: 'idle' });
+            else setState({ status: 'error', message: paths.length ? `${errorMessage(error)} (${paths.length} of ${targets.length} files were saved)` : errorMessage(error) });
             return;
         } finally {
             abortRef.current = null;
+        }
+        const path = paths[0];
+        if (multi) {
+            setState({ status: 'done', path, paths, seconds: (performance.now() - startedAt.current) / 1000 });
+            toast.success(`Exported ${paths.length} files`);
+            return;
         }
         if (mode === 'studio') {
             setState({ status: 'done', path, seconds: (performance.now() - startedAt.current) / 1000 });
             revealItemInDir(path).catch(() => {});
             openUrl(YOUTUBE_STUDIO).catch(() => {});
             toast.success('Exported. Upload the MP4 in YouTube Studio to publish it publicly.');
-        } else if (settings.target === 'file' || gif) {
+        } else if (settings.target === 'file' || fileOnly) {
             setState({ status: 'done', path, seconds: (performance.now() - startedAt.current) / 1000 });
             toast.success('Export finished');
         } else {
@@ -278,12 +302,12 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                                         <button
                                             key={target.value}
                                             onClick={() => update({ target: target.value })}
-                                            disabled={gif && target.value !== 'file'}
+                                            disabled={fileOnly && target.value !== 'file'}
                                             className={cx(
                                                 'flex h-9 items-center justify-center gap-1.5 rounded-md text-sm disabled:opacity-40',
-                                                (gif ? 'file' : settings.target) === target.value ? 'bg-accent text-white' : 'text-muted hover:text-fg'
+                                                (fileOnly ? 'file' : settings.target) === target.value ? 'bg-accent text-white' : 'text-muted hover:text-fg'
                                             )}
-                                            title={gif && target.value !== 'file' ? 'GIFs are saved as files' : target.hint}
+                                            title={fileOnly && target.value !== 'file' ? `${gif ? 'GIFs' : 'Transparent videos'} are saved as files` : target.hint}
                                         >
                                             {target.icon}
                                             {target.label}
@@ -306,6 +330,33 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                                     />
                                     <span className='pr-3 font-mono text-xs text-muted'>{extension}</span>
                                 </div>
+                            </Group>
+
+                            <Group label='Aspect ratios'>
+                                <div className='grid grid-cols-4 gap-1.5'>
+                                    {ASPECT_ORDER.map((aspect) => {
+                                        const on = targets.includes(aspect);
+                                        return (
+                                            <button
+                                                key={aspect}
+                                                onClick={() => {
+                                                    const current = aspects.length > 0 ? aspects : edit.aspect === 'auto' ? [] : [edit.aspect];
+                                                    setAspects(current.includes(aspect) ? current.filter((a) => a !== aspect) : [...current, aspect]);
+                                                }}
+                                                className={cx(
+                                                    'h-8 rounded-md border text-xs',
+                                                    on ? 'border-accent bg-accent/10 text-fg' : 'border-line bg-panel-2 text-muted hover:border-line-strong hover:text-fg'
+                                                )}
+                                                aria-pressed={on}
+                                                title={on ? `Exporting a ${aspect} file — click to leave it out` : `Also export a ${aspect} file`}
+                                            >
+                                                {aspect}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                {targets.length === 1 && targets[0] === 'auto' && <p className='text-[11px] text-muted'>Original size. Pick one or more to export those aspects instead, one file each.</p>}
+                                {multi && <p className='text-[11px] text-muted'>One file per aspect, named “… {targets[1].replace(':', 'x')}”. Saved as files only.</p>}
                             </Group>
 
                             <Group label='Preset'>
@@ -340,10 +391,19 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                                         <Segmented
                                             size='sm'
                                             value={settings.format}
-                                            onChange={(format) => update(format === 'gif' ? { format, fps: 15, resolution: Math.min(settings.resolution, 720) as Resolution } : { format, fps: settings.fps === 15 ? 30 : settings.fps })}
+                                            onChange={(format) =>
+                                                update(
+                                                    format === 'gif'
+                                                        ? { format, fps: 15, resolution: Math.min(settings.resolution, 720) as Resolution }
+                                                        : format === 'mov'
+                                                          ? { format, fps: SCENE_FPS }
+                                                          : { format, fps: settings.fps === 15 ? 30 : settings.fps }
+                                                )
+                                            }
                                             options={[
                                                 { value: 'mp4', label: 'MP4', hint: 'Video with sound' },
                                                 { value: 'gif', label: 'GIF', hint: 'Silent, loops, plays anywhere' },
+                                                { value: 'mov', label: 'Transparent', hint: 'ProRes 4444 with alpha: only the motion scenes and overlays, for Final Cut or Premiere' },
                                             ]}
                                         />
                                     </Group>
@@ -360,10 +420,10 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                                             size='sm'
                                             value={settings.fps}
                                             onChange={(fps) => update({ fps })}
-                                            options={(gif ? ([10, 15, 24] as const) : ([24, 30, 60] as const)).map((fps) => ({ value: fps as ExportSettings['fps'], label: `${fps} fps` }))}
+                                            options={(gif ? ([10, 15, 24] as const) : mov ? ([SCENE_FPS] as const) : ([24, 30, 60] as const)).map((fps) => ({ value: fps as ExportSettings['fps'], label: `${fps} fps` }))}
                                         />
                                     </Group>
-                                    {!gif && (
+                                    {!fileOnly && (
                                         <Group label='Quality'>
                                             <Segmented size='sm' value={settings.quality} onChange={(quality) => update({ quality })} options={QUALITIES} />
                                         </Group>
@@ -441,18 +501,19 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                             )}
 
                             <p className='text-xs text-muted'>
-                                {gif ? 'GIF' : 'MP4'} · {size.width} × {size.height} · {settings.fps} fps · {formatDuration(totalDuration(edit.clips))}
-                                {gif && totalDuration(edit.clips) > 60 ? ' · long GIFs get very large' : ''} · saved to Movies › Capturita › Exports
+                                {formatLabel} · {targets.map((aspect) => { const s = exportSize(aspect === edit.aspect ? edit : { ...edit, aspect }, project, settings.resolution); return `${s.width} × ${s.height}`; }).join(', ')} · {settings.fps} fps · {formatDuration(totalDuration(edit.items))}
+                                {gif && totalDuration(edit.items) > 60 ? ' · long GIFs get very large' : ''}
+                                {mov ? ' · no recording or audio, large file' : ''} · saved to Movies › Capturita › Exports
                             </p>
                             {state.status === 'error' && <p className='rounded-lg bg-danger-soft p-3 text-xs text-danger-fg'>Export failed: {state.message}</p>}
                             <Button variant='primary' className='w-full' onClick={() => start()} disabled={needsSetup} title={needsSetup ? 'Connect Google first' : undefined}>
-                                <Download className='h-4 w-4' /> {uploading ? 'Export & upload' : gif ? 'Export GIF' : 'Export'}
+                                <Download className='h-4 w-4' /> {uploading ? 'Export & upload' : multi ? `Export ${targets.length} files` : gif ? 'Export GIF' : mov ? 'Export transparent MOV' : 'Export'}
                             </Button>
                         </>
                     )}
 
                     {state.status === 'exporting' && (
-                        <Progress label={PHASES[state.progress.phase]} value={state.progress.progress} onCancel={cancel} cancelLabel='Cancel export' />
+                        <Progress label={state.part ? `${state.part} · ${PHASES[state.progress.phase]}` : PHASES[state.progress.phase]} value={state.progress.progress} onCancel={cancel} cancelLabel='Cancel export' />
                     )}
 
                     {state.status === 'signing-in' && (
@@ -476,7 +537,7 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                             <p className='rounded-lg bg-danger-soft p-3 text-xs text-danger-fg'>Upload failed: {state.message}</p>
                             <p className='text-xs text-muted'>The MP4 was exported and is still saved on this Mac.</p>
                             <div className='flex justify-end gap-2'>
-                                <Button size='icon' variant='secondary' onClick={() => revealItemInDir(state.path!)} title='Show the MP4 in Finder' aria-label='Show in Finder'>
+                                <Button size='icon' variant='secondary' onClick={() => revealItemInDir(state.path!)} title='Show the file in Finder' aria-label='Show in Finder'>
                                     <FolderOpen className='h-4 w-4' />
                                 </Button>
                                 <Button
@@ -497,8 +558,10 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                             <div className='flex items-start gap-3 rounded-lg bg-success-soft p-3'>
                                 <CheckCircle2 className='mt-0.5 h-5 w-5 shrink-0 text-success' />
                                 <div className='min-w-0 text-sm'>
-                                    <p className='font-medium'>{state.url ? 'Uploaded' : 'Saved'}</p>
-                                    <p className='truncate text-xs text-muted'>{state.url ?? state.path.split('/').pop()}</p>
+                                    <p className='font-medium'>{state.url ? 'Uploaded' : state.paths && state.paths.length > 1 ? `Saved ${state.paths.length} files` : 'Saved'}</p>
+                                    {(state.paths ?? [state.url ?? state.path]).map((p) => (
+                                        <p key={p} className='truncate text-xs text-muted'>{state.url ?? p.split('/').pop()}</p>
+                                    ))}
                                     <p className='text-xs text-muted'>Took {formatDuration(state.seconds)}</p>
                                     {state.lockedPrivate && (
                                         <p className='pt-1 text-xs text-warning-fg'>YouTube kept it private because your API project isn't audited yet. Upload the MP4 in YouTube Studio to make it public.</p>
@@ -543,6 +606,8 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
         </Modal>
     );
 }
+
+const ASPECT_ORDER = ASPECTS.map((a) => a.value).filter((a): a is Exclude<Aspect, 'auto'> => a !== 'auto');
 
 function Group({ label, children }: { label: string; children: ReactNode }) {
     return (

@@ -193,6 +193,15 @@ export const api = {
     /** Copies a song into the project folder; returns its file name there. */
     importMusic: async (id: string, file: File) =>
         invoke<string>('import_music', new Uint8Array(await file.arrayBuffer()), { headers: { id, name: encodeURIComponent(file.name) } }),
+    /** Copies a voiceover or sound effect into the project's audio/ folder; returns its path there. */
+    importAudio: async (id: string, kind: 'voice' | 'sfx', file: File) =>
+        invoke<string>('import_audio', new Uint8Array(await file.arrayBuffer()), { headers: { id, kind, name: encodeURIComponent(file.name) } }),
+    /** The licensed sound pack (Capturita/Sounds). */
+    listSounds: () => invoke<{ dir: string; files: string[] }>('list_sounds'),
+    /** Adds a file to the sound pack; returns its name there. */
+    importSound: async (file: File) => invoke<string>('import_sound', new Uint8Array(await file.arrayBuffer()), { headers: { name: encodeURIComponent(file.name) } }),
+    /** Copies a pack sound into the project (once); returns its path there. */
+    useSound: (id: string, sound: string) => invoke<string>('use_sound', { id, sound }),
     importBackground: async (id: string, file: File) =>
         invoke<string>('import_background', new Uint8Array(await file.arrayBuffer()), { headers: { id, name: encodeURIComponent(file.name) } }),
     saveThumbnail: (id: string, jpeg: Blob) => jpeg.arrayBuffer().then((bytes) => invoke<void>('save_thumbnail', new Uint8Array(bytes), { headers: { id } })),

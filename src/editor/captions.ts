@@ -1,6 +1,7 @@
 import { api, fileUrl, type Project } from '../lib/api';
 import { loadAudioTracks, type TrackKind } from './audioSchedule';
-import { FILLER, groupCaptions, type Caption, type CaptionWord } from './model';
+import { loadAudioFile } from './audioSchedule';
+import { FILLER, groupCaptions, type AudioClip, type Caption, type CaptionWord } from './model';
 
 const WHISPER_RATE = 16_000;
 
@@ -55,4 +56,19 @@ export async function makeCaptions(project: Project, language: string, source: C
     }
     words.sort((a, b) => a.start - b.start);
     return { items: groupCaptions(words), fillers: words.filter((w) => FILLER.test(w.text.trim())) };
+}
+
+/**
+ * Transcribes a voiceover clip's file. Caption times are seconds into the file and carry the
+ * clip's id, so they move and trim with the clip.
+ */
+export async function makeVoiceCaptions(project: Project, clip: AudioClip, language: string): Promise<{ items: Caption[]; fillers: CaptionWord[] }> {
+    const decoded = await loadAudioFile(new OfflineAudioContext(1, 1, WHISPER_RATE), fileUrl(project, clip.file));
+    const context = new OfflineAudioContext(1, Math.max(1, Math.ceil(decoded.duration * WHISPER_RATE)), WHISPER_RATE);
+    const source = context.createBufferSource();
+    source.buffer = decoded;
+    source.connect(context.destination);
+    source.start(0);
+    const words = await api.transcribe((await context.startRendering()).getChannelData(0), language);
+    return { items: groupCaptions(words).map((caption) => ({ ...caption, voice: clip.id })), fillers: [] };
 }

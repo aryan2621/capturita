@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.capturita.app",
   "build": {
-    "beforeDevCommand": "npm run build:recorder && ./scripts/build-llama-server.sh && npm run dev",
+    "beforeDevCommand": "npm run build:recorder && ./scripts/build-llama-server.sh && ./scripts/build-studio-renderer.sh --dev && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build:recorder && ./scripts/build-llama-server.sh && npm run build",
+    "beforeBuildCommand": "npm run build:recorder && ./scripts/build-llama-server.sh && ./scripts/build-studio-renderer.sh && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -35,8 +35,12 @@
     "targets": "all",
     "externalBin": [
       "binaries/capturita-recorder",
-      "binaries/llama-server"
+      "binaries/llama-server",
+      "binaries/studio-node"
     ],
+    "resources": {
+      "studio-runtime/": "studio-renderer/"
+    },
     "macOS": {
       "minimumSystemVersion": "15.0",
       "signingIdentity": "-",

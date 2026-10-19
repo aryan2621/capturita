@@ -5,8 +5,8 @@ import { Captions as CaptionsIcon, FileDown, Highlighter, Loader2, RefreshCw, Tr
 import { toast } from 'sonner';
 import { api, errorMessage, type CaptionProgress, type Project } from '../lib/api';
 import { Button, Segmented, Select, Slider, Switch, cx } from '../components/ui';
-import { CAPTION_SOURCES, defaultCaptionSource, makeCaptions, speechSources, type CaptionSource } from './captions';
-import { FONTS, fontStack, retimeCaption, toSrt, type Caption, type CaptionBackground, type Captions, type Clip, type FontKey } from './model';
+import { CAPTION_SOURCES, defaultCaptionSource, makeCaptions, makeVoiceCaptions, speechSources, type CaptionSource } from './captions';
+import { CAPTION_HIGHLIGHT_STYLES, FONTS, fontStack, retimeCaption, toSrt, type AudioClip, type Caption, type CaptionBackground, type CaptionHighlightStyle, type Captions, type FontKey, type TimelineItem } from './model';
 
 const LANGUAGES: [string, string][] = [
     ['auto', 'Detect automatically'],
@@ -51,16 +51,21 @@ export function CaptionsPanel({
     onChange,
     onSelect,
     onSeek,
+    voiceovers,
+    onSeekOutput,
 }: {
     project: Project;
     projectName: string;
     captions: Captions;
-    clips: Clip[];
+    clips: TimelineItem[];
     selectedId: string | null;
     onChange: (captions: Captions, key: string) => void;
     onSelect: (id: string | null) => void;
     /** Jump to a source time. */
     onSeek: (source: number) => void;
+    voiceovers: AudioClip[];
+    /** Jump to an output time. */
+    onSeekOutput: (outputTime: number) => void;
 }) {
     const [progress, setProgress] = useState<CaptionProgress | null>(null);
     const [modelMb, setModelMb] = useState<number | null>(null);
@@ -68,6 +73,8 @@ export function CaptionsPanel({
     const [source, setSource] = useState<CaptionSource>(() => defaultCaptionSource(project));
     /** Redo shows the caption settings again before replacing the current captions. */
     const [redoing, setRedoing] = useState(false);
+    /** Also transcribe the voiceover clips. */
+    const [withVoice, setWithVoice] = useState(true);
     const listRef = useRef<HTMLDivElement>(null);
     const style = captions.style;
     const items = captions.items;
@@ -92,7 +99,10 @@ export function CaptionsPanel({
         setRedoing(false);
         setProgress({ phase: modelMb ? 'download' : 'load', progress: 0 });
         try {
-            const made = await makeCaptions(project, captions.language, source);
+            const made = available.length > 0 ? await makeCaptions(project, captions.language, source) : { items: [], fillers: [] };
+            if (withVoice || available.length === 0) {
+                for (const clip of voiceovers) made.items.push(...(await makeVoiceCaptions(project, clip, captions.language)).items);
+            }
             onChange({ ...captions, items: made.items, fillers: made.fillers, visible: true }, 'captions-generate');
             setModelMb(null);
             toast.success(made.items.length ? `${made.items.length} captions made — check them below` : 'No speech found in this recording');
@@ -113,7 +123,7 @@ export function CaptionsPanel({
 
     const saveSrt = async () => {
         try {
-            const path = await api.saveExportText(projectName, 'srt', toSrt(clips, items));
+            const path = await api.saveExportText(projectName, 'srt', toSrt({ items: clips, captions, audio: { voiceovers } }));
             toast.success('Captions saved as .srt', { action: { label: 'Show', onClick: () => revealItemInDir(path) } });
         } catch (error) {
             toast.error(errorMessage(error));
@@ -127,7 +137,7 @@ export function CaptionsPanel({
         </h3>
     );
 
-    if (available.length === 0) {
+    if (available.length === 0 && voiceovers.length === 0) {
         return (
             <section className='space-y-3'>
                 {header}
@@ -190,6 +200,12 @@ export function CaptionsPanel({
                             ))}
                         </Select>
                     </label>
+                )}
+                {available.length > 0 && voiceovers.length > 0 && (
+                    <div className='flex items-center justify-between gap-3 text-xs'>
+                        <span>Also caption the voiceovers ({voiceovers.length})</span>
+                        <Switch label='Also caption the voiceovers' checked={withVoice} onChange={setWithVoice} />
+                    </div>
                 )}
                 <div className='flex gap-2'>
                     {redoing && (
@@ -270,6 +286,16 @@ export function CaptionsPanel({
                         </div>
                     </div>
                     {style.highlight && (
+                        <div className='pl-6'>
+                            <Segmented
+                                size='sm'
+                                value={style.highlightStyle ?? 'color'}
+                                onChange={(highlightStyle) => setStyle({ highlightStyle: highlightStyle as CaptionHighlightStyle }, 'captions-highlight-style')}
+                                options={CAPTION_HIGHLIGHT_STYLES.map((o) => ({ value: o.value, label: o.label, hint: o.hint }))}
+                            />
+                        </div>
+                    )}
+                    {style.highlight && (
                         <div className='flex items-center gap-2 pl-6'>
                             {HIGHLIGHTS.map((color) => (
                                 <button
@@ -310,11 +336,14 @@ export function CaptionsPanel({
                                 className='mt-1 w-10 shrink-0 text-left font-mono text-[11px] text-muted hover:text-fg'
                                 onClick={() => {
                                     onSelect(caption.id);
-                                    onSeek(caption.start + 0.05);
+                                    const clip = caption.voice ? voiceovers.find((c) => c.id === caption.voice) : undefined;
+                                    if (caption.voice) {
+                                        if (clip) onSeekOutput(clip.start + Math.max(0, caption.start - clip.offset) + 0.05);
+                                    } else onSeek(caption.start + 0.05);
                                 }}
-                                title='Jump to this caption'
+                                title={caption.voice ? 'Voiceover caption — jump to it' : 'Jump to this caption'}
                             >
-                                {clock(caption.start)}
+                                {caption.voice ? 'VO' : clock(caption.start)}
                             </button>
                             <AutoTextarea
                                 value={caption.text}

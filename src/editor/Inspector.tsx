@@ -22,11 +22,13 @@ import { Button, Segmented, Select, Slider, Switch, cx } from '../components/ui'
 import { api, errorMessage, fileUrl } from '../lib/api';
 import { backgroundCss } from './render';
 import { MusicPanel } from './MusicPanel';
+import { AudioClipPanel, AudioClipsSection, DuckingSection } from './AudioClipsPanel';
 import { HidePanel } from './HidePanel';
 import { CaptionsPanel } from './CaptionsPanel';
 import { AiPanel } from './AiPanel';
 import { CURSOR_ANIMATIONS, SCREEN_ANIMATIONS } from './motion';
 import type { CursorData, Project } from '../lib/api';
+import type { SceneEnv } from '../studio/scenes/assets';
 import {
     CLICK_COLORS,
     FONTS,
@@ -34,6 +36,7 @@ import {
     GRADIENTS,
     SOLID_COLORS,
     TEXT_ANIMATIONS,
+    type AudioClip,
     type Background,
     type CameraCorner,
     type Captions,
@@ -41,10 +44,17 @@ import {
     type Edit,
     type FontKey,
     type HideRegion,
+    type SceneClip,
     type TextOverlay,
+    totalDuration,
+    type OverlayClip,
+    type TimelineItem,
     type TrackLevel,
     type Zoom,
 } from './model';
+import { BrandSection } from '../studio/BrandSection';
+import { OverlayPanel, ScenePanel } from '../studio/ScenePanel';
+import { TransparentExport } from '../studio/TransparentExport';
 
 interface InspectorProps {
     edit: Edit;
@@ -80,9 +90,27 @@ interface InspectorProps {
     onDeselect: () => void;
     /** Jump to a source time. */
     onSeekSource: (source: number) => void;
+    /** Jump to an output time. */
+    onSeekOutput: (outputTime: number) => void;
     cursor: CursorData | null;
     /** Replaces the whole edit in one undo step (AI editing). */
     onReplaceEdit: (next: Edit, key: string) => void;
+    selectedScene: SceneClip | null;
+    onTimelineChange: (items: TimelineItem[], key: string) => void;
+    onSceneDelete: (id: string) => void;
+    /** Whether the selected scene's target is being drawn on the preview. */
+    sceneTargetPicking: boolean;
+    onSceneTargetPicking: (picking: boolean) => void;
+    selectedOverlay: OverlayClip | null;
+    onOverlaysChange: (overlays: OverlayClip[], key?: string) => void;
+    /** The selected voiceover or sound effect. */
+    selectedAudio: { clip: AudioClip; kind: 'voice' | 'sfx' } | null;
+    onSelectAudio: (id: string) => void;
+    /** Current output time (where new voiceovers and sounds go). */
+    playhead: () => number;
+    sceneEnv: SceneEnv;
+    /** Export size, for scenes the AI makes. */
+    sceneSize: { width: number; height: number };
 }
 
 const TEXT_COLORS = ['#ffffff', '#111111', '#d97757', '#ffd200', '#ff5c7a', '#38ef7d'];
@@ -117,7 +145,40 @@ export function Inspector(props: InspectorProps) {
         { value: 'ai', label: 'AI', icon: <Sparkles className='h-4 w-4' /> },
     ];
 
-    const item = selectedZoom ? (
+    const audioClip = props.selectedAudio;
+    const lane = audioClip?.kind === 'voice' ? 'voiceovers' : 'effects';
+    const item = audioClip ? (
+        <ItemPanel
+            title={audioClip.kind === 'voice' ? 'Voiceover' : 'Sound effect'}
+            onBack={onDeselect}
+            onDelete={() => onChange({ audio: { ...edit.audio, [lane]: edit.audio[lane].filter((c) => c.id !== audioClip.clip.id) } }, `${lane}-delete`)}
+        >
+            <AudioClipPanel
+                clip={audioClip.clip}
+                kind={audioClip.kind}
+                total={totalDuration(edit.items)}
+                onChange={(clip, key) => onChange({ audio: { ...edit.audio, [lane]: edit.audio[lane].map((c) => (c.id === clip.id ? clip : c)) } }, key)}
+            />
+        </ItemPanel>
+    ) : props.selectedOverlay ? (
+        <ItemPanel title='Overlay' onBack={onDeselect} onDelete={() => props.onOverlaysChange(edit.overlays.filter((o) => o.id !== props.selectedOverlay!.id))}>
+            <OverlayPanel overlays={edit.overlays} overlay={props.selectedOverlay} total={totalDuration(edit.items)} project={props.project} cursor={props.cursor} onChange={props.onOverlaysChange} />
+            <TransparentExport key={props.selectedOverlay.id} project={props.project} edit={edit} kind='overlay' id={props.selectedOverlay.id} scene={props.selectedOverlay.scene} />
+        </ItemPanel>
+    ) : props.selectedScene ? (
+        <ItemPanel title='Scene' onBack={onDeselect} onDelete={() => props.onSceneDelete(props.selectedScene!.id)}>
+            <ScenePanel
+                items={edit.items}
+                scene={props.selectedScene}
+                project={props.project}
+                cursor={props.cursor}
+                picking={props.sceneTargetPicking}
+                onPick={props.onSceneTargetPicking}
+                onChange={props.onTimelineChange}
+            />
+            <TransparentExport key={props.selectedScene.id} project={props.project} edit={edit} kind='scene' id={props.selectedScene.id} scene={props.selectedScene.scene} />
+        </ItemPanel>
+    ) : selectedZoom ? (
         <ItemPanel title='Zoom' onBack={onDeselect} onDelete={() => props.onZoomDelete(selectedZoom.id)}>
             <ZoomSettings zoom={selectedZoom} onChange={props.onZoomChange} />
         </ItemPanel>
@@ -158,7 +219,12 @@ export function Inspector(props: InspectorProps) {
             <div className='min-h-0 flex-1 overflow-y-auto p-5'>
                 {item ?? (
                     <>
-                        {tab === 'look' && <LookPanel {...props} />}
+                        {tab === 'look' && (
+                            <div className='space-y-8'>
+                                <LookPanel {...props} />
+                                <BrandSection edit={edit} onChange={onChange} />
+                            </div>
+                        )}
                         {tab === 'zoom' && <ZoomPanel {...props} />}
                         {tab === 'cursor' && <CursorPanel cursor={edit.cursor} edit={edit} onChange={onChange} />}
                         {tab === 'camera' && hasCamera && <CameraPanel edit={edit} onChange={onChange} />}
@@ -168,11 +234,13 @@ export function Inspector(props: InspectorProps) {
                                 project={props.project}
                                 projectName={props.projectName}
                                 captions={edit.captions}
-                                clips={edit.clips}
+                                clips={edit.items}
                                 selectedId={selectedCaptionId}
                                 onChange={props.onCaptionsChange}
                                 onSelect={props.onSelectCaption}
                                 onSeek={props.onSeekSource}
+                                voiceovers={edit.audio.voiceovers}
+                                onSeekOutput={props.onSeekOutput}
                             />
                         )}
                         {tab === 'annotate' && (
@@ -192,7 +260,7 @@ export function Inspector(props: InspectorProps) {
                         {tab === 'thumbnail' && (
                             <ThumbnailSection project={props.project} version={edit.thumbnail} onFromFrame={props.onThumbnailFromFrame} onFromFile={props.onThumbnailFromFile} />
                         )}
-                        {tab === 'ai' && <AiPanel project={props.project} edit={edit} cursor={props.cursor} onApply={props.onReplaceEdit} onSeek={props.onSeekSource} />}
+                        {tab === 'ai' && <AiPanel project={props.project} edit={edit} cursor={props.cursor} onApply={props.onReplaceEdit} onSeek={props.onSeekSource} sceneEnv={props.sceneEnv} sceneSize={props.sceneSize} playhead={props.playhead} />}
                     </>
                 )}
             </div>
@@ -621,7 +689,7 @@ function CameraPanel({ edit, onChange }: { edit: Edit; onChange: InspectorProps[
 
 // ---- Audio ----
 
-function AudioPanel({ edit, onChange, hasMicrophone, hasSystemAudio, projectId }: InspectorProps) {
+function AudioPanel({ edit, onChange, hasMicrophone, hasSystemAudio, projectId, project, playhead, onSelectAudio }: InspectorProps) {
     const setLevel = (track: 'system' | 'microphone', level: TrackLevel, key: string) => onChange({ audio: { ...edit.audio, [track]: level } }, key);
     return (
         <Section icon={<Volume2 className='h-3.5 w-3.5' />} title='Audio'>
@@ -657,6 +725,8 @@ function AudioPanel({ edit, onChange, hasMicrophone, hasSystemAudio, projectId }
                     );
                 })}
             <MusicPanel projectId={projectId} audio={edit.audio} onChange={(audio, key) => onChange({ audio }, key)} />
+            <AudioClipsSection project={project} audio={edit.audio} playhead={playhead} total={totalDuration(edit.items)} onChange={(audio, key) => onChange({ audio }, key)} onSelect={onSelectAudio} />
+            <DuckingSection ducking={edit.audio.ducking} hasMusic={!!edit.audio.music} hasMicrophone={hasMicrophone} onChange={(ducking, key) => onChange({ audio: { ...edit.audio, ducking } }, key)} />
             <Slider label='Fade in' value={edit.audio.fadeIn} min={0} max={3} step={0.1} format={(v) => `${v.toFixed(1)} s`} onChange={(fadeIn) => onChange({ audio: { ...edit.audio, fadeIn } }, 'fade-in')} />
             <Slider label='Fade out' value={edit.audio.fadeOut} min={0} max={3} step={0.1} format={(v) => `${v.toFixed(1)} s`} onChange={(fadeOut) => onChange({ audio: { ...edit.audio, fadeOut } }, 'fade-out')} />
         </Section>

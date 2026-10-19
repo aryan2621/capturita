@@ -25,4 +25,6 @@ dist-ssr
 
 # Built by scripts/build-recorder.sh
 src-tauri/binaries/
+# Built by scripts/build-studio-renderer.sh
+src-tauri/studio-runtime/
 recorder/.build/

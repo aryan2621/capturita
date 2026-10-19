@@ -291,7 +291,7 @@ pub fn list_recordings(app: AppHandle) -> Result<Vec<Value>, String> {
 }
 
 /// A recording's folder. Only plain folder names inside the recordings folder are accepted.
-fn project_dir(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
+pub(crate) fn project_dir(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
     if id.is_empty() || id.contains(['/', '\\']) || id.starts_with('.') {
         return Err("Invalid recording id".into());
     }
