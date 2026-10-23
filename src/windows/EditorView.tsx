@@ -1,9 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import { ArrowLeft, Check, CircleAlert, Crop, Download, FastForward, FolderOpen, Gauge, Keyboard, Loader2, Minus, Pause, Play, Plus, Redo2, Rewind, RotateCcw, Scissors, Sparkles, SquareSplitHorizontal, Trash2, Undo2, X } from 'lucide-react';
+import {
+    ArrowLeft,
+    Check,
+    CircleAlert,
+    Crop,
+    Download,
+    FastForward,
+    FolderOpen,
+    Gauge,
+    Keyboard,
+    Loader2,
+    Minus,
+    Pause,
+    Play,
+    Plus,
+    Redo2,
+    Rewind,
+    RotateCcw,
+    Scissors,
+    Sparkles,
+    SquareSplitHorizontal,
+    Trash2,
+    Undo2,
+    X,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { api, errorMessage, fileUrl, formatDuration, type CursorData, type Project } from '../lib/api';
-import { Button, IconButton, Popover, RangeInput, Segmented, Select, cx } from '../components/ui';
+import { api, errorMessage, fileUrl, formatDuration, isStudio, type CursorData, type Project } from '../lib/api';
+import { Button, IconButton, Popover, RangeInput, Segmented, cx } from '../components/ui';
 import { CropOverlay } from '../editor/CropOverlay';
 import { ExportDialog } from '../editor/ExportDialog';
 import { ShortcutsSheet } from '../editor/ShortcutsSheet';
@@ -26,6 +50,7 @@ import {
     MIN_ZOOM,
     outputTimeOf,
     newId,
+    DEFAULT_CROSSFADE,
     type OverlayClip,
     normalizeEdit,
     overlaysAt,
@@ -50,26 +75,80 @@ import {
     type TextOverlay,
     type TimelineItem,
     type Zoom,
+    withHeldEnds,
 } from '../editor/model';
 import { drawCaptions, drawDip, drawFrame, drawLayer, fillBackground, layoutFrame, screenView, videoFrame } from '../editor/render';
 import { exportSize } from '../editor/export';
 import { SceneLayer, type SceneLayerHandle } from '../studio/SceneLayer';
-import { canBeOverlay, canBeScene, SCENES } from '../studio/scenes';
+import { canBeOverlay, canBeScene, needsRecording, SCENES } from '../studio/scenes';
 import type { Segment, TargetRect } from '../studio/scenes/assets';
 import { useProjectBrand } from '../studio/brandKits';
 import { initialSceneProps, previewAssets, recordingInfo } from '../studio/sceneEnv';
 import { TargetPicker } from '../studio/TargetPicker';
+import { LayerHandles } from '../studio/LayerHandles';
+import { beatsOnTimeline } from '../editor/beats';
+import { layerAspect, type Layer } from '../studio/scenes/layers';
+
+/** A new Studio video starts as a short teaser to edit: logo, a statement, an end card. */
+function studioStarter(): SceneClip[] {
+    return ['LogoSting', 'KineticStatement', 'EndCard'].map((id, index) => ({
+        kind: 'scene',
+        id: newId(),
+        scene: id,
+        props: { ...SCENES[id].defaultProps },
+        duration: SCENES[id].defaultDuration,
+        ...(index > 0 ? { transition: { type: 'crossfade', duration: DEFAULT_CROSSFADE } } : {}),
+    }));
+}
 
 /** The ✨ menu: scenes to add at the playhead. */
 const SCENE_CHOICES = [
     { id: 'LogoSting', hint: 'Your logo, revealed' },
-    { id: 'TitleReveal', hint: 'A title card', overlayHint: 'A title over the video' },
-    { id: 'KineticStatement', hint: 'A bold line, word by word', overlayHint: 'Big words over the video' },
+    {
+        id: 'TitleReveal',
+        hint: 'A title card',
+        overlayHint: 'A title over the video',
+    },
+    {
+        id: 'KineticStatement',
+        hint: 'A bold line, word by word',
+        overlayHint: 'Big words over the video',
+    },
     { id: 'DeviceShowcase', hint: 'The recording in a laptop or window' },
     { id: 'FeatureCallout', hint: 'Zoom in and point at one thing' },
     { id: 'StatCounter', hint: 'Numbers that count up' },
     { id: 'LowerThird', hint: '', overlayHint: 'A name and title bar' },
     { id: 'EndCard', hint: 'Call to action, link and QR code' },
+    {
+        id: 'ScreenshotShowcase',
+        hint: 'A screenshot in a phone, laptop or browser',
+    },
+    { id: 'FeatureGrid', hint: 'Features as cards with icons' },
+    { id: 'Testimonial', hint: 'A customer quote with stars' },
+    { id: 'Pricing', hint: 'Plans and prices' },
+    { id: 'BeforeAfter', hint: 'Two pictures with a sweeping divider' },
+    {
+        id: 'LogoWall',
+        hint: 'Customer or partner logos',
+        overlayHint: 'Logos over the video',
+    },
+    { id: 'CodeTyping', hint: 'Code typing itself in an editor' },
+    { id: 'Comparison', hint: 'Us vs them, ticks and crosses' },
+    {
+        id: 'Lottie',
+        hint: 'A Lottie or Rive animation you add',
+        overlayHint: 'A Lottie or Rive animation over the video',
+    },
+    { id: 'Roadmap', hint: 'Milestones on a line' },
+    { id: 'Team', hint: 'The people behind it' },
+    { id: 'VideoClip', hint: 'A video clip you add (b-roll)' },
+    { id: 'Waveform', hint: 'Bars moving with an audio file' },
+    { id: 'Showcase3D', hint: 'A phone, laptop or your logo in 3D' },
+    {
+        id: 'Custom',
+        hint: 'Your own layers: text, shapes, icons, animated elements',
+        overlayHint: 'Your own layers over the video',
+    },
 ];
 import { useHistory } from '../editor/useHistory';
 import { usePlayback } from '../editor/usePlayback';
@@ -77,12 +156,19 @@ import { useThumbnails } from '../editor/useThumbnails';
 
 const SAVE_DELAY_MS = 400;
 const SPEED_PRESETS = [0.5, 1, 1.5, 2, 3, 4];
-const ASPECT_HINTS: Record<string, string> = { '16:9': '· Wide', '9:16': '· Vertical', '1:1': '· Square', '4:5': '· Portrait' };
+const ASPECT_HINTS: Record<string, string> = {
+    '16:9': '· Wide',
+    '9:16': '· Vertical',
+    '1:1': '· Square',
+    '4:5': '· Portrait',
+};
 /** Canvas resolution is capped so drawing stays fast on big screens. */
 const MAX_PIXEL_RATIO = 2;
 
 export function EditorView({ project, onClose }: { project: Project; onClose: () => void }) {
-    const history = useHistory<Edit>(defaultEdit(project));
+    const studio = isStudio(project);
+    // The timeline is never empty (positionAt needs an item), even before edit.json loads.
+    const history = useHistory<Edit>(studio ? { ...defaultEdit(project), items: studioStarter() } : defaultEdit(project));
     const edit = history.value;
     const [loaded, setLoaded] = useState(false);
     const [cursor, setCursor] = useState<CursorData | null>(null);
@@ -96,6 +182,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const [selectedAudioId, setSelectedAudioId] = useState<string | null>(null);
     /** What the ✨ menu adds: a scene in the timeline, or an overlay drawn over it. */
     const [addAs, setAddAs] = useState<'scene' | 'overlay'>('scene');
+    const [sceneQuery, setSceneQuery] = useState('');
     /** True when the recording had no edit.json yet, so auto-zoom runs once the cursor loads. */
     const freshRef = useRef(false);
     const [cropping, setCropping] = useState(false);
@@ -117,12 +204,19 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const [stage, setStage] = useState({ width: 0, height: 0 });
 
     const clickTimes = useMemo(() => cursor?.clicks.map(([t]) => t) ?? [], [cursor]);
-    const playback = usePlayback(project, edit.items, {
-        enabled: edit.cursor.clickSound,
-        type: edit.cursor.clickSoundType,
-        volume: edit.cursor.clickVolume,
-        times: clickTimes,
-    }, edit.audio, edit.overlays, useMemo(() => audioFiles(edit), [edit.items, edit.overlays, edit.audio]));
+    const playback = usePlayback(
+        project,
+        edit.items,
+        {
+            enabled: edit.cursor.clickSound,
+            type: edit.cursor.clickSoundType,
+            volume: edit.cursor.clickVolume,
+            times: clickTimes,
+        },
+        edit.audio,
+        edit.overlays,
+        useMemo(() => audioFiles(edit), [edit.items, edit.overlays, edit.audio])
+    );
     const playbackRef = useRef(playback);
     playbackRef.current = playback;
 
@@ -146,7 +240,13 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         [playback.audio, project.duration]
     );
     const waveform = useMemo(
-        () => combinePeaks(trackPeaks.map(({ kind, peaks }) => ({ peaks, gain: gainOf(edit.audio[kind]) }))),
+        () =>
+            combinePeaks(
+                trackPeaks.map(({ kind, peaks }) => ({
+                    peaks,
+                    gain: gainOf(edit.audio[kind]),
+                }))
+            ),
         [trackPeaks, edit.audio]
     );
     const [timelineZoom, setTimelineZoom] = useState(1);
@@ -160,7 +260,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const captionCanvasRef = useRef<HTMLCanvasElement>(null);
     const overlayLayerRef = useRef<SceneLayerHandle>(null);
     const voiceCaptionSpans = useMemo(() => captionSpans(edit).filter((span) => span.item.voice), [edit.items, edit.captions.items, edit.audio.voiceovers]);
-    const scenePieces = useMemo(() => edit.items.filter((item) => item.kind === 'scene'), [edit.items]);
+    const scenePieces = useMemo(() => withHeldEnds(edit.items).filter((item) => item.kind === 'scene'), [edit.items]);
     const stageRef = useRef<HTMLDivElement>(null);
     const timelineRef = useRef<TimelineHandle>(null);
     const editRef = useRef(edit);
@@ -177,14 +277,17 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             .then((saved) => {
                 if (cancelled) return;
                 freshRef.current = saved == null;
-                history.reset(normalizeEdit(project, saved));
+                const loadedEdit = normalizeEdit(project, saved);
+                if (studio && loadedEdit.items.length === 0) loadedEdit.items = studioStarter();
+                history.reset(loadedEdit);
             })
             .catch((error) => toast.error(`Could not load your edits: ${errorMessage(error)}`))
             .finally(() => !cancelled && setLoaded(true));
-        fetch(fileUrl(project, project.tracks.cursor.file))
-            .then((response) => (response.ok ? response.json() : null))
-            .then((data) => !cancelled && setCursor(data))
-            .catch(() => {});
+        if (project.tracks.cursor.file)
+            fetch(fileUrl(project, project.tracks.cursor.file))
+                .then((response) => (response.ok ? response.json() : null))
+                .then((data) => !cancelled && setCursor(data))
+                .catch(() => {});
         return () => {
             cancelled = true;
         };
@@ -192,6 +295,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     }, [project]);
 
     useEffect(() => {
+        if (studio) return;
         let cancelled = false;
         const slow = setTimeout(() => !cancelled && setMakingPreview(true), 400);
         api.makePreview(project.id)
@@ -219,7 +323,10 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         } catch {
             return;
         }
-        toast.info('New editing keys', { description: 'S splits a clip, C marks a part to cut, Z adds a zoom. Press ? for all shortcuts.', duration: 8000 });
+        toast.info('New editing keys', {
+            description: 'S splits a clip, C marks a part to cut, Z adds a zoom. Press ? for all shortcuts.',
+            duration: 8000,
+        });
     }, []);
 
     // A new recording starts with zooms around its clicks, like Screen Studio.
@@ -227,7 +334,10 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         if (!loaded || !cursor || !freshRef.current) return;
         freshRef.current = false;
         if (cursor.clicks.length === 0 || editRef.current.zooms.length > 0) return;
-        history.reset({ ...editRef.current, zooms: autoZooms(cursor, project.duration, editRef.current.zoomScale) });
+        history.reset({
+            ...editRef.current,
+            zooms: autoZooms(cursor, project.duration, editRef.current.zoomScale),
+        });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loaded, cursor]);
 
@@ -264,7 +374,12 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     useEffect(() => {
         const element = stageRef.current;
         if (!element) return;
-        const observer = new ResizeObserver(([entry]) => setStage({ width: entry.contentRect.width, height: entry.contentRect.height }));
+        const observer = new ResizeObserver(([entry]) =>
+            setStage({
+                width: entry.contentRect.width,
+                height: entry.contentRect.height,
+            })
+        );
         observer.observe(element);
         return () => observer.disconnect();
     }, []);
@@ -274,7 +389,14 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     /** Scenes are laid out at the size of a 1080p export, and scaled to the preview. */
     const sceneSize = exportSize(edit, project, 1080);
     const brand = useProjectBrand(project, edit.brandKit);
-    const sceneEnv = useMemo(() => ({ brand, recording: recordingInfo(project), assets: previewAssets(project, previewFile) }), [brand, project, previewFile]);
+    const sceneEnv = useMemo(
+        () => ({
+            brand,
+            recording: recordingInfo(project),
+            assets: previewAssets(project, previewFile),
+        }),
+        [brand, project, previewFile]
+    );
 
     // One loop draws every frame and moves the playhead; React state updates are throttled.
     const lastTimeUpdate = useRef(0);
@@ -295,18 +417,24 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             if (import.meta.env.DEV && playback.playing && gap > 80 && started - lastSlowLog > 1000) {
                 lastSlowLog = started;
                 const video = playback.screenRef.current;
-                api.log(`[preview] slow frame ${Math.round(gap)} ms at ${playback.now().toFixed(2)} s (video ${video?.currentTime.toFixed(2)}, seeking ${video?.seeking}, ready ${video?.readyState})`);
+                api.log(
+                    `[preview] slow frame ${Math.round(gap)} ms at ${playback.now().toFixed(2)} s (video ${video?.currentTime.toFixed(2)}, seeking ${video?.seeking}, ready ${video?.readyState})`
+                );
             }
             const screenVideo = playback.screenRef.current;
             if (import.meta.env.DEV && playback.playing && screenVideo) {
                 if (screenVideo.currentTime !== lastVideoTime) {
-                    if (stuckLogged) api.log(`[preview] video moving again at ${screenVideo.currentTime.toFixed(2)} after ${Math.round(started - videoStuckSince)} ms`);
+                    if (stuckLogged)
+                        api.log(`[preview] video moving again at ${screenVideo.currentTime.toFixed(2)} after ${Math.round(started - videoStuckSince)} ms`);
                     lastVideoTime = screenVideo.currentTime;
                     videoStuckSince = started;
                     stuckLogged = false;
                 } else if (!stuckLogged && started - videoStuckSince > 150) {
                     stuckLogged = true;
-                    const buffered = Array.from({ length: screenVideo.buffered.length }, (_, i) => `${screenVideo.buffered.start(i).toFixed(1)}-${screenVideo.buffered.end(i).toFixed(1)}`).join(',');
+                    const buffered = Array.from(
+                        { length: screenVideo.buffered.length },
+                        (_, i) => `${screenVideo.buffered.start(i).toFixed(1)}-${screenVideo.buffered.end(i).toFixed(1)}`
+                    ).join(',');
                     api.log(
                         `[preview] video stuck at ${screenVideo.currentTime.toFixed(2)} (clock ${playback.now().toFixed(2)}, paused ${screenVideo.paused}, seeking ${screenVideo.seeking}, ready ${screenVideo.readyState}, network ${screenVideo.networkState}, buffered ${buffered}, rate ${screenVideo.playbackRate})`
                     );
@@ -345,26 +473,38 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                 }
                 const targetCtx = target === canvas ? ctx : target.getContext('2d')!;
                 if (!position.recording || transitioning) fillBackground(ctx, current.background, canvas.width, canvas.height, project);
-                if (position.recording) drawFrame(targetCtx, canvas.width, canvas.height, {
-                    edit: current,
-                    project,
-                    screen: videoFrame(playback.screenRef.current),
-                    camera: videoFrame(playback.cameraRef.current),
-                    cameraActive: !!camera && cameraLocal >= 0 && cameraLocal < camera.duration,
-                    cursor,
-                    time: position.source,
-                    ignoreCrop: croppingRef.current,
-                    noZoom: placingFocusRef.current && !playback.playing,
-                    preview: true,
-                });
+                if (position.recording)
+                    drawFrame(targetCtx, canvas.width, canvas.height, {
+                        edit: current,
+                        project,
+                        screen: videoFrame(playback.screenRef.current),
+                        camera: videoFrame(playback.cameraRef.current),
+                        cameraActive: !!camera && cameraLocal >= 0 && cameraLocal < camera.duration,
+                        cursor,
+                        time: position.source,
+                        ignoreCrop: croppingRef.current,
+                        noZoom: placingFocusRef.current && !playback.playing,
+                        preview: true,
+                    });
                 if (transitioning) drawLayer(ctx, target, position.recordingFx, canvas.width, canvas.height);
                 // With no scene on screen the wash goes on the canvas; otherwise over the scene players.
                 if (position.scenes.length === 0) drawDip(ctx, position.dip, canvas.width, canvas.height);
                 sceneLayerRef.current?.update(
-                    position.scenes.map((s) => ({ id: s.item.id, time: s.time, opacity: s.opacity, fx: s.fx })),
+                    position.scenes.map((s) => ({
+                        id: s.item.id,
+                        time: s.time,
+                        opacity: s.opacity,
+                        fx: s.fx,
+                    })),
                     position.scenes.length > 0 ? position.dip : null
                 );
-                overlayLayerRef.current?.update(overlaysAt(current.overlays, t).map((o) => ({ id: o.item.id, time: o.time, opacity: 1 })));
+                overlayLayerRef.current?.update(
+                    overlaysAt(current.overlays, t).map((o) => ({
+                        id: o.item.id,
+                        time: o.time,
+                        opacity: 1,
+                    }))
+                );
                 const captionCanvas = captionCanvasRef.current;
                 const captionCtx = captionCanvas?.getContext('2d');
                 if (captionCanvas && captionCtx) {
@@ -380,7 +520,11 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
 
     const setItems = useCallback((items: TimelineItem[], key?: string) => history.set((e) => ({ ...e, items }), key), [history]);
     // A deleted voiceover takes its captions with it.
-    const change = useCallback((partial: Partial<Edit>, key: string) => history.set((e) => (partial.audio ? dropOrphanVoiceCaptions({ ...e, ...partial }) : { ...e, ...partial }), key), [history]);
+    const change = useCallback(
+        (partial: Partial<Edit>, key: string) =>
+            history.set((e) => (partial.audio ? dropOrphanVoiceCaptions({ ...e, ...partial }) : { ...e, ...partial }), key),
+        [history]
+    );
 
     /** Saves a picture as the recording's thumbnail (thumb.jpg), as a JPEG at most 1280 px wide. */
     const saveThumbnail = async (source: CanvasImageSource, width: number, height: number) => {
@@ -447,7 +591,11 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const split = () => {
         const result = splitAt(edit.items, playback.now());
         if (!result) {
-            toast.info(positionAt(edit.items, playback.now()).item.kind === 'scene' ? 'Scenes can’t be split.' : 'Move the playhead away from the clip edges to split it.');
+            toast.info(
+                positionAt(edit.items, playback.now()).item.kind === 'scene'
+                    ? 'Scenes can’t be split.'
+                    : 'Move the playhead away from the clip edges to split it.'
+            );
             return;
         }
         setItems(result.items);
@@ -457,7 +605,13 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const addScene = (id = 'TitleReveal') => {
         const definition = SCENES[id];
         const props = initialSceneProps(id, edit.items, playback.now(), project, cursor);
-        const scene: SceneClip = { kind: 'scene', id: newId(), scene: id, props, duration: definition.defaultDuration };
+        const scene: SceneClip = {
+            kind: 'scene',
+            id: newId(),
+            scene: id,
+            props,
+            duration: definition.defaultDuration,
+        };
         const items = insertScene(edit.items, playback.now(), scene);
         setItems(items);
         select('clip', scene.id);
@@ -471,7 +625,13 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         const total = totalDuration(edit.items);
         const duration = Math.min(SCENES[id].defaultDuration, total);
         const start = Math.max(0, Math.min(playback.now(), total - duration));
-        const overlay: OverlayClip = { id: newId(), scene: id, props: initialSceneProps(id, edit.items, start, project, cursor), start, duration };
+        const overlay: OverlayClip = {
+            id: newId(),
+            scene: id,
+            props: initialSceneProps(id, edit.items, start, project, cursor),
+            start,
+            duration,
+        };
         setOverlays([...edit.overlays, overlay]);
         select('overlay', overlay.id);
         playback.seek(start + Math.min(1.5, duration / 2));
@@ -489,7 +649,10 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             ? {
                   scene: selectedScene,
                   name: targetField.name,
-                  rect: { ...(SCENES[selectedScene.scene].defaultProps[targetField.name] as TargetRect), ...(selectedScene.props[targetField.name] as TargetRect) },
+                  rect: {
+                      ...(SCENES[selectedScene.scene].defaultProps[targetField.name] as TargetRect),
+                      ...(selectedScene.props[targetField.name] as TargetRect),
+                  },
                   segment: (selectedScene.props[targetField.segment] ?? SCENES[selectedScene.scene].defaultProps[targetField.segment]) as Segment,
               }
             : null;
@@ -510,6 +673,33 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         return effect ? { clip: effect, kind: 'sfx' as const } : null;
     }, [edit.audio, selectedAudioId]);
     const setOverlays = useCallback((overlays: OverlayClip[], key?: string) => history.set((e) => ({ ...e, overlays }), key), [history]);
+    const musicBeats = useMemo(() => beatsOnTimeline(edit.audio.music, totalDuration(edit.items)), [edit.audio.music, edit.items]);
+    // The selected Custom scene or overlay: its layer picked in the panel or on the preview, where the playhead is in it.
+    const [sceneLayer, setSceneLayer] = useState<number | null>(null);
+    useEffect(() => setSceneLayer(null), [selectedId, selectedOverlayId]);
+    const layered = selectedScene?.scene === 'Custom' ? selectedScene : selectedOverlay?.scene === 'Custom' ? selectedOverlay : null;
+    const layeredStart = !layered ? 0 : 'start' in layered ? layered.start : itemStarts(edit.items)[edit.items.indexOf(layered as TimelineItem)];
+    const layerTime = time - layeredStart;
+    const sceneLayerEdit = {
+        selected: sceneLayer,
+        onSelect: setSceneLayer,
+        time: Math.max(0, layerTime),
+        aspect: layerAspect(frameWidth, frameHeight),
+    };
+    const setLayers = (layers: Layer[]) => {
+        if (!layered) return;
+        const props = { ...layered.props, layers };
+        if ('start' in layered)
+            setOverlays(
+                edit.overlays.map((o) => (o.id === layered.id ? { ...o, props } : o)),
+                `overlay-${layered.id}-layers`
+            );
+        else
+            setItems(
+                edit.items.map((item) => (item.id === layered.id ? { ...layered, props } : item)),
+                `scene-${layered.id}-layers`
+            );
+    };
     /** Only one thing (clip, zoom, text, hidden area, caption or overlay) is selected at a time. */
     const select = (kind: 'clip' | 'zoom' | 'text' | 'hide' | 'caption' | 'overlay' | 'audio', id: string | null) => {
         setSelectedOverlayId(kind === 'overlay' ? id : null);
@@ -553,7 +743,16 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         const { crop } = screenView(edit, project, cursor, source, 1, 1);
         const width = crop.width * 0.4;
         const height = crop.height * 0.12;
-        const hide: HideRegion = { id: newId(), start, end, style: 'pixelate', x: crop.x + (crop.width - width) / 2, y: crop.y + (crop.height - height) / 2, width, height };
+        const hide: HideRegion = {
+            id: newId(),
+            start,
+            end,
+            style: 'pixelate',
+            x: crop.x + (crop.width - width) / 2,
+            y: crop.y + (crop.height - height) / 2,
+            width,
+            height,
+        };
         setHides([...edit.hides, hide].sort((a, b) => a.start - b.start));
         select('hide', hide.id);
     };
@@ -587,7 +786,20 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             toast.info('This clip is too short for text.');
             return;
         }
-        const text: TextOverlay = { id: newId(), start, end, text: 'Your text', x: 0.5, y: 0.18, size: 0.07, color: '#ffffff', bold: true, background: 'none', font: 'system', animation: 'rise' };
+        const text: TextOverlay = {
+            id: newId(),
+            start,
+            end,
+            text: 'Your text',
+            x: 0.5,
+            y: 0.18,
+            size: 0.07,
+            color: '#ffffff',
+            bold: true,
+            background: 'none',
+            font: 'system',
+            animation: 'rise',
+        };
         setTexts([...edit.texts, text].sort((a, b) => a.start - b.start));
         select('text', text.id);
         playback.seek(Math.min(playback.total, playback.now() + TEXT_FADE));
@@ -621,7 +833,16 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             toast.info('There is already a zoom here.');
             return;
         }
-        const zoom: Zoom = { id: newId(), start, end, scale: edit.zoomScale, mode: 'follow', x: 0.5, y: 0.5, auto: false };
+        const zoom: Zoom = {
+            id: newId(),
+            start,
+            end,
+            scale: edit.zoomScale,
+            mode: 'follow',
+            x: 0.5,
+            y: 0.5,
+            auto: false,
+        };
         setZooms([...edit.zooms, zoom].sort((a, b) => a.start - b.start));
         selectZoom(zoom.id);
     };
@@ -658,7 +879,15 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         }
         if (selectedAudio) {
             const lane = selectedAudio.kind === 'voice' ? 'voiceovers' : 'effects';
-            change({ audio: { ...edit.audio, [lane]: edit.audio[lane].filter((c) => c.id !== selectedAudio.clip.id) } }, `${lane}-delete`);
+            change(
+                {
+                    audio: {
+                        ...edit.audio,
+                        [lane]: edit.audio[lane].filter((c) => c.id !== selectedAudio.clip.id),
+                    },
+                },
+                `${lane}-delete`
+            );
             setSelectedAudioId(null);
             return;
         }
@@ -674,7 +903,14 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             `speed-${speedTarget.id}`
         );
     };
-    const applyZoomScaleToAll = () => setZooms(edit.zooms.map((zoom) => ({ ...zoom, scale: edit.zoomScale, auto: false })));
+    const applyZoomScaleToAll = () =>
+        setZooms(
+            edit.zooms.map((zoom) => ({
+                ...zoom,
+                scale: edit.zoomScale,
+                auto: false,
+            }))
+        );
 
     // Keyboard shortcuts (ignored while typing in a field).
     const openExport = () => {
@@ -772,34 +1008,13 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                     <ArrowLeft className='h-4 w-4' />
                 </IconButton>
                 <div className='min-w-0'>
-                    <p className='truncate text-sm font-semibold'>{project.source.name}</p>
+                    <p className='truncate text-sm font-semibold' title={project.source.name}>
+                        {project.source.name}
+                    </p>
                     <p className='text-xs text-muted'>{new Date(project.createdAt).toLocaleString()}</p>
                 </div>
                 <SaveStatus state={saveState} />
-                <div className='mx-auto flex items-center gap-1.5'>
-                    <Select
-                        className='h-8 w-36 text-xs'
-                        value={edit.aspect}
-                        onChange={(e) => change({ aspect: e.target.value as Edit['aspect'] }, 'aspect')}
-                        title='Shape of the video'
-                        aria-label='Aspect ratio'
-                    >
-                        {ASPECTS.map((a) => (
-                            <option key={a.value} value={a.value}>
-                                {a.value === 'auto' ? 'Original shape' : `${a.label} ${ASPECT_HINTS[a.value] ?? ''}`}
-                            </option>
-                        ))}
-                    </Select>
-                    <Button size='sm' variant={cropping ? 'primary' : 'ghost'} onClick={() => setCropping((c) => !c)} title={cropping ? 'Finish cropping' : 'Crop the screen'}>
-                        {cropping ? <Check className='h-4 w-4' /> : <Crop className='h-4 w-4' />} {cropping ? 'Done' : 'Crop'}
-                    </Button>
-                    {cropped && !cropping && (
-                        <IconButton label='Reset crop' size='icon-sm' onClick={() => change({ crop: { x: 0, y: 0, width: 1, height: 1 } }, 'crop-reset')}>
-                            <RotateCcw className='h-3.5 w-3.5' />
-                        </IconButton>
-                    )}
-                </div>
-                <div className='flex items-center gap-1'>
+                <div className='ml-auto flex items-center gap-1'>
                     <IconButton label='Undo (⌘Z)' onClick={history.undo} disabled={!history.canUndo}>
                         <Undo2 className='h-4 w-4' />
                     </IconButton>
@@ -821,6 +1036,32 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
 
             <div className='flex min-h-0 flex-1'>
                 <div className='flex min-w-0 flex-1 flex-col'>
+                    <div className='flex h-11 shrink-0 items-center justify-center gap-1.5 border-b border-line bg-panel'>
+                        <Segmented
+                            size='sm'
+                            label='Aspect ratio'
+                            value={edit.aspect}
+                            onChange={(aspect) => change({ aspect }, 'aspect')}
+                            options={ASPECTS.map((a) => ({
+                                value: a.value,
+                                label: a.value === 'auto' ? 'Original' : a.label,
+                                hint: a.value === 'auto' ? 'Keep the recording’s own shape' : `${a.label} ${ASPECT_HINTS[a.value] ?? ''}`.trim(),
+                            }))}
+                        />
+                        <Button
+                            size='sm'
+                            variant={cropping ? 'primary' : 'ghost'}
+                            onClick={() => setCropping((c) => !c)}
+                            title={cropping ? 'Finish cropping' : 'Crop the screen'}
+                        >
+                            {cropping ? <Check className='h-4 w-4' /> : <Crop className='h-4 w-4' />} {cropping ? 'Done' : 'Crop'}
+                        </Button>
+                        {cropped && !cropping && (
+                            <IconButton label='Reset crop' size='icon-sm' onClick={() => change({ crop: { x: 0, y: 0, width: 1, height: 1 } }, 'crop-reset')}>
+                                <RotateCcw className='h-3.5 w-3.5' />
+                            </IconButton>
+                        )}
+                    </div>
                     <div ref={stageRef} className='relative flex min-h-0 flex-1 items-center justify-center bg-stage p-6'>
                         <div className='relative' style={{ width: frameWidth, height: frameHeight }}>
                             <canvas
@@ -849,11 +1090,32 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                     height={frameHeight}
                                     onChange={(rect) =>
                                         setItems(
-                                            edit.items.map((item) => (item.id === picker.scene.id ? { ...picker.scene, props: { ...picker.scene.props, [picker.name]: rect } } : item)),
+                                            edit.items.map((item) =>
+                                                item.id === picker.scene.id
+                                                    ? {
+                                                          ...picker.scene,
+                                                          props: {
+                                                              ...picker.scene.props,
+                                                              [picker.name]: rect,
+                                                          },
+                                                      }
+                                                    : item
+                                            ),
                                             `scene-${picker.scene.id}-${picker.name}`
                                         )
                                     }
                                     onDone={() => setPickingTarget(false)}
+                                />
+                            )}
+                            {layered && !playback.playing && layerTime >= 0 && layerTime < layered.duration && (
+                                <LayerHandles
+                                    layers={(layered.props.layers ?? SCENES.Custom.defaultProps.layers) as Layer[]}
+                                    selected={sceneLayer}
+                                    time={layerTime}
+                                    width={frameWidth}
+                                    height={frameHeight}
+                                    onSelect={setSceneLayer}
+                                    onChange={setLayers}
                                 />
                             )}
                             {cropFrame && <CropOverlay frame={cropFrame} crop={edit.crop} onChange={(crop) => change({ crop }, 'crop')} />}
@@ -861,14 +1123,24 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                 <HideHandle
                                     hide={selectedHide}
                                     view={screenView(edit, project, cursor, sourceTime, frameWidth, frameHeight)}
-                                    onChange={(rect) => setHides(edit.hides.map((h) => (h.id === selectedHide.id ? { ...h, ...rect } : h)), `hide-move-${selectedHide.id}`)}
+                                    onChange={(rect) =>
+                                        setHides(
+                                            edit.hides.map((h) => (h.id === selectedHide.id ? { ...h, ...rect } : h)),
+                                            `hide-move-${selectedHide.id}`
+                                        )
+                                    }
                                 />
                             )}
                             {placingFocus && selectedZoom && (
                                 <ZoomFocusHandle
                                     zoom={selectedZoom}
                                     frame={layoutFrame(edit, project, frameWidth, frameHeight)}
-                                    onMove={(x, y) => setZooms(edit.zooms.map((z) => (z.id === selectedZoom.id ? { ...z, x, y, auto: false } : z)), `zoom-focus-${selectedZoom.id}`)}
+                                    onMove={(x, y) =>
+                                        setZooms(
+                                            edit.zooms.map((z) => (z.id === selectedZoom.id ? { ...z, x, y, auto: false } : z)),
+                                            `zoom-focus-${selectedZoom.id}`
+                                        )
+                                    }
                                 />
                             )}
                             {!cropping && selectedText && textAmount(selectedText, sourceTime) > 0 && (
@@ -876,7 +1148,12 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                     text={selectedText}
                                     width={frameWidth}
                                     height={frameHeight}
-                                    onMove={(x, y) => setTexts(edit.texts.map((t) => (t.id === selectedText.id ? { ...t, x, y } : t)), `text-move-${selectedText.id}`)}
+                                    onMove={(x, y) =>
+                                        setTexts(
+                                            edit.texts.map((t) => (t.id === selectedText.id ? { ...t, x, y } : t)),
+                                            `text-move-${selectedText.id}`
+                                        )
+                                    }
                                 />
                             )}
                         </div>
@@ -900,46 +1177,87 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                     <div className='shrink-0 space-y-2 border-t border-line bg-panel px-4 pb-4 pt-2'>
                         <div className='grid grid-cols-[1fr_auto_1fr] items-center gap-4'>
                             <div className='flex items-center gap-1'>
-                                <IconButton label='Split the clip at the playhead (S)' onClick={split}>
-                                    <SquareSplitHorizontal className='h-4 w-4' />
-                                </IconButton>
+                                {!studio && (
+                                    <IconButton label='Split the clip at the playhead (S)' onClick={split}>
+                                        <SquareSplitHorizontal className='h-4 w-4' />
+                                    </IconButton>
+                                )}
                                 <Popover
                                     side='top'
                                     trigger={(open, toggle) => (
-                                        <IconButton label='Add a motion scene or overlay at the playhead' onClick={toggle} variant={open ? 'subtle' : 'ghost'}>
-                                            <Sparkles className='h-4 w-4' />
-                                        </IconButton>
+                                        <Button
+                                            size='sm'
+                                            variant={open ? 'subtle' : 'ghost'}
+                                            onClick={toggle}
+                                            title='Add a motion scene or overlay at the playhead'
+                                        >
+                                            <Sparkles className='h-4 w-4' /> Add scene
+                                        </Button>
                                     )}
                                 >
-                                    {(close) => (
-                                        <div className='w-56 space-y-0.5'>
-                                            <div className='px-1 pb-1.5 pt-0.5'>
-                                                <Segmented
-                                                    size='sm'
-                                                    value={addAs}
-                                                    onChange={setAddAs}
-                                                    options={[
-                                                        { value: 'scene', label: 'Scene', hint: 'Full screen, in the timeline' },
-                                                        { value: 'overlay', label: 'Overlay', hint: 'Drawn over the video' },
-                                                    ]}
-                                                />
+                                    {(close) => {
+                                        const sceneChoices = SCENE_CHOICES.filter(
+                                            ({ id, hint, overlayHint }) =>
+                                                (addAs === 'scene' ? canBeScene(id) : canBeOverlay(id)) &&
+                                                !(studio && needsRecording(id)) &&
+                                                `${SCENES[id].label} ${addAs === 'scene' ? hint : overlayHint}`
+                                                    .toLowerCase()
+                                                    .includes(sceneQuery.trim().toLowerCase())
+                                        );
+                                        return (
+                                            <div className='w-64'>
+                                                <div className='space-y-1.5 px-1 pb-1.5 pt-0.5'>
+                                                    <Segmented
+                                                        size='sm'
+                                                        value={addAs}
+                                                        onChange={setAddAs}
+                                                        options={[
+                                                            {
+                                                                value: 'scene',
+                                                                label: 'Scene',
+                                                                hint: 'Full screen, in the timeline',
+                                                            },
+                                                            {
+                                                                value: 'overlay',
+                                                                label: 'Overlay',
+                                                                hint: 'Drawn over the video',
+                                                            },
+                                                        ]}
+                                                    />
+                                                    <input
+                                                        autoFocus
+                                                        value={sceneQuery}
+                                                        onChange={(e) => setSceneQuery(e.target.value)}
+                                                        placeholder='Search scenes'
+                                                        aria-label='Search scenes'
+                                                        className='h-7 w-full rounded-md border border-line bg-panel-2 px-2 text-xs text-fg outline-none focus:border-accent'
+                                                    />
+                                                </div>
+                                                {/* Scrolls once the list outgrows the window, so no scene is cut off. */}
+                                                <div className='max-h-[min(60vh,28rem)] space-y-0.5 overflow-y-auto overscroll-contain'>
+                                                    {sceneChoices.length === 0 && (
+                                                        <p className='px-2 py-3 text-xs text-muted'>
+                                                            No {addAs === 'scene' ? 'scenes' : 'overlays'} match “{sceneQuery.trim()}”. Try another word.
+                                                        </p>
+                                                    )}
+                                                    {sceneChoices.map(({ id, hint, overlayHint }) => (
+                                                        <button
+                                                            key={id}
+                                                            onClick={() => {
+                                                                close();
+                                                                if (addAs === 'scene') addScene(id);
+                                                                else addOverlay(id);
+                                                            }}
+                                                            className='block w-full rounded-lg px-2 py-1.5 text-left hover:bg-panel-2'
+                                                        >
+                                                            <div className='text-sm text-fg'>{SCENES[id].label}</div>
+                                                            <div className='text-xs text-muted'>{addAs === 'scene' ? hint : overlayHint}</div>
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
-                                            {SCENE_CHOICES.filter(({ id }) => (addAs === 'scene' ? canBeScene(id) : canBeOverlay(id))).map(({ id, hint, overlayHint }) => (
-                                                <button
-                                                    key={id}
-                                                    onClick={() => {
-                                                        close();
-                                                        if (addAs === 'scene') addScene(id);
-                                                        else addOverlay(id);
-                                                    }}
-                                                    className='block w-full rounded-lg px-2 py-1.5 text-left hover:bg-panel-2'
-                                                >
-                                                    <div className='text-sm text-fg'>{SCENES[id].label}</div>
-                                                    <div className='text-xs text-muted'>{addAs === 'scene' ? hint : overlayHint}</div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
+                                        );
+                                    }}
                                 </Popover>
                                 <IconButton
                                     label={cutRange ? 'Cut out the marked part (C)' : 'Mark a part to cut (C)'}
@@ -967,13 +1285,25 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                                   : selectedOverlay
                                                     ? 'Delete selected overlay (⌫)'
                                                     : selectedAudio
-                                                    ? `Delete selected ${selectedAudio.kind === 'voice' ? 'voiceover' : 'sound effect'} (⌫)`
-                                                    : selectedScene
-                                                    ? 'Delete selected scene (⌫)'
-                                                    : 'Delete selected clip (⌫)'
+                                                      ? `Delete selected ${selectedAudio.kind === 'voice' ? 'voiceover' : 'sound effect'} (⌫)`
+                                                      : selectedScene
+                                                        ? 'Delete selected scene (⌫)'
+                                                        : !selectedItem
+                                                          ? 'Select something on the timeline to delete it'
+                                                          : selected && recordingCount <= 1
+                                                            ? 'The only recording clip can’t be deleted'
+                                                            : 'Delete selected clip (⌫)'
                                     }
                                     onClick={deleteSelected}
-                                    disabled={!selectedHide && !selectedCaptionId && !selectedText && !selectedZoom && !selectedOverlay && !selectedAudio && (!selectedItem || (!!selected && recordingCount <= 1))}
+                                    disabled={
+                                        !selectedHide &&
+                                        !selectedCaptionId &&
+                                        !selectedText &&
+                                        !selectedZoom &&
+                                        !selectedOverlay &&
+                                        !selectedAudio &&
+                                        (!selectedItem || (!!selected && recordingCount <= 1))
+                                    }
                                 >
                                     <Trash2 className='h-4 w-4' />
                                 </IconButton>
@@ -1004,7 +1334,12 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
 
                             <div className='flex items-center justify-end gap-1'>
                                 <div className='mr-2 flex items-center gap-1' title={`Timeline zoom ${timelineZoom.toFixed(1)}× (⌘− / ⌘+ / ⌘0, or pinch)`}>
-                                    <IconButton label='Zoom the timeline out (⌘−)' size='icon-sm' onClick={() => setTimelineZoom((z) => clampZoom(z / 1.5))} disabled={timelineZoom <= MIN_TIMELINE_ZOOM}>
+                                    <IconButton
+                                        label='Zoom the timeline out (⌘−)'
+                                        size='icon-sm'
+                                        onClick={() => setTimelineZoom((z) => clampZoom(z / 1.5))}
+                                        disabled={timelineZoom <= MIN_TIMELINE_ZOOM}
+                                    >
                                         <Minus className='h-3.5 w-3.5' />
                                     </IconButton>
                                     <RangeInput
@@ -1016,7 +1351,12 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                         onChange={(e) => setTimelineZoom(clampZoom(Math.exp((Number(e.target.value) / 100) * Math.log(MAX_TIMELINE_ZOOM))))}
                                         aria-label='Timeline zoom'
                                     />
-                                    <IconButton label='Zoom the timeline in (⌘+)' size='icon-sm' onClick={() => setTimelineZoom((z) => clampZoom(z * 1.5))} disabled={timelineZoom >= MAX_TIMELINE_ZOOM}>
+                                    <IconButton
+                                        label='Zoom the timeline in (⌘+)'
+                                        size='icon-sm'
+                                        onClick={() => setTimelineZoom((z) => clampZoom(z * 1.5))}
+                                        disabled={timelineZoom >= MAX_TIMELINE_ZOOM}
+                                    >
                                         <Plus className='h-3.5 w-3.5' />
                                     </IconButton>
                                 </div>
@@ -1044,10 +1384,19 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                 >
                                     <div className='w-60 space-y-3 p-1'>
                                         <div className='flex justify-between text-xs'>
-                                            <span>{recordingCount === 1 ? 'Video speed' : selected ? 'Selected clip speed' : 'Speed of the clip at the playhead'}</span>
+                                            <span>
+                                                {recordingCount === 1 ? 'Video speed' : selected ? 'Selected clip speed' : 'Speed of the clip at the playhead'}
+                                            </span>
                                             <span className='font-mono text-muted'>{speedTarget.speed}×</span>
                                         </div>
-                                        <RangeInput min={0.5} max={4} step={0.25} value={speedTarget.speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label='Clip speed' />
+                                        <RangeInput
+                                            min={0.5}
+                                            max={4}
+                                            step={0.25}
+                                            value={speedTarget.speed}
+                                            onChange={(e) => setSpeed(Number(e.target.value))}
+                                            aria-label='Clip speed'
+                                        />
                                         <div className='grid grid-cols-6 gap-1'>
                                             {SPEED_PRESETS.map((speed) => (
                                                 <button
@@ -1111,19 +1460,61 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                             clipPeaks={playback.clipPeaks}
                             selectedAudioId={selectedAudioId}
                             onSelectAudio={(id) => select('audio', id)}
-                            onAudioClipsChange={(lane, clips, key) => change({ audio: { ...edit.audio, [lane === 'voice' ? 'voiceovers' : 'effects']: clips } }, key)}
+                            onAudioClipsChange={(lane, clips, key) =>
+                                change(
+                                    {
+                                        audio: {
+                                            ...edit.audio,
+                                            [lane === 'voice' ? 'voiceovers' : 'effects']: clips,
+                                        },
+                                    },
+                                    key
+                                )
+                            }
+                            mutedLanes={{
+                                voice: !!edit.audio.voiceMuted,
+                                sfx: !!edit.audio.effectsMuted,
+                                music: !!edit.audio.music?.muted,
+                            }}
+                            beats={musicBeats}
+                            music={edit.audio.music}
+                            onLaneMute={(lane, muted) =>
+                                change(
+                                    {
+                                        audio:
+                                            lane === 'music'
+                                                ? {
+                                                      ...edit.audio,
+                                                      music: edit.audio.music && {
+                                                          ...edit.audio.music,
+                                                          muted,
+                                                      },
+                                                  }
+                                                : {
+                                                      ...edit.audio,
+                                                      [lane === 'voice' ? 'voiceMuted' : 'effectsMuted']: muted,
+                                                  },
+                                    },
+                                    `${lane}-mute`
+                                )
+                            }
                         />
                     </div>
                 </div>
 
-                <aside className='w-[340px] shrink-0 border-l border-line bg-panel'>
+                <aside className='w-[400px] shrink-0 border-l border-line bg-panel'>
                     <Inspector
                         edit={edit}
                         hasCamera={!!project.tracks.camera}
                         onChange={change}
                         selectedZoom={selectedZoom}
                         hasClicks={(cursor?.clicks.length ?? 0) > 0}
-                        onZoomChange={(zoom, key) => setZooms(edit.zooms.map((z) => (z.id === zoom.id ? zoom : z)), key)}
+                        onZoomChange={(zoom, key) =>
+                            setZooms(
+                                edit.zooms.map((z) => (z.id === zoom.id ? zoom : z)),
+                                key
+                            )
+                        }
                         onZoomDelete={deleteZoom}
                         onAutoZoom={runAutoZoom}
                         onAddZoom={() => addZoom()}
@@ -1133,7 +1524,12 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                         onApplyZoomScaleToAll={applyZoomScaleToAll}
                         selectedText={selectedText}
                         onAddText={addText}
-                        onTextChange={(text, key) => setTexts(edit.texts.map((t) => (t.id === text.id ? text : t)), key)}
+                        onTextChange={(text, key) =>
+                            setTexts(
+                                edit.texts.map((t) => (t.id === text.id ? text : t)),
+                                key
+                            )
+                        }
                         onTextDelete={deleteText}
                         hasSystemAudio={!!project.tracks.systemAudio}
                         hasMicrophone={!!project.tracks.microphone}
@@ -1142,7 +1538,12 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                         projectName={exportName}
                         selectedHide={selectedHide}
                         onAddHide={addHide}
-                        onHideChange={(hide, key) => setHides(edit.hides.map((h) => (h.id === hide.id ? hide : h)), key)}
+                        onHideChange={(hide, key) =>
+                            setHides(
+                                edit.hides.map((h) => (h.id === hide.id ? hide : h)),
+                                key
+                            )
+                        }
                         onHideDelete={deleteHide}
                         selectedCaptionId={selectedCaptionId}
                         onSelectCaption={selectCaption}
@@ -1154,6 +1555,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                         selectedScene={selectedScene}
                         sceneTargetPicking={pickingTarget}
                         onSceneTargetPicking={setPickingTarget}
+                        sceneLayerEdit={sceneLayerEdit}
                         onTimelineChange={setItems}
                         onSceneDelete={(id) => {
                             setItems(removeItem(edit.items, id));
@@ -1175,8 +1577,19 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
 
             {/* Frame sources for the canvas. Kept in the page (not display:none) so WebKit keeps decoding them. */}
             <div className='pointer-events-none fixed left-0 top-0 h-px w-px overflow-hidden opacity-0' aria-hidden>
-                <video ref={playback.screenRef} src={fileUrl(project, previewFile ?? project.tracks.screen.file)} onLoadedData={onScreenLoaded} muted playsInline preload='auto' />
-                {project.tracks.camera && <video ref={playback.cameraRef} src={fileUrl(project, project.tracks.camera.file)} muted playsInline preload='auto' />}
+                {!studio && (
+                    <video
+                        ref={playback.screenRef}
+                        src={fileUrl(project, previewFile ?? project.tracks.screen.file)}
+                        onLoadedData={onScreenLoaded}
+                        muted
+                        playsInline
+                        preload='auto'
+                    />
+                )}
+                {project.tracks.camera && (
+                    <video ref={playback.cameraRef} src={fileUrl(project, project.tracks.camera.file)} muted playsInline preload='auto' />
+                )}
             </div>
         </div>
     );
@@ -1186,7 +1599,10 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
 function SaveStatus({ state }: { state: 'saved' | 'pending' | 'saving' | 'error' }) {
     if (state === 'error') {
         return (
-            <span className='flex items-center gap-1 text-xs text-danger-fg' title='Your last change could not be saved; it will be retried with the next change'>
+            <span
+                className='flex items-center gap-1 text-xs text-danger-fg'
+                title='Your last change could not be saved; it will be retried with the next change'
+            >
                 <CircleAlert className='h-3.5 w-3.5' /> Not saved
             </span>
         );

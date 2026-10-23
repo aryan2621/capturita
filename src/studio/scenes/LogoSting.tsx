@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
+import { BrandTexture, useExit } from './SceneBase';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export type LogoStingStyle = 'pop' | 'wipe' | 'draw' | 'glow';
@@ -63,7 +64,7 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
 
     const nameIn = spring({ frame: frame - hit - 4, fps, config: { damping: 200 } });
     const taglineIn = spring({ frame: frame - hit - 14, fps, config: { damping: 200 } });
-    const exit = interpolate(frame, [durationInFrames - 8, durationInFrames], [1, 0], clamp);
+    const exit = useExit(8);
     const settle = interpolate(frame, [hit, durationInFrames], [1, 1.04], clamp);
 
     const mark = hasLogo ? (
@@ -86,6 +87,7 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
                 opacity: exit,
             }}
         >
+            <BrandTexture brand={brand} transparent={transparent} />
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', transform: `scale(${settle})` }}>
                 <div style={{ display: 'flex', flexDirection: stacked ? 'column' : 'row', alignItems: 'center', gap: unit * (stacked ? 4 : 4.5) }}>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

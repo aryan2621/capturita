@@ -305,7 +305,7 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                                             disabled={fileOnly && target.value !== 'file'}
                                             className={cx(
                                                 'flex h-9 items-center justify-center gap-1.5 rounded-md text-sm disabled:opacity-40',
-                                                (fileOnly ? 'file' : settings.target) === target.value ? 'bg-accent text-white' : 'text-muted hover:text-fg'
+                                                (fileOnly ? 'file' : settings.target) === target.value ? 'bg-accent text-accent-fg' : 'text-muted hover:text-fg'
                                             )}
                                             title={fileOnly && target.value !== 'file' ? `${gif ? 'GIFs' : 'Transparent videos'} are saved as files` : target.hint}
                                         >
@@ -372,7 +372,7 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                                             title={p.hint}
                                         >
                                             <span className='text-sm font-medium'>{p.label}</span>
-                                            <span className='font-mono text-[10px] text-subtle'>
+                                            <span className='font-mono text-[11px] text-subtle'>
                                                 {p.settings.resolution === 2160 ? '4K' : `${p.settings.resolution}p`}
                                                 {p.settings.fps}
                                             </span>
@@ -403,7 +403,7 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                                             options={[
                                                 { value: 'mp4', label: 'MP4', hint: 'Video with sound' },
                                                 { value: 'gif', label: 'GIF', hint: 'Silent, loops, plays anywhere' },
-                                                { value: 'mov', label: 'Transparent', hint: 'ProRes 4444 with alpha: only the motion scenes and overlays, for Final Cut or Premiere' },
+                                                { value: 'mov', label: 'Transparent (ProRes)', hint: 'ProRes 4444 with alpha: only the motion scenes and overlays, for Final Cut or Premiere' },
                                             ]}
                                         />
                                     </Group>

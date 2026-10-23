@@ -12,8 +12,8 @@ import { Thumbnail } from '@remotion/player';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { CursorData, Project } from '../lib/api';
-import { DEFAULT_CROSSFADE, insertScene, newId, recordingCaptions, totalDuration, type Edit, type OverlayClip, type SceneClip, type TimelineItem, type Transition } from '../editor/model';
-import { canBeOverlay, canBeScene, SCENE_FPS, SCENES, sceneLabel, type ListItemField, type SceneField } from './scenes';
+import { DEFAULT_CROSSFADE, insertScene, isRecording, newId, outputTimeOf, recordingCaptions, totalDuration, type Edit, type OverlayClip, type SceneClip, type TimelineItem, type Transition } from '../editor/model';
+import { canBeOverlay, canBeScene, needsRecording, SCENE_FPS, SCENES, sceneLabel, type ListItemField, type SceneField } from './scenes';
 import type { SceneEnv, Segment, TargetRect } from './scenes/assets';
 import { initialSceneProps, recordingRange, sceneInputProps } from './sceneEnv';
 
@@ -56,6 +56,8 @@ export interface SceneAiContext {
     /** Output time new playhead scenes and overlays go at. */
     playhead: number;
     onStep?: (label: string) => void;
+    /** Facts about the product (from a README or description), for whole-video drafts. */
+    facts?: string;
 }
 
 const MAX_STEPS = 6;
@@ -88,14 +90,52 @@ const TEXT_LIMITS: Record<string, number> = {
     'EndCard.cta': 18,
     'EndCard.url': 32,
     'EndCard.socials.handle': 24,
+    'ScreenshotShowcase.headline': 40,
+    'ScreenshotShowcase.detail': 80,
+    'ScreenshotShowcase.url': 32,
+    'FeatureGrid.heading': 36,
+    'FeatureGrid.items.title': 22,
+    'FeatureGrid.items.text': 48,
+    'Testimonial.quote': 160,
+    'Testimonial.name': 28,
+    'Testimonial.role': 36,
+    'Pricing.heading': 32,
+    'Pricing.tiers.name': 14,
+    'Pricing.tiers.price': 10,
+    'Pricing.tiers.period': 10,
+    'Pricing.tiers.features': 110,
+    'BeforeAfter.heading': 36,
+    'BeforeAfter.beforeLabel': 14,
+    'BeforeAfter.afterLabel': 14,
+    'LogoWall.heading': 36,
+    'CodeTyping.heading': 36,
+    'CodeTyping.fileName': 24,
+    'CodeTyping.code': 320,
+    'Comparison.heading': 36,
+    'Comparison.us': 16,
+    'Comparison.them': 16,
+    'Comparison.rows.feature': 30,
+    'Lottie.caption': 40,
+    'Custom.layers.text': 40,
+    'Roadmap.heading': 36,
+    'Roadmap.milestones.when': 12,
+    'Roadmap.milestones.title': 22,
+    'Team.heading': 30,
+    'Team.people.name': 24,
+    'Team.people.role': 28,
+    'VideoClip.caption': 40,
+    'Waveform.title': 36,
+    'Waveform.subtitle': 60,
+    'Showcase3D.headline': 32,
+    'Showcase3D.detail': 60,
 };
 const DEFAULT_LIMIT = 60;
 
 /** Texts that can't be empty. */
-const REQUIRED = new Set(['TitleReveal.title', 'KineticStatement.lines.text', 'FeatureCallout.label', 'StatCounter.stats.label', 'LowerThird.name', 'EndCard.headline', 'EndCard.cta']);
+const REQUIRED = new Set(['Roadmap.milestones.title', 'Team.people.name', 'FeatureGrid.items.title', 'Testimonial.quote', 'Pricing.tiers.name', 'Pricing.tiers.price', 'CodeTyping.code', 'Comparison.rows.feature', 'TitleReveal.title', 'KineticStatement.lines.text', 'FeatureCallout.label', 'StatCounter.stats.label', 'LowerThird.name', 'EndCard.headline', 'EndCard.cta']);
 
 /** Default texts that mean "fill me in"; the model must not leave them. */
-const PLACEHOLDERS = ['your product', 'yourproduct.com', '@yourproduct', 'your name', 'founder, your product', 'one line about what it does'];
+const PLACEHOLDERS = ['your product', 'yourproduct.com', '@yourproduct', 'your name', 'founder, your product', 'one line about what it does', 'customer name', 'role, company', 'one line about this screen', "from 'yourproduct'"];
 
 const GUIDES: Record<string, string> = {
     LogoSting: 'The brand logo appears with a hit (2–3 s), for the very start. The wordmark is only for a logo without its name in it; usually "". Tagline optional.',
@@ -106,6 +146,21 @@ const GUIDES: Record<string, string> = {
     StatCounter: '1–3 numbers counting up, each with a short label; optional chart. Only numbers the user gave.',
     LowerThird: 'Name and role of the person speaking, drawn over the video.',
     EndCard: 'The closing card: headline, call-to-action button, web address, optional QR code and social handles.',
+    ScreenshotShowcase: 'A screenshot the user adds, in a phone, tablet, laptop or browser frame, with a headline and detail.',
+    FeatureGrid: '2–6 features as cards: an icon, a 1–3 word title and one short line each, under a heading.',
+    Testimonial: 'One customer quote with their name and role and a star rating. Only quotes the user gave.',
+    Pricing: '1–3 plans: name, price, period and features separated by ";". Highlight at most one. Only prices the user gave.',
+    BeforeAfter: 'Two pictures the user adds (before, after) revealed by a sweeping divider, with short labels.',
+    LogoWall: 'Logos the user adds, under a heading such as "Trusted by teams at".',
+    CodeTyping: 'A short code sample (at most about 8 lines) that types itself in an editor window, with a file name.',
+    Comparison: 'Us vs them: 3–6 features with a tick, cross or partial mark for each side.',
+    Lottie: 'A Lottie animation the user adds, with an optional short caption.',
+    Roadmap: '2–5 milestones on a line: when (short: "Q3", "June"), a 1–3 word title, and status done/now/next in time order. Only plans the user gave.',
+    Team: 'The people behind the product: 1–6 names with roles, under a short heading. Only people the user named.',
+    VideoClip: 'A video clip the user adds (b-roll), full frame or in a card, with an optional caption.',
+    Waveform: 'Bars that move with an audio file the user adds (podcast, voice note, song), with a title and subtitle.',
+    Showcase3D: 'A 3D phone or laptop showing a screenshot the user adds, or the brand logo on a 3D tile, swinging in; a short headline and optional detail. Use subject "logo" for a 3D logo moment.',
+    Custom: 'A free-form card of 2–6 layers. Each layer\'s box is in percent of the frame: x, y its top-left corner, w, h its size; keep boxes inside 5–95. Text layers: one headline (style "headline", h about 18) and short supporting lines (body/label) below it; shapes (pill, line, circle), icons and animated elements (kind "element": check, arrow, underline under a word, ring around one, sparkles, burst, confetti over the whole frame) as accents behind or beside the text (earlier layers are behind); kind "logo" shows the brand logo. Give non-text layers text "". Keep each existing layer\'s id; give a new layer a new id. Stagger "at" between 0 and 1.2 s. Use only when no other kind fits.',
 };
 
 const EXAMPLES: Record<string, Record<string, unknown>> = {
@@ -125,16 +180,63 @@ const EXAMPLES: Record<string, Record<string, unknown>> = {
     },
     LowerThird: { name: 'Maya Chen', title: 'Founder, Acme Notes', side: 'left', logo: true },
     EndCard: { headline: 'Try Acme Notes free', cta: 'Get started', url: 'acmenotes.com', showQr: true, socials: [{ network: 'x', handle: '@acmenotes' }] },
+    ScreenshotShowcase: { device: 'phone', placement: 'side', headline: 'Notes on the go', detail: 'Every meeting summary in your pocket.', url: '', scroll: false },
+    FeatureGrid: {
+        heading: 'Why teams pick Acme Notes',
+        items: [
+            { icon: 'zap', title: 'Instant notes', text: 'Summaries the moment a call ends.' },
+            { icon: 'users', title: 'Shared', text: 'Everyone edits the same page.' },
+            { icon: 'lock', title: 'Private', text: 'Encrypted from end to end.' },
+        ],
+    },
+    Testimonial: { quote: 'Acme Notes saves me an hour after every client call.', name: 'Priya Rao', role: 'Head of Sales, Northwind', rating: 5 },
+    Pricing: {
+        heading: 'Pick a plan',
+        tiers: [
+            { name: 'Free', price: '$0', period: '/month', features: '5 meetings a month; Summaries', highlight: 'no' },
+            { name: 'Team', price: '$8', period: '/user', features: 'Unlimited meetings; Shared notes; Admin tools', highlight: 'yes' },
+        ],
+    },
+    BeforeAfter: { heading: 'From messy notes to clear actions', beforeLabel: 'Before', afterLabel: 'After', direction: 'horizontal' },
+    LogoWall: { heading: 'Used by teams at', style: 'grid', mono: true },
+    CodeTyping: { heading: 'Add notes to any app', fileName: 'notes.ts', code: "import { notes } from 'acme-notes';\n\nconst summary = await notes.summarize(call);\nconsole.log(summary.actions);", speed: 40 },
+    Comparison: {
+        heading: 'Acme Notes vs typing it yourself',
+        us: 'Acme Notes',
+        them: 'By hand',
+        rows: [
+            { feature: 'Notes in seconds', us: 'yes', them: 'no' },
+            { feature: 'Action items found', us: 'yes', them: 'partial' },
+            { feature: 'Searchable history', us: 'yes', them: 'no' },
+        ],
+    },
+    Lottie: { loop: true, size: 0.6, position: 'center', caption: 'Done in one click' },
+    Roadmap: { heading: 'What’s next for Acme Notes', milestones: [{ when: 'March', title: 'Public beta', status: 'done' }, { when: 'June', title: 'Teams', status: 'now' }, { when: 'Q4', title: 'Mobile apps', status: 'next' }] },
+    Team: { heading: 'The team behind Acme Notes', people: [{ name: 'Dana Wu', role: 'Co-founder, design' }, { name: 'Omar Haddad', role: 'Co-founder, engineering' }] },
+    VideoClip: { from: 0, framing: 'full', caption: 'Built for real meetings' },
+    Waveform: { from: 0, look: 'mirror', title: 'Hear it summarise', subtitle: 'A 30-minute call, summed up in 20 seconds' },
+    Showcase3D: { subject: 'phone', motion: 'spin', headline: 'Notes that write themselves', detail: 'Every call, summed up on your phone' },
+    Custom: {
+        layers: [
+            { id: 1, kind: 'shape', text: '', style: 'label', color: 'accent', align: 'center', shape: 'pill', icon: 'sparkles', element: 'check', x: 40, y: 24, w: 20, h: 8, rotate: 0, enter: 'pop', at: 0 },
+            { id: 2, kind: 'text', text: 'New in 2.0', style: 'label', color: 'bg', align: 'center', shape: 'rounded', icon: 'sparkles', element: 'check', x: 40, y: 24, w: 20, h: 8, rotate: 0, enter: 'fade', at: 0.2 },
+            { id: 3, kind: 'text', text: 'Notes that write themselves', style: 'headline', color: 'text', align: 'center', shape: 'rounded', icon: 'sparkles', element: 'check', x: 8, y: 37, w: 84, h: 18, rotate: 0, enter: 'words', at: 0.3 },
+            { id: 4, kind: 'text', text: 'Every meeting, summed up in seconds', style: 'body', color: 'muted', align: 'center', shape: 'rounded', icon: 'sparkles', element: 'check', x: 15, y: 60, w: 70, h: 8, rotate: 0, enter: 'rise', at: 0.9 },
+        ],
+    },
 };
 
 const limitOf = (key: string) => TEXT_LIMITS[key] ?? DEFAULT_LIMIT;
 
-/** Fields the model writes. Segments and targets come from the recording instead. */
-const modelFields = (scene: string) => SCENES[scene].fields.filter((f) => f.type !== 'segment' && f.type !== 'rect');
+/** Fields the model writes. Segments and targets come from the recording, pictures from the user. */
+const modelFields = (scene: string) =>
+    SCENES[scene].fields.filter((f) => f.type !== 'segment' && f.type !== 'rect' && f.type !== 'image' && !(f.type === 'text' && f.user) && !(f.type === 'list' && f.item.every((cell) => cell.type === 'image')));
+/** The cells of a list row the model writes (not pictures). */
+const textCells = (cells: ListItemField[]) => cells.filter((cell) => cell.type !== 'image');
 
 // ---- Calling the model ----
 
-async function callModel<T>(system: string, user: string, schema: object, temperature: number, maxTokens: number): Promise<T> {
+export async function callModel<T>(system: string, user: string, schema: object, temperature: number, maxTokens: number): Promise<T> {
     return invoke<T>('ai_edit', { request: { system, user, schema, temperature, max_tokens: maxTokens } });
 }
 
@@ -142,12 +244,14 @@ const isUnreadable = (error: unknown) => String((error as { message?: string })?
 
 // ---- 1. Plan ----
 
-interface PlanStep {
+export interface PlanStep {
     action: 'add' | 'edit';
     scene: string;
     target: string;
     placement: Placement;
     purpose: string;
+    /** For a scene that shows the recording: the output time its part starts at (instead of the playhead). */
+    at?: number;
 }
 
 /** A scene or overlay already in the video, under a short id the model can name. */
@@ -192,6 +296,21 @@ const KEYWORDS: [RegExp, string][] = [
     [/\bstats?\b|numbers?|metric|percent|%|counter|chart|growth/i, 'StatCounter'],
     [/lower third|name tag|name and (title|role)|speaker|presenter/i, 'LowerThird'],
     [/end card|endcard|outro|call to action|\bcta\b|closing|sign ?up|\bqr\b/i, 'EndCard'],
+    [/screenshot|phone|mobile app|ios|android|tablet/i, 'ScreenshotShowcase'],
+    [/feature (grid|list|cards)|\bfeatures\b|benefits|why (us|choose)/i, 'FeatureGrid'],
+    [/testimonial|quote|review|customer (said|says)|social proof/i, 'Testimonial'],
+    [/pricing|\bprices?\b|price plans?|\btiers\b|subscription|\$\d/i, 'Pricing'],
+    [/before.{0,6}after|comparison slider|transformation/i, 'BeforeAfter'],
+    [/logos|trusted by|used by|customers wall|partners/i, 'LogoWall'],
+    [/(?<!qr )\bcode\b|snippet|\bapi\b|\bsdk\b|developer|typing/i, 'CodeTyping'],
+    [/\bvs\.?\b|versus|compare|competitor|alternative/i, 'Comparison'],
+    [/lottie|\brive\b|animated (icon|illustration)/i, 'Lottie'],
+    [/\bcustom\b|free-?form|\blayers?\b/i, 'Custom'],
+    [/road ?map|milestones?|coming soon|what.s next/i, 'Roadmap'],
+    [/\bteam\b|founders?|people behind|who (we are|made)/i, 'Team'],
+    [/b-?roll|video clip|footage/i, 'VideoClip'],
+    [/wave ?form|podcast|audio (clip|visual)|voice note/i, 'Waveform'],
+    [/\b3d\b|three.?d/i, 'Showcase3D'],
 ];
 const ADD_WORDS = /\b(add|insert|create|make an?|put|new|generate|build)\b/i;
 const EDIT_WORDS = /\b(change|shorten|shorter|longer|rename|replace|update|fix|swap|reword|rewrite|use|set|turn)\b|\bmake (the|it)\b/i;
@@ -215,17 +334,22 @@ const PLAN_SYSTEM = `You plan motion-graphics scenes for a product launch video 
 List the steps that fulfil the request:
 - action "add": a new scene of kind "scene"; "target" is "new". "placement": start (before the recording: logos, titles), end (after it: end cards), playhead (inside the video where the user is: callouts, stats, statements, device showcases), over (drawn over the video; only kinds marked overlay).
 - action "edit": change an existing scene; "target" is its id from the list and "scene" its kind.
+"at": for a new scene that shows the recording (DeviceShowcase, FeatureCallout), the time in seconds, from the timed transcript, where the moment the request is about starts; -1 otherwise or when there's no transcript.
 "purpose" is one sentence saying what this scene should say or show, using the request's own words and facts.
-Rules: do only what the request asks. At most ${MAX_STEPS} steps. Only use ids from the list. A request about "the title", "the end card" and so on, with one such scene in the video, is an edit of it. A whole launch video is usually LogoSting (start), TitleReveal (start), FeatureCallout (playhead), StatCounter (playhead, only if the request gives numbers), EndCard (end). If nothing fits, give no steps and say why in "summary". The summary is one short sentence.`;
+Rules: do only what the request asks. At most ${MAX_STEPS} steps. Only use ids from the list. A request about "the title", "the end card" and so on, with one such scene in the video, is an edit of it. A whole launch video is usually LogoSting (start), TitleReveal (start), FeatureCallout (playhead), StatCounter (playhead, only if the request gives numbers), EndCard (end). Give no steps only when no scene kind fits the request (say why in "summary"). Missing facts are never a reason: the scene is written from what the scenes already in the video say. The summary is one short sentence.`;
 
 async function planSteps(request: string, ctx: SceneAiContext, existing: Existing[]): Promise<{ steps: PlanStep[]; summary: string }> {
-    const ruled = rulePlan(request, existing);
-    if (ruled) return { steps: ruled, summary: '' };
-    const kinds = Object.keys(SCENES);
+    // A Studio video has no recording, so scenes that show it are left out.
+    const usable = (id: string) => ctx.project.kind !== 'studio' || !needsRecording(id);
+    const timed = ctx.project.kind === 'studio' ? '' : timedTranscript(ctx.edit);
+    const ruled = rulePlan(request, existing)?.filter((step) => usable(step.scene));
+    // A new recording scene goes to the model when there's a transcript, so it can find the moment asked about.
+    if (ruled?.length && !(timed && ruled.some((step) => step.action === 'add' && needsRecording(step.scene)))) return { steps: ruled, summary: '' };
+    const kinds = Object.keys(SCENES).filter(usable);
     const kindList = kinds.map((id) => `- ${id}${canBeOverlay(id) ? (canBeScene(id) ? ' (scene or overlay)' : ' (overlay only)') : ''}: ${GUIDES[id] ?? SCENES[id].label}`).join('\n');
     const inVideo = existing.length ? existing.map((p) => `- ${p.ref}: ${p.scene} (${p.layer}) ${textsOf(p.scene, p.props)}`).join('\n') : '(none)';
     const hints = [...new Set(KEYWORDS.filter(([re]) => re.test(request)).map(([, scene]) => scene))];
-    const user = `Scene kinds:\n${kindList}\n\nScenes in the video:\n${inVideo}\n\nProduct: ${ctx.productName || 'unknown'}${hints.length ? `\nThe request mentions: ${hints.join(', ')}` : ''}\n\nRequest: ${request}`;
+    const user = `Scene kinds:\n${kindList}\n\nScenes in the video:\n${inVideo}\n\nProduct: ${ctx.productName || 'unknown'}${hints.length ? `\nThe request mentions: ${hints.join(', ')}` : ''}${timed ? `\n\nWhat the presenter says (seconds into the video):\n${timed}` : ''}\n\nRequest: ${request}`;
     const schema = {
         type: 'object',
         properties: {
@@ -240,8 +364,9 @@ async function planSteps(request: string, ctx: SceneAiContext, existing: Existin
                         target: { type: 'string', enum: ['new', ...existing.map((p) => p.ref)] },
                         placement: { type: 'string', enum: ['start', 'playhead', 'end', 'over'] },
                         purpose: { type: 'string', maxLength: 200 },
+                        at: { type: 'number' },
                     },
-                    required: ['action', 'scene', 'target', 'placement', 'purpose'],
+                    required: ['action', 'scene', 'target', 'placement', 'purpose', 'at'],
                 },
             },
             summary: { type: 'string', maxLength: 200 },
@@ -256,11 +381,11 @@ async function planSteps(request: string, ctx: SceneAiContext, existing: Existin
             if (!isUnreadable(error) || attempt === 1) throw error;
         }
     }
-    return { steps: tidyPlan(answer?.steps ?? [], existing), summary: answer?.summary ?? '' };
+    return { steps: tidyPlan(answer?.steps ?? [], existing, totalDuration(ctx.edit.items)), summary: answer?.summary ?? '' };
 }
 
 /** Makes a plan consistent: edits name a real piece (and take its kind), overlays only where allowed. */
-function tidyPlan(steps: PlanStep[], existing: Existing[]): PlanStep[] {
+function tidyPlan(steps: PlanStep[], existing: Existing[], total: number): PlanStep[] {
     const out: PlanStep[] = [];
     const edited = new Set<string>();
     for (const step of steps.slice(0, MAX_STEPS)) {
@@ -275,7 +400,9 @@ function tidyPlan(steps: PlanStep[], existing: Existing[]): PlanStep[] {
         let placement = step.placement;
         if (!canBeScene(step.scene)) placement = 'over';
         else if (placement === 'over' && !canBeOverlay(step.scene)) placement = 'playhead';
-        out.push({ ...step, action: 'add', target: 'new', placement });
+        // A moment in the recording only means something for a scene that shows it.
+        const at = needsRecording(step.scene) && typeof step.at === 'number' && step.at >= 0 && step.at < total ? step.at : undefined;
+        out.push({ ...step, action: 'add', target: 'new', placement, at });
     }
     return out;
 }
@@ -284,8 +411,8 @@ function tidyPlan(steps: PlanStep[], existing: Existing[]): PlanStep[] {
 
 function itemSchema(scene: string, list: string, fields: ListItemField[]) {
     const properties: Record<string, object> = {};
-    for (const f of fields) properties[f.name] = valueSchema(`${scene}.${list}.${f.name}`, f);
-    return { type: 'object', properties, required: fields.map((f) => f.name) };
+    for (const f of textCells(fields)) properties[f.name] = valueSchema(`${scene}.${list}.${f.name}`, f);
+    return { type: 'object', properties, required: textCells(fields).map((f) => f.name) };
 }
 
 function valueSchema(key: string, field: SceneField | ListItemField): object {
@@ -326,7 +453,7 @@ function describeField(scene: string, field: SceneField): string {
         case 'choice':
             return `- ${field.name} (${field.label}): one of ${field.options.map((o) => `"${o.value}" (${o.label})`).join(', ')}`;
         case 'list': {
-            const cells = field.item.map((f) =>
+            const cells = textCells(field.item).map((f) =>
                 f.type === 'text' ? `${f.name}: ${text(`${key}.${f.name}`)}` : f.type === 'choice' ? `${f.name}: one of ${f.options.map((o) => `"${o.value}"`).join('/')}` : `${f.name}: number`
             );
             return `- ${field.name} (${field.label}): ${field.min ?? 0}–${field.max} entries of { ${cells.join('; ')} }`;
@@ -344,6 +471,16 @@ Rules:
 - Choices use only the listed values. Lists stay within their entry counts.
 - When editing, change only what the request is about and copy every other setting unchanged.`;
 
+/** The recording's captions as "[12.3] text" lines in output time, so the planner can name a moment. */
+function timedTranscript(edit: Edit) {
+    const lines: string[] = [];
+    for (const c of recordingCaptions(edit.captions.items)) {
+        const index = edit.items.findIndex((i) => isRecording(i) && c.start >= i.start && c.start < i.end);
+        if (index >= 0) lines.push(`[${outputTimeOf(edit.items, index, c.start).toFixed(1)}] ${c.text}`);
+    }
+    return lines.join('\n').slice(0, 2000);
+}
+
 function fillPrompt(step: PlanStep, request: string, ctx: SceneAiContext, current: Record<string, unknown> | null, userOwned: string[]) {
     const { scene } = step;
     const transcript = recordingCaptions(ctx.edit.captions.items)
@@ -360,6 +497,7 @@ function fillPrompt(step: PlanStep, request: string, ctx: SceneAiContext, curren
             .join('\n')}`,
         `Example of good settings for this kind (a made-up product):\n${JSON.stringify(EXAMPLES[scene] ?? visible(SCENES[scene].defaultProps))}`,
         `Product: ${ctx.productName || 'unknown'}. Video: ${aspect}.`,
+        ctx.facts ? `Facts about the product (use only these, never invent):\n${ctx.facts}` : '',
         transcript ? `What the presenter says in the recording (start):\n${transcript}` : '',
         current ? `Current settings:\n${JSON.stringify(visible(current))}` : '',
         current && userOwned.length ? `The user set these by hand; keep them unless the request is about them: ${userOwned.join(', ')}` : '',
@@ -381,18 +519,39 @@ function clean(scene: string, raw: Record<string, unknown>, base: Record<string,
     for (const field of modelFields(scene)) {
         const value = raw?.[field.name];
         if (value === undefined) out[field.name] = base[field.name];
-        else if (field.type === 'list' && Array.isArray(value)) out[field.name] = value.map((row) => Object.fromEntries(Object.entries(row as Record<string, unknown>).map(([k, v]) => [k, tidy(v)])));
+        // Rows keep what the model doesn't write (pictures, keyframes) from the row they replace.
+        else if (field.type === 'list' && Array.isArray(value)) {
+            const old = (base[field.name] as Record<string, unknown>[] | undefined) ?? [];
+            const keyed = field.item.some((cell) => cell.name === 'id');
+            const rows = value.map((row, i) => ({
+                // Rows with an id match the row they replace by id, so reordering keeps pictures and keyframes with their row.
+                ...((keyed ? old.find((o) => o.id != null && o.id === (row as Record<string, unknown>)?.id) : old[i]) ?? {}),
+                ...Object.fromEntries(Object.entries(row as Record<string, unknown>).map(([k, v]) => [k, tidy(v)])),
+            }));
+            out[field.name] = keyed ? withRowIds(rows) : rows;
+        }
         else out[field.name] = tidy(value);
     }
     // An end card without an address has nothing to put in a QR code.
     if (scene === 'EndCard' && !str(out.url)) out.showQr = false;
+    // The format already writes K, % or $; models often add it again ("12Kk", "98%%").
+    if (scene === 'StatCounter' && Array.isArray(out.stats))
+        out.stats = out.stats.map((stat: Record<string, unknown>) => {
+            const suffix = str(stat.suffix);
+            const prefix = str(stat.prefix);
+            if (stat.format === 'compact' && /^[kmb]$/i.test(suffix)) return { ...stat, suffix: '' };
+            if (stat.format === 'percent' && suffix === '%') return { ...stat, suffix: '' };
+            if (stat.format === 'currency' && prefix === '$') return { ...stat, prefix: '' };
+            return stat;
+        });
     return out;
 }
 
 function checkText(key: string, name: string, value: unknown, errors: string[]) {
     if (typeof value !== 'string') return errors.push(`${name} must be text.`);
     if (REQUIRED.has(key) && !value.trim()) return errors.push(`${name} can't be empty.`);
-    if (value.length > limitOf(key)) errors.push(`${name} is ${value.length} characters; the limit is ${limitOf(key)}. Rephrase it shorter.`);
+    // Limits are layout guides (the dry check catches real overflow); models can't count to the exact character.
+    if (value.length > Math.ceil(limitOf(key) * 1.1)) errors.push(`${name} is ${value.length} characters; the limit is ${limitOf(key)}. Rephrase it shorter.`);
     if (PLACEHOLDERS.includes(value.trim().toLowerCase())) errors.push(`${name} is the placeholder "${value}"; write a real one or leave it "".`);
 }
 
@@ -549,6 +708,24 @@ export async function dryCheck(scene: string, props: Record<string, unknown>, du
 
 const deepEqual = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+/** Rows with a unique numeric id each: missing or repeated ids get the next free number. */
+export function withRowIds<T extends Record<string, unknown>>(rows: T[]): T[] {
+    const seen = new Set<number>();
+    let next = Math.max(0, ...rows.map((r) => (typeof r.id === 'number' ? r.id : 0))) + 1;
+    return rows.map((r) => {
+        const id = typeof r.id === 'number' && !seen.has(r.id) ? r.id : next++;
+        seen.add(id);
+        return { ...r, id };
+    });
+}
+
+/** `props` with ids on the rows of lists that have an id cell, so the model can name the row it keeps. */
+const withIds = (scene: string, props: Record<string, unknown>) =>
+    Object.fromEntries(Object.entries(props).map(([k, v]) => {
+        const field = SCENES[scene].fields.find((f) => f.name === k);
+        return [k, field?.type === 'list' && field.item.some((c) => c.name === 'id') && Array.isArray(v) ? withRowIds(v) : v];
+    }));
+
 /** Words in a request that name a setting (its name or label), so a hand edit there can be overwritten. */
 function mentions(request: string, field: SceneField) {
     const text = request.toLowerCase();
@@ -572,20 +749,20 @@ function formatValue(field: SceneField, value: unknown): string {
 }
 
 /** One scene of the plan: fill, check, retry. */
-async function fillStep(step: PlanStep, request: string, ctx: SceneAiContext, existing: Existing[]): Promise<SceneProposal> {
+export async function fillStep(step: PlanStep, request: string, ctx: SceneAiContext, existing: Existing[]): Promise<SceneProposal> {
     const { scene } = step;
     const definition = SCENES[scene];
     const target = step.action === 'edit' ? existing.find((p) => p.ref === step.target) : undefined;
     const layer = target?.layer ?? (step.placement === 'over' ? 'overlay' : 'scene');
-    const current = target ? { ...definition.defaultProps, ...target.props } : null;
+    const current = target ? withIds(scene, { ...definition.defaultProps, ...target.props }) : null;
     // Where a new scene goes decides which part of the recording it shows.
     const total = totalDuration(ctx.edit.items);
-    const at = step.placement === 'start' ? 0 : step.placement === 'end' ? Math.max(0, total - 0.01) : Math.min(ctx.playhead, Math.max(0, total - 0.01));
+    const at = step.at ?? (step.placement === 'start' ? 0 : step.placement === 'end' ? Math.max(0, total - 0.01) : Math.min(ctx.playhead, Math.max(0, total - 0.01)));
     const base = current ?? initialSceneProps(scene, ctx.edit.items, at, ctx.project, ctx.cursor);
     const duration = target?.duration ?? definition.defaultDuration;
 
     // Settings that differ from what the AI last wrote (or from the defaults) were changed by hand.
-    const aiBaseline = target?.ai ?? definition.defaultProps;
+    const aiBaseline = withIds(scene, target?.ai ?? definition.defaultProps);
     const fields = modelFields(scene);
     const userOwned = current ? fields.filter((f) => !deepEqual(current[f.name], aiBaseline[f.name])) : [];
     const keep = userOwned.filter((f) => !mentions(request, f));
@@ -624,8 +801,9 @@ async function fillStep(step: PlanStep, request: string, ctx: SceneAiContext, ex
     const props = last!.props;
     const changes: SceneChange[] = [];
     for (const field of fields) {
-        if (current && deepEqual(current[field.name], props[field.name])) continue;
         const after = formatValue(field, props[field.name]);
+        // As shown, not as stored: an unset switch and an "Off" one are the same.
+        if (current && formatValue(field, current[field.name]) === after) continue;
         if (!current && !after) continue;
         changes.push({ label: field.label, ...(current ? { before: formatValue(field, current[field.name]) } : {}), after });
     }
@@ -648,6 +826,8 @@ async function fillStep(step: PlanStep, request: string, ctx: SceneAiContext, ex
 export async function askScenes(request: string, ctx: SceneAiContext): Promise<{ summary: string; proposals: SceneProposal[] }> {
     const existing = existingPieces(ctx.edit);
     ctx.onStep?.('Planning the scenes');
+    // Without drafted facts, the video's own scenes are what the product says (a recap grid reuses its spotlights).
+    if (!ctx.facts && existing.length) ctx = { ...ctx, facts: existing.map((p) => `${p.scene}: ${textsOf(p.scene, p.props)}`).join('\n').slice(0, 2500) };
     const plan = await planSteps(request, ctx, existing);
     const proposals: SceneProposal[] = [];
     for (const [i, step] of plan.steps.entries()) {

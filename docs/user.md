@@ -107,13 +107,112 @@ downloads once; pick which model in **Settings → AI editing**:
 |---|---|---|---|
 | Qwen3 4B (default) | 2.4 GB | 8 GB | Quick, and good at most edits |
 | Gemma 4 12B | 6.4 GB | 16 GB | Follows longer, more detailed requests more closely; slower |
- Review each one (include or leave it out, or jump to where it happens),
+| Gemma 4 26B A4B | 14.3 GB | 32 GB | Large but quick; better at writing scenes |
+| Qwen3.8 27B | 16.5 GB | 32 GB | The most capable, for long requests; slowest |
+
+It proposes a list of edits. Review each one (include or leave it out, or jump to where it happens),
 then apply.
 
 Try: *"Cut the part about pricing"*, *"Speed up the parts where nothing happens"*, *"Add a title
 at the start"*. It reads what you said (from captions), so it works best on recordings with speech.
 
 One-click clean-ups remove **filler words** ("um", "uh") and **long pauses**.
+
+## Studio
+
+A Studio video is made only of motion scenes, with no screen recording. On Home, click
+**New Studio video**: it starts as a short teaser (logo, a statement, an end card) to edit.
+
+**Draft a whole video:** open the **AI** tab, choose **Whole video**, paste your README, landing
+page text or a description, pick **Short** or **Full** and a style, then **Make a draft**. It takes a
+minute or two on your Mac and uses only facts from your text. Add **Screenshots** to show them in the
+feature spotlights (in the order you add them) and **Music** to use a song: the scenes are then cut on
+its beats. Untick scenes you don't want, then replace the timeline with the draft.
+
+Add a scene with the **✨** button at the left of the timeline toolbar (it goes in at the playhead). **Scene** fills the
+screen; **Overlay** is drawn over the video. Select a scene to change its text, images and timing.
+
+| Scene | What it shows |
+|---|---|
+| Logo sting | Your logo with a reveal (pop, wipe, ring or glow) |
+| Title reveal | An eyebrow, a title and a subtitle |
+| Kinetic statement | A short line, word by word, with one word picked out |
+| Device showcase, Feature callout | Part of your recording in a device, or a zoom on one spot (recordings only) |
+| Stat counter | Up to three numbers counting up, with an optional chart |
+| Lower third | A name and title in the corner |
+| End card | A call to action, link, QR code and socials |
+| Screenshot showcase | A screenshot in a phone, tablet, laptop or browser frame |
+| Feature grid | Features with icons, in a grid |
+| Testimonial | A quote, a name, a photo and a star rating |
+| Pricing | Price tiers, with one picked out |
+| Before / after | Two images with a sliding divider |
+| Logo wall | Customer logos, in a grid or scrolling past |
+| Code typing | Code typed out with highlighting |
+| Comparison | A table of features: you against others |
+| Lottie / Rive animation | A Lottie (.json) or Rive (.riv) animation, with a caption |
+| Roadmap | Milestones on a line: done, now and next |
+| Team | People with photos (or initials), names and roles |
+| Video clip | A video you add (b-roll), full frame or in a card |
+| Audio waveform | Bars that move with an audio file you add |
+
+**Video clip and audio waveform sound:** when you choose the file, its sound is added on an audio lane
+at the scene's start (a video's on **SFX**, an audio file's on **Voice**, so music ducks under it),
+trimmed to the scene. Move, trim or delete it there like any other clip.
+| 3D showcase | A phone or laptop showing your screenshot, or your logo on a tile, turning in 3D |
+| Custom (layers) | Your own layout: text, shapes, icons, animated elements, the logo and images |
+
+**Images:** image fields take PNG, JPEG, WebP, SVG or GIF (GIFs play). The file is copied into
+the project, so moving or deleting the original is fine.
+
+**Custom scene:** add layers from **Add layer…** (headline, subtitle, badge, shapes, icon, logo,
+image, and animated elements: checkmark, arrow, underline, hand-drawn ring, sparkles, burst, confetti).
+Click a layer in the list or on the preview, drag it to move, and drag its corner to resize. Each layer
+has an **Entrance** (fade, rise, pop, slide, wipe, blur, type, words) and a **Comes in at** time.
+**Keyframes:** move the playhead, click **Add at …**, then move the playhead again and drag the layer:
+it animates between the two. Each keyframe also sets scale, opacity and easing (how it moves into that
+keyframe: smooth, linear, in, out or overshoot). Earlier layers sit behind later ones.
+While dragging, layers snap to the frame's edges and centre and to other layers, with a guide line;
+hold Option to place freely. In the layer list, the copy button duplicates a layer and the link button
+groups it with the layer above so they move together.
+Positions are a share of the frame. To arrange a layer differently for tall (9:16) or wide frames,
+switch the aspect ratio and turn on **Own layout in … frames**; changes then apply only to that shape.
+
+**Video and audio files:** the Video clip and Audio waveform scenes take MP4, MOV or WebM, and M4A,
+MP3 or WAV. They're silent in the scene: to hear the sound, add the same file as music or a voiceover.
+
+**Lottie:** export the animation as a Lottie `.json` file and pick it in a Lottie animation scene.
+
+**Brand kit:** in the editor, pick or make a brand kit for colours, logo and fonts. The display and
+body fonts come from a bundled set (Inter, Space Grotesk, Manrope, Playfair Display and more), so
+they work offline. **Colours from the logo** sets the five colours from the logo's main colour.
+**From a website** makes a kit from a site's home page: type its address (like `example.com`) and
+Capturita takes its name, logo, theme colour (or the logo's colours) and, when the page names one, a
+matching bundled font. Check the logo: a dark wordmark may need a light version for dark scenes.
+**Background** is a plain **Gradient**, **Gradient with film grain**, or
+**Drifting colour**.
+
+**Video style:** in the **Brand** tab, **Apply a video style** sets every transition, scene length
+and camera move at once: **Minimal**, **Bold**, **Smooth** or **Cinematic**. Colours and fonts stay
+your brand kit's.
+
+**Camera move:** each scene can drift: **Slow push in**, **Slow pull out**, **Pan left** or **Pan right**.
+
+**Voice from text:** in the **Audio** tab, click the **T** button beside Voiceover, type a script,
+pick a Mac voice and click **Add voice**. It's read on your Mac, offline. Caption it in the
+**Captions** tab, which has four looks (Clean, Bold pop, Boxed, Subtle).
+
+**Sounds on scenes:** most scenes have a **Sound at …** setting (the logo hit, a key word, the first
+card, the count ending, the button press) to play a sound from your sound pack at that moment.
+
+**Music on the beat:** the beats of a song are found when you add it (or click **Find the beats**).
+Edges snap to beats on the timeline, and **Cut scenes on the beat** nudges each scene's length so the
+change to the next lands on a beat.
+
+**Mute a lane:** click **Voice** or **SFX** at the left of the timeline to mute or unmute that lane
+in the preview and the export.
+
+**Motion blur:** most scenes have a **Motion blur (in exports)** switch. It's added only when you
+export, so the preview stays fast.
 
 ## Export and upload
 

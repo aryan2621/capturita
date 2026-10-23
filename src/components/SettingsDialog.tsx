@@ -1,3 +1,4 @@
+import { loadCountdown, saveCountdown, type Countdown } from '../lib/countdown';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { openPath, openUrl } from '@tauri-apps/plugin-opener';
@@ -99,6 +100,7 @@ const Progress = ProgressBar;
 
 function General({ onRunSetup }: { onRunSetup?: () => void }) {
     const { choice, setChoice } = useTheme();
+    const [countdown, setCountdown] = useState<Countdown>(loadCountdown);
     return (
         <div>
             <Row title='Appearance' description='Light, dark, or follow macOS.'>
@@ -123,6 +125,21 @@ function General({ onRunSetup }: { onRunSetup?: () => void }) {
                                 label: 'Dark',
                                 icon: <Moon className='h-3.5 w-3.5' />,
                             },
+                        ]}
+                    />
+                </div>
+            </Row>
+            <Row title='Countdown' description='How long to wait after you press record (⌘⇧R from any app).'>
+                <div className='w-[200px]'>
+                    <Segmented<Countdown>
+                        size='sm'
+                        label='Countdown'
+                        value={countdown}
+                        onChange={(value) => (setCountdown(value), saveCountdown(value))}
+                        options={[
+                            { value: 0, label: 'Off' },
+                            { value: 3, label: '3 s' },
+                            { value: 5, label: '5 s' },
                         ]}
                     />
                 </div>
@@ -195,7 +212,7 @@ function AiModelsSection() {
                             <div className='min-w-0 flex-1 space-y-1'>
                                 <p className='flex items-center gap-2 text-sm font-medium'>
                                     {m.name}
-                                    {active && <span className='rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent'>In use</span>}
+                                    {active && <span className='rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-fg'>In use</span>}
                                 </p>
                                 <p className='text-xs text-muted'>{m.note}</p>
                                 <p className={cx('text-xs', tooBig ? 'text-warning-fg' : 'text-subtle')}>
@@ -214,7 +231,11 @@ function AiModelsSection() {
                                         <IconButton
                                             label={`Delete ${m.name} (frees ${gb(m.sizeMb)})`}
                                             size='icon-sm'
-                                            onClick={() => run(() => api.deleteAiModel(m.id))}
+                                            onClick={() =>
+                                                toast(`Delete ${m.name}? Using it again means downloading ${gb(m.sizeMb)}.`, {
+                                                    action: { label: 'Delete', onClick: () => run(() => api.deleteAiModel(m.id)) },
+                                                })
+                                            }
                                         >
                                             <Trash2 className='h-3.5 w-3.5' />
                                         </IconButton>
@@ -293,8 +314,8 @@ function CaptionsSection() {
     return (
         <div className='space-y-4'>
             <p className='text-sm text-muted'>
-                Captions are made on this Mac with Whisper; nothing is uploaded. Bigger models are more accurate (especially for Hindi, accents and mixed languages) but slower
-                and larger. English-only models only caption English. AI editing uses the same model.
+                Captions are made on this Mac with Whisper; nothing is uploaded. Bigger models are more accurate (especially for Hindi, accents and mixed
+                languages) but slower and larger. English-only models only caption English. AI editing uses the same model.
             </p>
             <div className='divide-y divide-line rounded-xl border border-line'>
                 {models.map((model) => {
@@ -305,7 +326,11 @@ function CaptionsSection() {
                                 <span
                                     className={cx(
                                         'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                                        model.selected ? 'bg-accent/15 text-accent' : model.downloaded ? 'bg-success-soft text-success-fg' : 'bg-raised text-muted'
+                                        model.selected
+                                            ? 'bg-accent/15 text-accent'
+                                            : model.downloaded
+                                              ? 'bg-success-soft text-success-fg'
+                                              : 'bg-raised text-muted'
                                     )}
                                 >
                                     {model.selected || model.downloaded ? <Check className='h-4 w-4' /> : <Captions className='h-4 w-4' />}
@@ -313,7 +338,9 @@ function CaptionsSection() {
                                 <div className='min-w-0 flex-1'>
                                     <p className='flex items-center gap-2 text-sm font-medium'>
                                         {model.label}
-                                        {model.selected && <span className='rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent'>In use</span>}
+                                        {model.selected && (
+                                            <span className='rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-fg'>In use</span>
+                                        )}
                                     </p>
                                     <p className='text-xs text-muted'>
                                         {model.sizeMb >= 1000 ? `${(model.sizeMb / 1000).toFixed(1)} GB` : `${model.sizeMb} MB`} · {model.note}
@@ -326,7 +353,12 @@ function CaptionsSection() {
                                 ) : (
                                     <div className='flex shrink-0 items-center gap-1'>
                                         {!model.selected && (
-                                            <Button size='sm' variant={model.downloaded ? 'secondary' : 'primary'} disabled={!!downloading} onClick={() => use(model)}>
+                                            <Button
+                                                size='sm'
+                                                variant={model.downloaded ? 'secondary' : 'primary'}
+                                                disabled={!!downloading}
+                                                onClick={() => use(model)}
+                                            >
                                                 {model.downloaded ? (
                                                     'Use'
                                                 ) : (
@@ -337,7 +369,16 @@ function CaptionsSection() {
                                             </Button>
                                         )}
                                         {model.downloaded && (
-                                            <IconButton label={`Delete ${model.label} (frees ${model.sizeMb} MB)`} size='icon-sm' disabled={!!downloading} onClick={() => run(() => api.deleteCaptionModel(model.id))}>
+                                            <IconButton
+                                                label={`Delete ${model.label} (frees ${model.sizeMb} MB)`}
+                                                size='icon-sm'
+                                                disabled={!!downloading}
+                                                onClick={() =>
+                                                    toast(`Delete ${model.label}? Using it again means downloading ${model.sizeMb} MB.`, {
+                                                        action: { label: 'Delete', onClick: () => run(() => api.deleteCaptionModel(model.id)) },
+                                                    })
+                                                }
+                                            >
                                                 <Trash2 className='h-3.5 w-3.5' />
                                             </IconButton>
                                         )}
@@ -423,7 +464,15 @@ export function GoogleSection() {
                             <LogOut className='h-3.5 w-3.5' />
                         </IconButton>
                     )}
-                    <IconButton label='Remove the Client ID and Secret (also signs out)' size='icon-sm' onClick={() => act(() => api.googleRemoveClient())}>
+                    <IconButton
+                        label='Remove the Client ID and Secret (also signs out)'
+                        size='icon-sm'
+                        onClick={() =>
+                            toast('Remove your Google Client ID and Secret? You’ll need to paste them again to upload.', {
+                                action: { label: 'Remove', onClick: () => act(() => api.googleRemoveClient()) },
+                            })
+                        }
+                    >
                         <Trash2 className='h-3.5 w-3.5' />
                     </IconButton>
                 </div>

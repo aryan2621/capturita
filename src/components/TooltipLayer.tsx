@@ -39,6 +39,8 @@ export function TooltipLayer() {
             current = element;
             if (element.hasAttribute('title')) {
                 element.dataset.tooltip = element.getAttribute('title') ?? '';
+                // The title was the only name for icon-only controls; keep it for VoiceOver.
+                if (!element.hasAttribute('aria-label') && !element.textContent?.trim()) element.setAttribute('aria-label', element.dataset.tooltip);
                 element.removeAttribute('title');
             }
             const text = (element.dataset.tooltip || element.getAttribute('aria-label') || '').trim();

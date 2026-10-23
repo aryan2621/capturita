@@ -82,3 +82,79 @@ pub fn use_brand_logo(app: AppHandle, id: String, logo: String) -> Result<String
     }
     Ok(format!("brand/{logo}"))
 }
+
+/// Copies a file a scene shows (screenshot, logo, avatar, GIF, Lottie .json, Rive .riv, video, audio) into
+/// `<project>/images/` as `img-<time>.<ext>` and returns its path inside the project. Headers:
+/// `id` (the project) and `name` (the original file name, for its extension).
+#[tauri::command]
+pub fn import_scene_image(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Expected raw bytes".into());
+    };
+    let header = |key: &str| request.headers().get(key).and_then(|v| v.to_str().ok()).map(str::to_string);
+    let id = header("id").ok_or("Missing id header")?;
+    let name = header("name").unwrap_or_default().replace("%2E", ".").replace("%2e", ".");
+    let ext = std::path::Path::new(&name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+        .filter(|e| ["png", "jpg", "jpeg", "webp", "svg", "gif", "json", "riv", "mp4", "mov", "webm", "m4a", "mp3", "wav"].contains(&e.as_str()))
+        .ok_or("Choose an image (PNG, JPEG, WebP, SVG, GIF), a Lottie .json, a Rive .riv, a video (MP4, MOV, WebM) or audio (M4A, MP3, WAV)")?;
+    if ext == "json" && serde_json::from_slice::<Value>(bytes).map(|v| v.get("layers").is_none()).unwrap_or(true) {
+        return Err("That .json isn't a Lottie animation".into());
+    }
+    let dir = project_dir(&app, &id)?.join("images");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let file = format!("img-{}.{ext}", chrono::Local::now().timestamp_millis());
+    std::fs::write(dir.join(&file), bytes).map_err(|e| e.to_string())?;
+    Ok(format!("images/{file}"))
+}
+
+/// GETs a web page or image for "brand kit from a website", up to `limit` bytes. Only http(s).
+async fn download(url: &str, limit: usize) -> Result<(Vec<u8>, String), String> {
+    let url = reqwest::Url::parse(url).map_err(|_| "That isn't a web address".to_string())?;
+    if !["http", "https"].contains(&url.scheme()) {
+        return Err("Use an http or https address".into());
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15")
+        .build()
+        .map_err(|e| e.to_string())?;
+    let mut response = client.get(url).send().await.map_err(|e| format!("Couldn't reach the site: {e}"))?;
+    if !response.status().is_success() {
+        return Err(format!("The site answered {}", response.status()));
+    }
+    let kind = response.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default().to_ascii_lowercase();
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        bytes.extend_from_slice(&chunk);
+        if bytes.len() > limit {
+            return Err("That file is too big".into());
+        }
+    }
+    Ok((bytes, kind))
+}
+
+/// A web page's HTML (first 3 MB), for reading its name, colours, fonts and logo.
+#[tauri::command]
+pub async fn fetch_site(url: String) -> Result<String, String> {
+    let (bytes, _) = download(&url, 3 << 20).await?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// Downloads a site's logo into the brand folder, like `import_brand_logo`, and returns its name.
+#[tauri::command]
+pub async fn import_brand_logo_url(app: AppHandle, url: String) -> Result<String, String> {
+    let (bytes, kind) = download(&url, 5 << 20).await?;
+    let ext = match kind.split(';').next().unwrap_or_default().trim() {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/webp" => "webp",
+        "image/svg+xml" => "svg",
+        _ => return Err("The site's logo isn't a PNG, JPEG, WebP or SVG".into()),
+    };
+    let file = format!("logo-{}.{ext}", chrono::Local::now().timestamp_millis());
+    std::fs::write(brand_dir(&app)?.join(&file), bytes).map_err(|e| e.to_string())?;
+    Ok(file)
+}

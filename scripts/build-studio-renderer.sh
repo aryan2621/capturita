@@ -65,6 +65,10 @@ else
   echo "$NODE_VERSION" > "$NODE_OUT.version"
   echo "copied Node $NODE_VERSION ($NODE_ARCHS) to $NODE_OUT"
 fi
+# Tauri's universal build compiles each architecture and checks its sidecar by that triple too; the fat binary serves both.
+if [[ "$TRIPLE" == universal-apple-darwin ]]; then
+  for t in aarch64 x86_64; do cp "$NODE_OUT" "${NODE_OUT%universal-apple-darwin}$t-apple-darwin"; cp "$NODE_OUT.version" "${NODE_OUT%universal-apple-darwin}$t-apple-darwin.version"; done
+fi
 
 if [[ "${1:-}" == "--dev" ]]; then
   # Tauri checks the resources path exists even in development.
@@ -76,14 +80,16 @@ if [[ "${1:-}" == "--dev" ]]; then
 fi
 
 # ---- 2. Runtime: render.mjs, prebuilt scenes, @remotion/renderer ----
-# Rebuilt when the renderer, the scenes (and the app files the transparent timeline bundles) or a
-# pinned version changes.
+# Rebuilt when the renderer, the scenes (and the app files the transparent timeline bundles), the
+# app's packages or a pinned version changes.
 STAMP="$(
   {
     echo "$NODE_VERSION $REMOTION_VERSION $REACT_VERSION ${APPLE_SIGNING_IDENTITY:-}"
     cat "$ROOT/studio-renderer/render.mjs"
     find "$ROOT/studio-renderer/entry" "$ROOT/src/studio/scenes" -type f | LC_ALL=C sort | xargs cat
     cat "$ROOT/src/studio/TransparentTimeline.tsx" "$ROOT/src/studio/fxStyle.ts" "$ROOT/src/editor/model.ts"
+    # Scene packages (Remotion add-ons, fonts) are inlined in the bundle.
+    cat "$ROOT/package.json"
   } | shasum -a 256 | cut -d' ' -f1
 )"
 if [[ -f "$RUNTIME/bundle/index.html" && "$(cat "$RUNTIME/.stamp" 2>/dev/null)" == "$STAMP" ]]; then

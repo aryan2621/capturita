@@ -11,9 +11,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TRIPLE="${TAURI_ENV_TARGET_TRIPLE:-$(rustc -vV | sed -n 's/^host: //p')}"
 OUT="$ROOT/src-tauri/binaries/llama-server-$TRIPLE"
 CACHE="$ROOT/src-tauri/target/llama.cpp-$VERSION"
+# Tauri's universal build compiles each architecture and checks its sidecar by that triple too; the fat binary serves both.
+per_arch() {
+  if [[ "$TRIPLE" == universal-apple-darwin ]]; then
+    for t in aarch64 x86_64; do cp "$OUT" "${OUT%universal-apple-darwin}$t-apple-darwin"; cp "$OUT.version" "${OUT%universal-apple-darwin}$t-apple-darwin.version"; done
+  fi
+}
 
 if [[ -x "$OUT" && "$(cat "$OUT.version" 2>/dev/null)" == "$VERSION" ]]; then
   echo "llama-server $VERSION already built"
+  per_arch
   exit 0
 fi
 
@@ -53,4 +60,5 @@ done
 mkdir -p "$(dirname "$OUT")"
 lipo -create "${BINS[@]}" -output "$OUT"
 echo "$VERSION" > "$OUT.version"
+per_arch
 echo "built $OUT"

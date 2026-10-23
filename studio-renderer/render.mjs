@@ -28,6 +28,8 @@ import { ensureBrowser, renderMedia, selectComposition } from '@remotion/rendere
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appModules = path.resolve(here, '../node_modules');
+// The GPU through ANGLE: the default software GL can't make the WebGL contexts 3D scenes need.
+const chromiumOptions = { gl: 'angle' };
 const BUNDLE_SHARE = 0.1;
 
 const report = (progress) => process.stdout.write(`${JSON.stringify({ progress: Math.min(1, Math.max(0, progress)) })}\n`);
@@ -66,7 +68,7 @@ function codecFor(out, alpha) {
     return { codec: 'h264', crf: 16, colorSpace: 'bt709' };
 }
 
-const TYPES = { '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
+const TYPES = { '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif', '.json': 'application/json' };
 
 /**
  * Serves `root` read-only on a free local port, with byte ranges so video can seek without
@@ -115,6 +117,8 @@ async function bundleScenes(onProgress, outDir) {
         onProgress: (percent) => onProgress?.(percent / 100),
         webpackOverride: (config) => ({
             ...config,
+            // `import x from 'file?url'` gives the file's URL, as in Vite (the Rive runtime's wasm).
+            module: { ...config.module, rules: [{ resourceQuery: /url/, type: 'asset/resource' }, ...(config.module?.rules ?? [])] },
             resolve: {
                 ...config.resolve,
                 alias: {
@@ -187,6 +191,7 @@ async function renderRanges(serveUrl, composition, inputProps, job, partial, onP
                     frameRange: [piece.from, piece.to],
                     ...codecFor(job.out, true),
                     ...(browserExecutable ? { browserExecutable } : {}),
+                    chromiumOptions,
                     onProgress: ({ progress }) => onProgress((done + weight(piece) * progress) / sum),
                 });
             }
@@ -204,7 +209,7 @@ async function renderRanges(serveUrl, composition, inputProps, job, partial, onP
 
 async function renderJob(serveUrl, job, onProgress, browserExecutable) {
     const inputProps = job.props ?? {};
-    const registered = await selectComposition({ serveUrl, id: job.composition, inputProps, ...(browserExecutable ? { browserExecutable } : {}) });
+    const registered = await selectComposition({ serveUrl, id: job.composition, inputProps, chromiumOptions, ...(browserExecutable ? { browserExecutable } : {}) });
     // The app decides size, length and rate; the registered values are only defaults.
     const composition = {
         ...registered,
@@ -229,6 +234,7 @@ async function renderJob(serveUrl, job, onProgress, browserExecutable) {
         outputLocation: partial,
         ...codecFor(job.out, job.alpha),
         ...(browserExecutable ? { browserExecutable } : {}),
+        chromiumOptions,
         onProgress: ({ progress }) => onProgress(progress),
     });
     await fs.rename(partial, job.out);
@@ -249,8 +255,15 @@ if (process.argv[2] === '--build-bundle') {
     const share = prebuilt ? 0 : BUNDLE_SHARE;
     const serveUrl = prebuilt ? path.resolve(prebuilt) : await bundleScenes((p) => report(p * BUNDLE_SHARE));
     for (const [index, job] of jobs.entries()) {
-        const props = files ? { ...job.props, assets: { base: files.base } } : job.props;
-        await renderJob(serveUrl, { ...job, props }, (p) => report(share + (1 - share) * ((index + p) / jobs.length)), executable);
+        // `rendering` turns on export-only effects (motion blur) that would make the preview stutter.
+        const props = { ...job.props, rendering: true, ...(files ? { assets: { base: files.base } } : {}) };
+        const run = () => renderJob(serveUrl, { ...job, props }, (p) => report(share + (1 - share) * ((index + p) / jobs.length)), executable);
+        // Chrome's first launch after its download can outlast the connect timeout (macOS scans the
+        // new binary, worse under memory pressure); the second launch is quick.
+        await run().catch((error) => {
+            if (!/trying to connect to the browser/i.test(String(error?.message ?? error))) throw error;
+            return run();
+        });
     }
     files?.close();
     report(1);

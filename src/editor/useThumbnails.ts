@@ -15,6 +15,7 @@ export function useThumbnails(project: Project) {
 
     useEffect(() => {
         const { screen } = project.tracks;
+        if (!screen.file) return; // A Studio video has no recording to take frames from.
         const count = Math.round(Math.min(40, Math.max(8, project.duration / 2)));
         const video = document.createElement('video');
         video.muted = true;

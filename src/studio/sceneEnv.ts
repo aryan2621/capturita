@@ -56,6 +56,8 @@ export function suggestTarget(cursor: CursorData | null, project: Project, segme
 export function initialSceneProps(id: string, items: TimelineItem[], time: number, project: Project, cursor: CursorData | null) {
     const definition = SCENES[id];
     const props: Record<string, unknown> = { ...definition.defaultProps };
+    // Only scenes that show the recording need a place in it (and a Studio timeline may be empty).
+    if (!definition.fields.some((field) => field.type === 'segment')) return props;
     const { clip, source } = positionAt(items, time);
     const callout = definition.fields.some((field) => field.type === 'rect');
     let segment: Segment = { start: source, end: Math.min(clip.end, source + definition.defaultDuration) };

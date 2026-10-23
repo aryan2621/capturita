@@ -1,8 +1,123 @@
-# Studio mode: remaining work
+# Studio mode
 
-Written 2026-10-19. This is the handoff for finishing Studio mode in Capturita. A new session
-should read it fully, then take items in order. A typical request: "Read docs/studio-remaining.md
-and do item 2."
+The one place for Studio planning. Keep the first three sections current after every round: the
+best launch-video maker we can build (Remotion plus other tools), what Capturita has and how it was
+checked, and the gaps. Per-item history and specs follow. Remotion source notes: `docs/remotion/`.
+
+Check levels: **app** = used in the running app · **headless** = rendered by script and frames
+reviewed · **types** = only tsc/cargo check · **none** = not built.
+
+## 1. Target: the best possible launch-video maker
+
+| # | Capability | How (Remotion / other) |
+|---|---|---|
+| T1 | Prompt, README or URL → full draft video (facts, script, storyboard, timings, music, aspect) | Local model for planning; scenes as JSON |
+| T2 | Scene library for the whole launch story: hook, problem, reveal, features, demo, proof, pricing, stats, CTA | Remotion components |
+| T3 | Free-form layer editor: text/image/shape/logo/icon layers, drag/resize, keyframes, presets | Remotion + own editor |
+| T4 | Screen-recording scenes: device mockups, callouts, auto zoom, cursor | Own recorder + Remotion |
+| T5 | Transitions library, beat-synced cuts | Own transitions or `@remotion/transitions`; beat detection |
+| T6 | Camera moves across a scene, 3D devices/logos | CSS transforms; `@remotion/three` |
+| T7 | Rich motion assets: Lottie, Rive, GIF, shapes, paths, noise backgrounds | `@remotion/lottie`, `rive`, `gif`, `shapes`, `paths`, `noise` |
+| T8 | Typography that always fits; strong offline font set | `@remotion/layout-utils`, bundled fonts |
+| T9 | Brand kit, ideally auto-made from a logo or website | Own; colour extraction |
+| T10 | Audio: music library, SFX on beats, ducking, voiceover incl. text-to-speech | Own mixer; local TTS (e.g. AVSpeech/Kokoro) |
+| T11 | Captions over everything, with word-highlight styles | Own captions; `@remotion/captions` |
+| T12 | Aspect variants (16:9, 9:16, 1:1, 4:5) with per-aspect layout | Remotion layout per frame size |
+| T13 | Export: MP4, GIF, ProRes alpha, social presets, upload; preview matches export | Remotion renderer + own export |
+| T14 | AI edits per scene and across the video | Local models (on this Mac only) |
+| T15 | Ready-made styles/templates for a whole video | Presets over brand kit + scene picks |
+
+## 2. Built today
+
+| Target | What exists | Checked |
+|---|---|---|
+| T2 | 17 scenes (+ Round 3–4: Roadmap, Team, VideoClip, Waveform, 3D showcase): LogoSting, TitleReveal, KineticStatement, DeviceShowcase, FeatureCallout, StatCounter, LowerThird, EndCard, ScreenshotShowcase, FeatureGrid, Testimonial, Pricing, BeforeAfter, LogoWall, CodeTyping, Comparison, Lottie | headless (all aspects); DeviceShowcase/LowerThird in app |
+| T2 | Round 3: Roadmap, Team, VideoClip (b-roll file, full/card, holds last frame), Waveform (audio file via `@remotion/media-utils`, bars/mirror/circle); scene files may be video/audio (`import_scene_image`) | headless (Roadmap 16:9+9:16, Team 16:9+1:1, VideoClip both framings, Waveform bars+circle, 2026-10-23) |
+| T3 | Custom scene (`scenes/CustomScene.tsx`, `layers.ts`): text/shape/icon/element/logo/image layers in % boxes, 9 entrances, keyframes (x, y, scale, rotate, opacity; smoothstep), 17 presets; panel `LayersEditor` (ScenePanel), drag/resize on the preview (`LayerHandles.tsx`, drag on a keyframed layer sets its key at the playhead); scene or overlay; AI fills `layers` (guide + example) | headless render (3 aspects, keyframed icon); editor UI and AI fill types only |
+| T3 | Round 4 layer editor: per-keyframe easing (`LayerKey.ease`: smooth/linear/in/out/overshoot, into that key); own layout per frame shape (`Layer.boxes` wide/square/tall via `layerAspect`, `layerFor`/`layerFrom`; keys shift with the box); snapping + guides in `LayerHandles` (frame edges/centre, other layers' edges/centres, 6 px, Option skips); duplicate; group with the layer above (`Layer.group`, neighbouring run moves together) | model helpers asserted in node (eases, aspect buckets, box round-trip, nudge); UI types only |
+| T2 | VideoClip/Waveform: choosing the file puts its sound on a lane at the scene's start (`addFileSound` in ScenePanel: video → SFX, audio → Voice so music ducks; offset = `from`, trimmed to the scene); silent videos add nothing | types only |
+| T6 | 3D showcase scene (`scenes/Showcase3D.tsx`, `@remotion/three` 4.0.532 + `@react-three/fiber` 9.8.2 + `three` 0.186.1): phone / laptop (hinged lid opens) with the screenshot as a cover-cropped unlit screen, or the brand logo on a clearcoat tile (light tile under a dark logo); spin / tilt / orbit; headline + detail beside or below; renderer uses `chromiumOptions.gl = 'angle'` (software GL can't make WebGL contexts) | headless: phone 16:9, laptop 9:16, logo 1:1, frames reviewed; 2D LogoSting re-rendered with ANGLE OK (2026-10-23) |
+| T2 | Studio video project type (no recording), starter scenes | app (opens) |
+| T4 | DeviceShowcase, FeatureCallout with target picking / Suggest | DeviceShowcase app; picking/Suggest types |
+| T5 | Cut + 7 transitions: crossfade, slide, push, wipe, zoom, blur, dip; sound on transitions | headless (all 7 + cut, scene-only timeline, 2026-10-23); sound types |
+| T7 | Lottie, GIF, shapes, paths, noise backgrounds (gradient/grain/flow), motion blur in exports | headless |
+| T7 | Built-in animated elements as Custom layers (`scenes/elements.tsx`): check, arrow, underline, ring, sparkles, burst, confetti | headless (all 7, frames reviewed) |
+| T7 | Rive in the Lottie scene ("Lottie / Rive animation"): a `.riv` plays through `@remotion/rive` 4.0.532 `RemotionRiveCanvas` (fit contain, drawn at frame size then scaled so its short side is the box); `.riv` in `import_scene_image` allowlist and the picker | headless: Rive's vehicles.riv sample, 16:9, frames reviewed (animates, sized to box) |
+| T8 | `fitSize` headings, 13 bundled fonts | headless |
+| T9 | Brand kits: colours, logo, fonts, background | app (earlier round) |
+| T9 | Colours from the logo (`paletteFromLogo` in brandKits.ts: vivid-colour buckets → accent, dark bg/surface/muted in its hue) | colour maths run in node; not used in app |
+| T9 | Brand kit from a website (BrandSection "From a website" → `kitFromSite`): Rust `fetch_site` / `import_brand_logo_url` (reqwest, http(s) only, 15 s, 3/5 MB caps); name from og:site_name/title; logo from a header "logo" img, else largest non-.ico icon; colours from a vivid `theme-color` else `paletteFromLogo` (shared `paletteFromColor`); bundled font named in Google Fonts links/inline CSS | cargo check + types only |
+| T10 | Imported music, voiceover, SFX, sound at a scene's beat (13 scenes, 2026-10-23), ducking, fades; text-to-speech voiceover with Mac voices (`speak`/`speech_voices` in sounds.rs, `say` → AAC) | headless: `scheduleTimeline` rendered in Chrome's OfflineAudioContext with test tones; cue times, −12 dB ducking, 0.4 s release, fades and music loop measured correct (2026-10-23). Not listened to |
+| T10 | Beat detection (`editor/beats.ts`: log-energy onsets, autocorrelation tempo 70–180 BPM, LS-fitted grid) on adding music; edges snap to beats; "Cut scenes on the beat" (`fitScenesToBeats`); Voice/SFX lane mute (`voiceMuted`/`effectsMuted`, preview + export via `scheduleTimeline`) | beats: synthetic tracks at 96/120/140/174 BPM all within 11 ms (one hop); UI types only |
+| T11 | Captions over scenes, word highlight (colour/box/line/pop), 4 presets; Captions tab in Studio videos (voiceover captions) | types; `say` m4a output checked |
+| T12 | 16:9, 9:16, 1:1, 4:5 | headless |
+| T13 | MP4/GIF export, YouTube/Drive upload, ProRes 4444 transparent export, renderer shipped in app | MP4 export app; ProRes headless; shipped renderer headless |
+| T1 | Whole-video draft (AI tab → Scenes → Whole video): facts from a pasted README/description (`aiDraft.ts` `readFacts`), rule storyboard (`storyboard`), each scene via `fillStep`, `applyDraft` replaces a Studio timeline or appends, in a chosen style | headless: 3 sources (Capturita README, FlowDesk, tinyhttp) on Gemma 4 12B, 0 failed scenes, 56–107 s each; drafts rendered (16:9, FlowDesk 9:16) and reviewed (2026-10-23). UI not used in app |
+| T1 | Draft media: Screenshots + Music pickers in the Whole video form; `applyDraft(…, media)` puts screenshots into ScreenshotShowcase spotlights in order, the song becomes `audio.music` (`importMusicTrack`, copied in on apply) and a replaced timeline is cut on its beats (`fitScenesToBeats`) | types only |
+| T15 | 4 whole-video styles (`styles.ts`: Minimal, Bold, Smooth, Cinematic): transitions, pace, camera; Brand tab picker | headless (in the draft renders) |
+| T15 | 18 built-in looks (`studio/presets.ts`: colours, fonts, background + a video style), Brand tab → "Start from a look" grid; picking one copies it into the user's kits and applies its style to existing scenes. Styles now 8: + Energetic, Snappy (wipes), Dreamy (blur, pan), Editorial (alternating wipes, pull) | types only (2026-10-23) |
+| T6 | Camera move on every full-screen scene (`withCamera`: push, pull, pan left/right; 5% zoom) | headless (pans at both ends, no edges) |
+| T14 | AI edits on recordings; AI writes scene text (`aiScenes.ts`), 4 local models | recordings app (earlier); `askScenes` run in headless Chrome against the bundled llama-server + Gemma 4 12B: 8 prompts (intro, end card, stats, pricing, testimonial, features, comparison, edit keeping a hand edit) all valid, 5–23 s each, results rendered and reviewed (2026-10-23). AI panel UI not used |
+| T3 | Round 5: stable layer `id` (AI edits match rows by id via `withRowIds`/`clean`, not position); snapping uses the scaled + turned box (`visualBox`; resize snaps only unscaled, unturned boxes); a shape with its own box gets its own keyframes once one is moved there (`boxes[aspect].keys`) | helpers asserted in node; per-shape keys rendered headless 16:9 + 9:16 (2026-10-23); UI not used |
+| T7 | Round 5: own Rive player (`scenes/RiveCanvas.tsx` on `@rive-app/canvas-advanced` 2.31.5; `@remotion/rive` removed): wasm bundled (`?url`, webpack rule in render.mjs) so no CDN; artboard, animation or state machine, inputs ("speed=2, on=true"); exact seeking (replays from 0 going back). Library: 16 MIT Lottie icons (useAnimations) in `studio-assets/lottie`, "Library…" menu (`studio/library.tsx`) on the Lottie file field and in Music; Lottie "Colour" (auto: black → text colour, accent, as drawn) | headless: vehicles.riv animates with the bundled wasm; checkCircle (auto) + trendingUp (accent, 9:16) frames reviewed; vite build OK |
+| T9 | Round 5: website kit reads up to 3 same-site stylesheets (font-family, `--*font*` variables, most-named bundled font wins); a dark logo gets a light palette (`readLogo`, also in "Colours from the logo") | types only |
+| T10 | Round 5: beats by dynamic programming with a local tempo per second (follows drift and changes) | synthetic: 96/120/140/174 BPM and a 100→130 ramp, every beat within 11.5 ms; 90→128 jump misses 1 beat at the switch |
+| T1 | Round 5: recording projects get DeviceShowcase spotlights on even parts of the recording (`PlanStep.at`) + a FeatureCallout; no features → one spotlight per screenshot; Cinematic puts the first screenshot on a Showcase3D device | types only |
+| T6 | Round 5: rounded screens (UV-mapped `roundedRect`), phone island, side buttons, camera bump + lenses; laptop keyboard (76 keys), trackpad, camera notch; `SCENE_RENDER_VERSION` 7 | headless: phone tilt/spin, laptop tilt, frames reviewed |
+
+## 3. Gaps, by impact
+
+Fixed by checks (2026-10-23): transparent export of a Studio video was empty (needed a recording
+clip); crossfades dipped to the background because the outgoing scene ran its own 10-frame fade
+(now `holdEnd` via `withHeldEnds` → `useExit`); blur transition showed soft frame edges; StatCounter
+clipped in 1:1. AI: stats doubled their unit ("12Kk"), the change list showed no-op rows, and
+text limits failed on one extra character after all retries (now 10% slack; the layout check still
+catches overflow). First real export (user, 2026-10-23) failed: Chrome's first launch after its one-time download
+timed out (25 s) under memory pressure with Gemma loaded; `render.mjs` now retries a job once on
+that error. Known, by design: a cut after a scene shows its 10-frame fade-out first.
+
+UI pass (2026-10-23): "Add scene" and "Text to speech" got text labels (were icon-only), narration
+import button reads "Import file", keyframe columns are labelled, easings capitalised, ⌥-to-skip-snapping
+hint in the layer panel, the Whole video style dropdown is labelled, and the Music lane label mutes music
+like Voice/SFX. Impeccable audit pass (2026-10-23, source-only: WKWebView has no CDP): light accent
+#b4583a and dark accent-fg #1f1e1d (white on orange failed AA), --subtle darkened (light #6b6963, dark #a3a198),
+10px text → 11px, SFX lane renamed Sounds, Modal takes/traps/returns focus, TooltipLayer keeps an
+aria-label, list-row cells labelled, layer rows and table rows keyboard-openable, brand-kit delete has Undo,
+AI/caption model and Google client deletes ask first (toast action), recorder empty state has an Allow
+button, Rive fields show only for .riv, scene search empty state, disabled Delete/Cut-on-beat say why.
+Left: Segmented for hand-rolled pickers, scene-panel section headings, raw <select>s → Select,
+tooltips on keyboard focus. Silent preview (2026-10-23) was the Mac's output, not the app (graph RMS 0.22); relaunch fixed it.
+
+Round 1 (2026-10-23) also fixed: AI scenes crashed on an empty timeline (`initialSceneProps` now
+skips the timeline for scenes without a recording part); draft facts were garbled by tight schema
+caps (caps are now loose; lengths are asked for in the prompt).
+
+1. **Unverified in the app:** the whole-video draft UI (incl. Round 5 recording/screenshot/3D picks), styles picker, camera field, text-to-speech,
+   captions in Studio, the whole export with audio, target picking/Suggest, uploads; layer editor + preview handles
+   (snapping, groups, own layouts, per-shape keys), AI filling a Custom scene, logo colours / light palette, website kit
+   with stylesheets, beats on a real song, lane mute, the Library menus, Rive settings. Round 5's in-app pass was not run
+   (the installed app was busy exporting; no GUI driver for the webview).
+2. **T10** no bundled music: FreePD (CC0) was down (503) on 2026-10-23. Drop CC0 tracks into `studio-assets/music/`
+   (`<mood>-<bpm>.mp3`) and list them in `studio-assets/LICENSES.md`; the Music "Library…" menu appears by itself.
+   Beats can miss one beat at a sudden tempo jump.
+3. **T7** no bundled Rive files (no CC0 source; Marketplace is CC BY, declined). The Lottie pack is MIT (licence file must ship).
+4. **T9** website kit doesn't follow `@import`ed or cross-site stylesheets.
+5. **T6** devices are still stylised (no screen glare, ports or hinge detail).
+6. **Older open items** (from the item history, never fixed):
+   - Preview bug, not reproduced: one FeatureCallout fade-in showed a stale frame after seeking back into it from inside the scene (`SceneLayer`/`syncVideos`?).
+   - Paused preview of the recording sits ~3 frames (0.1 s) behind the export (WebKit paused seek; recording, not Studio). Recordings start with DTS −0.05 s (B-frames), a likely cause; needs a frame compare in the app before fixing.
+   - The AI's text-fit check runs in the app's WebKit, not the export's Chrome, so text could fit slightly differently.
+   - Playback smoothness inside DeviceShowcase/FeatureCallout not checked in the app.
+7. Leftovers: signed + notarized release (user, needs Developer ID). Universal app built and installed but not run on an Intel Mac.
+
+Corrected 2026-10-23 (were listed as gaps but exist): word-highlight captions, overlay
+move/trim/delete, voice/SFX waveforms, voiceover captions, brand logo import.
+
+---
+
+## Item history and specs
+
+Written 2026-10-19 as the item-by-item plan; items 0–11 are below with what was done.
 
 ---
 
@@ -109,7 +224,7 @@ transitions and audio. Studio mode makes the generated half **with Remotion, ins
 - Licensing: building on Remotion is allowed; larger companies need a company license. Don't
   set `acknowledgeRemotionLicense` on the user's behalf.
 
-**Reference material:** `analysis/00–05*.md` is a source-level teardown of Remotion:
+**Reference material:** `docs/remotion/00–05*.md` is a source-level teardown of Remotion:
 - `02`: animation tools
 - `03`: recipes for all 13 demo elements, and what Remotion lacks
 - `04`: rendering, codecs and transparency
@@ -134,8 +249,10 @@ transitions and audio. Studio mode makes the generated half **with Remotion, ins
 | Item 7: AI scene generation (2026-10-19) | **Built, not verified anywhere.** tsc and cargo check pass; no model run, no prompt tried |
 | Item 8: renderer in the app (2026-10-19) | **Code written; release build not tried.** tsc and cargo check pass; the shipped runtime rendered a scene headless with the bundled Node and no system Node |
 | Item 9: transparent export (2026-10-19) | **Built, not checked in an editor.** tsc and cargo check pass; a whole-timeline ProRes 4444 render checked headless (alpha values right) |
-| Item 10: synthesis doc (2026-10-19) | Written: `analysis/06-synthesis.md` |
-| Git | **Nothing committed** |
+| Item 10: synthesis doc (2026-10-19) | Merged into this file (2026-10-23) |
+| Studio videos (2026-10-23) | Built: library "New Studio video" makes a project with no recording (`kind: 'studio'`, placeholder screen track with `file: ""`), starter scenes, recording-only tools and scenes hidden. Opened in the app |
+| Item 11: images, 9 new scenes, add-ons (2026-10-23) | **Built, checked headless.** All 9 new scenes plus TitleReveal/Kinetic rendered at 16:9, 9:16, 1:1 and reviewed (mid and end frames); LogoSting, StatCounter, LowerThird, EndCard re-rendered on the default gradient. Fixed: StatCounter clipped in 1:1 (now fits each number to its column). Release app built and installed. Not checked in the app |
+| Git | Committed up to `8a69c69`; later work not committed |
 
 ---
 
@@ -197,7 +314,7 @@ Add the four missing ones. Each is registered in `SCENES` with fields, `defaultP
   and `ScenePanel.tsx`.
 - Number formatting: use `Intl.NumberFormat`.
 - QR code: use a small QR encoder package at an exact pinned version, or a self-written one.
-- Recipes: `analysis/03-demo-elements.md` §1, §2, §5 and §10.
+- Recipes: `docs/remotion/03-demo-elements.md` §1, §2, §5 and §10.
 
 **Done when:** each scene has rendered frames reviewed at all three aspects, preview matches
 export, and the ✨ picker offers all scenes.
@@ -224,7 +341,7 @@ export, and the ✨ picker offers all scenes.
 - Keep the existing limit: two recording clips can't overlap, because the preview has one
   video. Transitions need a scene on at least one side.
 - Optional sound per transition (a whoosh centred on the cut). This connects to item 4.
-- Math reference: `analysis/02-animation-primitives.md` §11.
+- Math reference: `docs/remotion/02-animation-primitives.md` §11.
 
 **Done when:** each transition kind is checked frame by frame in an export and matches the preview.
 
@@ -260,7 +377,7 @@ Today scenes are silent and only recording audio, music and click sounds are sch
    - Turn it into a gain curve on the music: a set amount in dB, with attack and release.
    - Use the **same** curve in preview and export.
 5. Fades in and out per clip. Keep preview and export sharing one scheduler.
-6. Recipes: `analysis/03-demo-elements.md` §12.
+6. Recipes: `docs/remotion/03-demo-elements.md` §12.
 
 **Done when:** an export with music, a voiceover over a scene and two sound effects sounds the
 same as the preview; ducking is audible and smooth; nothing clicks at clip edges.
@@ -337,7 +454,7 @@ no clicks at clip edges (try a trimmed clip that starts mid-word); trimming can'
 - Make captions follow output time across the whole video, including voiceover over scenes.
   Transcribe voiceover clips the same way.
 - Add an active-word highlight style option.
-- Reference: `analysis/03-demo-elements.md` §8.
+- Reference: `docs/remotion/03-demo-elements.md` §8.
 
 **Done when:** captions stay in sync through scenes and cuts in an export.
 
@@ -387,7 +504,7 @@ at small sizes finished with no errors; no frames looked at, preview not checked
 - Kinetic, Stat, EndCard and LogoSting already treat 4:5 as portrait (`height > width * 1.05`,
   LogoSting stacks below 1.4); left unchanged.
 - `SCENE_RENDER_VERSION` 3 → 4.
-- Not done: exporting several aspects in one go.
+- Exporting several aspects in one go: built (Export dialog → Aspect ratios; one file per aspect).
 
 **To verify (batch 6–9):** a frame strip of every scene at every aspect (nothing clipped or
 cramped), especially FeatureCallout with targets in each corner at 9:16, long LowerThird names,
@@ -396,7 +513,7 @@ DeviceShowcase "side" at 1:1.
 ### Item 7: AI generation of scenes
 Use Capturita's existing local AI: `src-tauri/src/ai.rs`, llama-server with
 `response_format: json_schema`, Qwen3-4B or Gemma-12B. Follow `src/editor/aiEdit.ts`'s
-"propose, then review with checkboxes" pattern. Patterns are in `analysis/05-ai-generation-loop.md` §12.
+"propose, then review with checkboxes" pattern. Patterns are in `docs/remotion/05-ai-generation-loop.md` §12.
 
 1. **Plan:** the prompt goes to a plan, a list of `{scene id, purpose}` taken from the scene
    ids. Use rules first, then a small JSON-schema call.
@@ -543,7 +660,7 @@ tell me, so I can tag or premultiply the file.
 
 ### Item 10: Finish the analysis document (Phase 6)
 The original teardown asked for a Phase 6 synthesis. It was deleted because it described a
-dropped design. Write `analysis/06-synthesis.md` for the **current** design:
+dropped design. Write a synthesis doc for the **current** design:
 - a) end-to-end architecture diagram (Mermaid)
 - b) table: Remotion concept → what Capturita uses → status
 - c) the scene data format (`SceneClip`, `OverlayClip`, props) with 3 worked examples: title,
@@ -556,7 +673,7 @@ dropped design. Write `analysis/06-synthesis.md` for the **current** design:
 
 **Done when:** the file exists and matches the code as it is.
 
-**Done (2026-10-19):** `analysis/06-synthesis.md` has sections a–g and the 13-element checklist
+**Done (2026-10-19):** the synthesis doc (merged into this file 2026-10-23) had sections a–g and the 13-element checklist
 (teardown understanding + what Capturita has + where). Field lists, codecs, transition kinds and
 file names were checked against the code. Update it when scenes, codecs or the pipeline change.
 
@@ -582,3 +699,65 @@ file names were checked against the code. Update it when scenes, codecs or the p
 
 Out of scope unless the user asks: 3D devices or WebGL effects (`@remotion/three`), Lottie, a
 bundled music library.
+
+---
+
+### Item 11: Images, new scenes, Remotion add-ons (2026-10-23)
+- **Image field** (`type: 'image'`, `accept: 'lottie'` for .json), also inside list rows. Files go to
+  `<project>/images/img-<ms>.<ext>` via `import_scene_image` (`src-tauri/src/brand.rs`); edited by
+  `ImageInput` in `ScenePanel.tsx`; drawn by `SceneImage` (`scenes/SceneBase.tsx`, GIFs via
+  `@remotion/gif`). The AI never writes image fields (`modelFields`, `textCells` in `aiScenes.ts`).
+- **New scenes:** ScreenshotShowcase, FeatureGrid, Testimonial, Pricing, BeforeAfter, LogoWall,
+  CodeTyping, Comparison, Lottie (`@remotion/lottie`, loads its .json with `delayRender`). None needs
+  the recording, so all work in Studio videos. Registered in `SCENES`, `SCENE_CHOICES` and the AI tables.
+- **Foundations:** every scene root starts with `BrandTexture` (waits for the brand fonts with
+  `delayRender`, then draws the kit's background: gradient / grain / flow via `@remotion/noise`).
+  `fitSize` (`scenes/text.ts`, `@remotion/layout-utils`) sizes headings. 10 more bundled fonts
+  (`scenes/fonts.ts`). Text fields can be `multiline`.
+- **Motion blur:** `withMotionBlur` (`scenes/motionBlur.tsx`, `@remotion/motion-blur`) on LogoSting,
+  TitleReveal, KineticStatement and ScreenshotShowcase, when their "Motion blur" setting is on and
+  only in exports (`render.mjs` passes `rendering: true`).
+- `SCENE_RENDER_VERSION` is 5. The runtime rebuild stamp now includes the root `package.json`.
+- Not done: the layer editor, 3D (`@remotion/three`), bundled Lottie animations (licensing).
+
+
+### Item 12: Rounds 2–3 (2026-10-23)
+- **Custom scene** (`Custom`, scene or overlay): `layers` is a `list` field with `editor: 'layers'`, so
+  the AI schema, validation and `clean` handle it like any list; `ScenePanel` draws `LayersEditor`
+  instead of rows. `LayerEdit` (selected layer + playhead in the scene) lives in EditorView and is
+  threaded through Inspector → ScenePanel/OverlayPanel; `LayerHandles` sits over the preview while
+  paused. `layerPose`/`withKey` (`scenes/layers.ts`) are shared by scene and handles.
+- `clean` (aiScenes.ts) now merges each AI list row over the row it replaces, so pictures and
+  keyframes survive AI edits.
+- **Elements** (`scenes/elements.tsx`): strokes drawn with `pathLength` dash offsets, paths scaled to
+  the box in JS (non-scaling-stroke broke the dashes).
+- **Scenes:** Roadmap, Team, VideoClip, Waveform (+ `@remotion/media-utils` 4.0.532). VideoClip relies
+  on OffthreadVideo holding the last frame past the file's end (seen in renders).
+- **Brand:** "Colours from the logo" in the Brand section.
+- **Audio:** `MusicTrack.beats`/`length` stored on add; `beatsOnTimeline` maps them to output time
+  (loops); Timeline snap targets include them. Lane mute in the Timeline's lane labels.
+- **Round 4 (2026-10-23):** layer editor (easing per key, own layout per frame shape, snapping +
+  guides, duplicate, groups), VideoClip/Waveform sound onto lanes, draft screenshots + music, brand
+  kit from a website, 3D showcase scene (`@remotion/three`; renderer now uses ANGLE GL), Rive in the
+  Lottie scene, universal build (`build-recorder.sh` builds each arch and lipos: two `--arch` flags
+  need full Xcode; each sidecar script also copies the fat binary to the per-arch triples Tauri checks). Dropped by the user (2026-10-23): an MCP server, Claude writing scene code, and cloud AI (`ai_cloud.rs` and the Settings provider picker removed; AI runs only on this Mac).
+
+### Item 13: Round 5 — closing the gaps (2026-10-23)
+- Layers: `Layer.id` + `withRowIds` (aiScenes.ts) so AI rows keep their keyframes/pictures by id; `visualBox`
+  (layers.ts) for snapping; per-shape keys in `boxes[aspect].keys` (`layerFor`/`layerFrom`).
+- Rive: `RiveCanvas.tsx` replaces `@remotion/rive` (its wasm came from unpkg; it had no state machines).
+  `import WASM from '@rive-app/canvas-advanced/rive.wasm?url'`; render.mjs adds `{resourceQuery: /url/, type: 'asset/resource'}`.
+  Lottie fields `artboard`/`play`/`inputs` are `user: true` text fields (the AI never writes them); `tint` is a choice.
+- Library: `studio-assets/{lottie,music}` via `import.meta.glob` (no Tauri resource); picking copies the file in
+  through `importSceneImage` / `importMusicTrack`.
+- Beats: Ellis-style DP (`TIGHTNESS` 100) over a per-second local period (8 s autocorrelation leaning to the song's period).
+- Draft: `DraftInputs` (`shots`, `recording`, `cinematic`); `PlanStep.at` sets a recording scene's part; `SHOT_SCENES`.
+- Brand: `readLogo` (vivid colour + darkness); `paletteFromColor(…, light)`; stylesheet fonts.
+- 3D: `roundedRect` screens, `Cutout`, phone buttons/camera, laptop `KEYS` + trackpad + notch.
+- AI scene requests choose the recording moment: the planner gets a timed transcript (`timedTranscript`, output
+  seconds) and writes `at` per step (−1 = playhead); `tidyPlan` keeps it only for recording scenes; `fillStep`
+  starts the segment there. Keyword shortcuts go to the planner for new recording scenes when a transcript exists.
+- Draft length is a **Scenes** slider (3–16, default 8) instead of Short/Full. `storyboard(facts, count, inputs)` lists
+  every scene the facts allow with a rank (0 title/end card · 1 first spotlight · 2 hook, 2nd spotlight · 3 logo, numbers ·
+  4 3rd spotlight, recap, quote · 5 4th spotlight, callout, pricing · 6 code, 5th–6th spotlights), keeps the best
+  `count` in story order, and the summary says when the text supports fewer. Spotlights go up to 6.

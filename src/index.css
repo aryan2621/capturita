@@ -21,10 +21,11 @@
   --line-strong: #4c4b46;
   --fg: #f5f4ef;
   --muted: #c2c0b6;
-  --subtle: #96948c;
+  --subtle: #a3a198;
   --accent: #d97757;
   --accent-hover: #c96442;
-  --accent-fg: #ffffff;
+  /* Dark text: white on this orange is only 3.1:1. */
+  --accent-fg: #1f1e1d;
   --record: #ef4444;
   --record-hover: #dc2626;
   /* Status colours: a solid tone, a soft background and a readable text tone. */
@@ -63,9 +64,11 @@
   --line-strong: #d6d3c6;
   --fg: #1f1e1d;
   --muted: #5e5d59;
-  --subtle: #8a8880;
-  --accent: #c96442;
-  --accent-hover: #b4583a;
+  --subtle: #6b6963;
+  /* One step darker than Claude's #c96442 so white text on it passes AA (4.8:1). */
+  --accent: #b4583a;
+  --accent-hover: #9f4d33;
+  --accent-fg: #ffffff;
   --danger-soft: rgb(181 51 51 / 0.1);
   --danger-fg: #b53333;
   --warning-soft: rgb(168 107 22 / 0.12);
@@ -158,6 +161,13 @@ body {
 :focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
   outline-offset: 2px;
+}
+
+/* Text fields show focus with their accent border; the outline on top made a double ring. */
+select:focus-visible,
+textarea:focus-visible,
+input:not([type='range'], [type='checkbox'], [type='radio'], [type='color']):focus-visible {
+  outline: none;
 }
 
 ::-webkit-scrollbar {

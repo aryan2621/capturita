@@ -47,7 +47,10 @@ export function TargetPicker({
         event.stopPropagation();
         const surface = event.currentTarget.closest('[data-target-surface]') as HTMLElement;
         const bounds = surface.getBoundingClientRect();
-        const point = (e: PointerEvent | ReactPointerEvent) => ({ x: clamp01((e.clientX - bounds.left) / bounds.width), y: clamp01((e.clientY - bounds.top) / bounds.height) });
+        const point = (e: PointerEvent | ReactPointerEvent) => ({
+            x: clamp01((e.clientX - bounds.left) / bounds.width),
+            y: clamp01((e.clientY - bounds.top) / bounds.height),
+        });
         const start = point(event);
         const initial = { ...rect };
         const target = event.currentTarget;
@@ -55,9 +58,18 @@ export function TargetPicker({
         const move = (e: PointerEvent) => {
             const p = point(e);
             if (mode === 'draw') {
-                onChange({ x: Math.min(start.x, p.x), y: Math.min(start.y, p.y), width: Math.max(MIN_SIZE, Math.abs(p.x - start.x)), height: Math.max(MIN_SIZE, Math.abs(p.y - start.y)) });
+                onChange({
+                    x: Math.min(start.x, p.x),
+                    y: Math.min(start.y, p.y),
+                    width: Math.max(MIN_SIZE, Math.abs(p.x - start.x)),
+                    height: Math.max(MIN_SIZE, Math.abs(p.y - start.y)),
+                });
             } else if (mode === 'move') {
-                onChange({ ...initial, x: Math.min(1 - initial.width, Math.max(0, initial.x + p.x - start.x)), y: Math.min(1 - initial.height, Math.max(0, initial.y + p.y - start.y)) });
+                onChange({
+                    ...initial,
+                    x: Math.min(1 - initial.width, Math.max(0, initial.x + p.x - start.x)),
+                    y: Math.min(1 - initial.height, Math.max(0, initial.y + p.y - start.y)),
+                });
             } else {
                 onChange({ ...initial, width: Math.max(MIN_SIZE, p.x - initial.x), height: Math.max(MIN_SIZE, p.y - initial.y) });
             }
@@ -72,7 +84,12 @@ export function TargetPicker({
 
     return (
         <div className='absolute inset-0 z-10 overflow-hidden rounded-lg bg-black'>
-            <div data-target-surface className='absolute cursor-crosshair' style={{ left, top, width: box.width, height: box.height }} onPointerDown={(e) => drag(e, 'draw')}>
+            <div
+                data-target-surface
+                className='absolute cursor-crosshair'
+                style={{ left, top, width: box.width, height: box.height }}
+                onPointerDown={(e) => drag(e, 'draw')}
+            >
                 <video
                     ref={video}
                     src={fileUrl(project, previewFile ?? screen.file)}
@@ -83,11 +100,37 @@ export function TargetPicker({
                     className='pointer-events-none h-full w-full'
                 />
                 <div
-                    className='absolute cursor-move rounded-md border-2 border-accent bg-accent/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]'
+                    className='absolute cursor-move rounded-md border-2 border-accent bg-accent/10 outline-none focus-visible:ring-2 focus-visible:ring-white shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]'
                     style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}
                     onPointerDown={(e) => drag(e, 'move')}
+                    tabIndex={0}
+                    role='group'
+                    aria-label='Target box. Arrow keys move it, Alt plus arrows resize it, Shift for bigger steps, Enter when done.'
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === 'Escape') return onDone();
+                        const d = e.shiftKey ? 0.05 : 0.01;
+                        const dx = e.key === 'ArrowRight' ? d : e.key === 'ArrowLeft' ? -d : 0;
+                        const dy = e.key === 'ArrowDown' ? d : e.key === 'ArrowUp' ? -d : 0;
+                        if (!dx && !dy) return;
+                        e.preventDefault();
+                        if (e.altKey)
+                            onChange({
+                                ...rect,
+                                width: Math.min(1 - rect.x, Math.max(MIN_SIZE, rect.width + dx)),
+                                height: Math.min(1 - rect.y, Math.max(MIN_SIZE, rect.height + dy)),
+                            });
+                        else
+                            onChange({
+                                ...rect,
+                                x: Math.min(1 - rect.width, Math.max(0, rect.x + dx)),
+                                y: Math.min(1 - rect.height, Math.max(0, rect.y + dy)),
+                            });
+                    }}
                 >
-                    <div className='absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize rounded-sm border-2 border-accent bg-panel' onPointerDown={(e) => drag(e, 'resize')} />
+                    <div
+                        className='absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize rounded-sm border-2 border-accent bg-panel'
+                        onPointerDown={(e) => drag(e, 'resize')}
+                    />
                 </div>
             </div>
             <div className='absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-3 rounded-full bg-panel/95 py-1.5 pl-3 pr-1.5 text-xs text-muted shadow'>

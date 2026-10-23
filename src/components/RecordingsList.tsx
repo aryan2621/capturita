@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { AppWindow, Camera, Crop, Film, FolderOpen, Mic, Monitor, MousePointerClick, Plus, Sparkles, Trash2, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, errorMessage, fileUrl, formatDuration, type Project } from '../lib/api';
+import { api, errorMessage, fileUrl, formatDuration, isStudio, type Project } from '../lib/api';
 import { Button, IconButton, Kbd, cx } from './ui';
 
 const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
@@ -68,7 +68,7 @@ const STEPS = [
 export type LibraryView = 'cards' | 'table';
 
 /** Shown instead of the library before the first recording. */
-export function EmptyLibrary({ onNew }: { onNew: () => void }) {
+export function EmptyLibrary({ onNew, onNewStudio }: { onNew: () => void; onNewStudio: () => void }) {
     return (
         <div className='flex flex-1 flex-col items-center justify-center gap-8 rounded-2xl border border-dashed border-line p-10 text-center'>
             <EmptyIllustration />
@@ -86,9 +86,14 @@ export function EmptyLibrary({ onNew }: { onNew: () => void }) {
                     </li>
                 ))}
             </ol>
-            <Button variant='primary' onClick={onNew}>
-                <Plus className='h-4 w-4' /> New recording
-            </Button>
+            <div className='flex gap-2'>
+                <Button variant='primary' onClick={onNew}>
+                    <Plus className='h-4 w-4' /> New recording
+                </Button>
+                <Button onClick={onNewStudio} title='A motion-graphics video without a recording: teasers, “coming soon”, launch cards'>
+                    <Sparkles className='h-4 w-4' /> New Studio video
+                </Button>
+            </div>
             <p className='text-xs text-subtle'>
                 Tip: <Kbd>⌘⇧R</Kbd> starts and stops a recording from any app.
             </p>
@@ -97,7 +102,19 @@ export function EmptyLibrary({ onNew }: { onNew: () => void }) {
 }
 
 /** The recordings, as cards or a table. A click opens one in the editor; more actions are in its menu. */
-export function RecordingsList({ recordings, view, onOpen, onDeleted }: { recordings: Project[]; view: LibraryView; onOpen: (project: Project) => void; onDeleted: () => void }) {
+export function RecordingsList({
+    recordings,
+    view,
+    grouped = true,
+    onOpen,
+    onDeleted,
+}: {
+    recordings: Project[];
+    view: LibraryView;
+    /** Day headings only make sense newest-first. */ grouped?: boolean;
+    onOpen: (project: Project) => void;
+    onDeleted: () => void;
+}) {
     if (view === 'table') {
         return (
             <div className='rounded-xl border border-line bg-panel'>
@@ -113,9 +130,16 @@ export function RecordingsList({ recordings, view, onOpen, onDeleted }: { record
                     </thead>
                     <tbody>
                         {recordings.map((project) => {
-                            const SourceIcon = SOURCE_ICONS[project.source.type] ?? Monitor;
+                            const SourceIcon = isStudio(project) ? Sparkles : (SOURCE_ICONS[project.source.type] ?? Monitor);
                             return (
-                                <tr key={project.id} onClick={() => onOpen(project)} className='group cursor-default border-b border-line last:border-0 hover:bg-panel-2' title='Open in the editor'>
+                                <tr
+                                    key={project.id}
+                                    tabIndex={0}
+                                    onClick={() => onOpen(project)}
+                                    onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && onOpen(project)}
+                                    className='group cursor-default border-b border-line last:border-0 hover:bg-panel-2'
+                                    title='Open in the editor'
+                                >
                                     <td className='px-3 py-2'>
                                         <span className='flex min-w-0 items-center gap-3'>
                                             <span className='relative block aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-stage'>
@@ -146,7 +170,7 @@ export function RecordingsList({ recordings, view, onOpen, onDeleted }: { record
 
     return (
         <div className='space-y-6'>
-            {groupByDay(recordings).map((group) => (
+            {(grouped ? groupByDay(recordings) : [{ label: 'Results', items: recordings }]).map((group) => (
                 <section key={group.label} className='space-y-3'>
                     <h3 className='flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-subtle'>
                         {group.label}
@@ -222,7 +246,8 @@ function Thumbnail({ project }: { project: Project }) {
                     if (!cancelled) setUrl(URL.createObjectURL(blob));
                 },
                 () => {
-                    if (!cancelled) makePoster(project).then(setUrl, () => setFailed(true));
+                    // A Studio video has no recording to take a poster from; it can set one in the editor.
+                    if (!cancelled) (isStudio(project) ? Promise.reject() : makePoster(project)).then(setUrl, () => setFailed(true));
                 }
             );
         return () => {
@@ -235,6 +260,7 @@ function Thumbnail({ project }: { project: Project }) {
         },
         [url]
     );
+    if (failed && isStudio(project)) return <Sparkles className='absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 text-accent/70' />;
     if (failed) return <Film className='absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 text-subtle' />;
     if (!url) return null;
     return <img src={url} alt='' draggable={false} className='absolute inset-0 h-full w-full object-contain' onError={() => setFailed(true)} />;
@@ -264,13 +290,21 @@ function TrackIcons({ project, className }: { project: Project; className?: stri
 }
 
 function RecordingCard({ project, onOpen, onDeleted }: { project: Project; onOpen: () => void; onDeleted: () => void }) {
-    const SourceIcon = SOURCE_ICONS[project.source.type] ?? Monitor;
+    const SourceIcon = isStudio(project) ? Sparkles : (SOURCE_ICONS[project.source.type] ?? Monitor);
     return (
         <div className='group relative rounded-xl border border-line bg-panel shadow-sm transition-[border-color,transform,box-shadow] duration-200 focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md'>
             <button onClick={onOpen} className='block w-full cursor-default text-left' title='Open in the editor'>
                 <span className='relative block aspect-video w-full overflow-hidden rounded-t-[11px] bg-stage'>
                     <Thumbnail project={project} />
-                    <span className='absolute bottom-2 left-2 rounded-md bg-black/70 px-1.5 py-0.5 font-mono text-[11px] text-white'>{formatDuration(project.duration)}</span>
+                    {isStudio(project) ? (
+                        <span className='absolute bottom-2 left-2 flex items-center gap-1 rounded-md bg-accent px-1.5 py-0.5 text-[11px] font-medium text-accent-fg'>
+                            <Sparkles className='h-3 w-3' /> Studio
+                        </span>
+                    ) : (
+                        <span className='absolute bottom-2 left-2 rounded-md bg-black/70 px-1.5 py-0.5 font-mono text-[11px] text-white'>
+                            {formatDuration(project.duration)}
+                        </span>
+                    )}
                     <TrackIcons project={project} className='absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-1 text-white' />
                 </span>
                 <span className='flex items-center gap-2.5 px-3 py-2.5 pr-20'>

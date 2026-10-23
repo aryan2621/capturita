@@ -254,7 +254,7 @@ export function usePlayback(project: Project, items: TimelineItem[], clickSounds
         if (mix.music && musicGainRef.current) musicGainRef.current.gain.setTargetAtTime(gainOf(mix.music), context.currentTime, 0.02);
         const musicMoved = previous.music?.offset !== mix.music?.offset || previous.music?.loop !== mix.music?.loop || !!previous.music !== !!mix.music;
         // Clips and ducking are scheduled as automation, so any change to them reschedules.
-        const clipsChanged = previous.voiceovers !== mix.voiceovers || previous.effects !== mix.effects || previous.ducking !== mix.ducking || (mix.ducking.underRecording && previous.microphone !== mix.microphone);
+        const clipsChanged = previous.voiceovers !== mix.voiceovers || previous.effects !== mix.effects || previous.voiceMuted !== mix.voiceMuted || previous.effectsMuted !== mix.effectsMuted || previous.ducking !== mix.ducking || (mix.ducking.underRecording && previous.microphone !== mix.microphone);
         if ((previous.fadeIn !== mix.fadeIn || previous.fadeOut !== mix.fadeOut || musicMoved || clipsChanged) && clockRef.current) play(now());
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mix]);

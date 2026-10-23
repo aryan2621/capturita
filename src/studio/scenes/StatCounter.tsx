@@ -1,6 +1,8 @@
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
+import { BrandTexture, useExit } from './SceneBase';
 import { bodyFont, displayFont, type Brand } from './assets';
+import { fitSize } from './text';
 
 export type StatFormat = 'int' | 'compact' | 'percent' | 'currency';
 export type StatChart = 'none' | 'bars' | 'line' | 'progress';
@@ -43,7 +45,7 @@ export function formatStat(value: number, format: StatFormat, final: number) {
 /** One to three numbers counting up with springs, each with a label; optionally a bar, line or progress chart. */
 export function StatCounter({ heading, stats, chart, chartData, transparent, brand }: StatCounterProps) {
     const frame = useCurrentFrame();
-    const { fps, width, height, durationInFrames } = useVideoConfig();
+    const { fps, width, height } = useVideoConfig();
     const portrait = height > width * 1.05;
     // Portrait frames have height to spare: everything is drawn a third larger.
     const unit = (Math.min(width, height) / 100) * (portrait ? 1.3 : 1);
@@ -52,10 +54,14 @@ export function StatCounter({ heading, stats, chart, chartData, transparent, bra
     const items = (Array.isArray(stats) ? stats : []).slice(0, 3);
     const points = (Array.isArray(chartData) ? chartData : []).slice(0, 8).map((p) => ({ label: String(p?.label ?? ''), value: num(p?.value) }));
     const showChart = chart !== 'none' && points.length > 0;
-    const exit = interpolate(frame, [durationInFrames - 10, durationInFrames], [1, 0], clamp);
+    const exit = useExit();
     const headingIn = spring({ frame, fps, config: { damping: 200 } });
     // Fewer, bigger numbers when there's room; smaller when a chart shares the frame.
-    const valueSize = unit * (showChart ? 10 : items.length === 1 ? 20 : portrait ? 13 : 12);
+    const rowGap = unit * (portrait ? 5 : 9);
+    // Side by side, each stat gets an equal share of the width; its number shrinks to fit it.
+    const colWidth = portrait ? width * 0.84 : (width * 0.9 - rowGap * (items.length - 1)) / Math.max(1, items.length);
+    const finalText = (stat: Stat) => `${stat?.prefix ?? ''}${formatStat(num(stat?.value), stat?.format ?? 'int', num(stat?.value))}${stat?.suffix ?? ''}`;
+    const valueSize = fitSize(items.map(finalText).join('\n'), colWidth, brand.fonts.display, unit * (showChart ? 10 : items.length === 1 ? 20 : portrait ? 13 : 12));
     const chartWidth = portrait ? width * 0.84 : width * (items.length ? 0.62 : 0.8);
     const chartHeight = portrait ? height * 0.26 : height * (items.length ? 0.32 : 0.55);
 
@@ -70,6 +76,7 @@ export function StatCounter({ heading, stats, chart, chartData, transparent, bra
                 opacity: exit,
             }}
         >
+            <BrandTexture brand={brand} transparent={transparent} />
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: unit * (portrait ? 6 : 5) }}>
                 {heading && (
                     <div style={{ color: colors.muted, fontSize: unit * 3.4, fontWeight: 600, lineHeight: 1.2, letterSpacing: unit * 0.3, textTransform: 'uppercase', opacity: headingIn, textAlign: 'center' }}>
@@ -77,9 +84,9 @@ export function StatCounter({ heading, stats, chart, chartData, transparent, bra
                     </div>
                 )}
                 {items.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: portrait ? 'column' : 'row', alignItems: 'center', gap: unit * (portrait ? 5 : 9) }}>
+                    <div style={{ display: 'flex', flexDirection: portrait ? 'column' : 'row', alignItems: portrait ? 'center' : 'flex-start', gap: rowGap }}>
                         {items.map((stat, i) => (
-                            <Counter key={i} stat={stat} frame={frame - 6 - i * 6} fps={fps} size={valueSize} unit={unit} brand={brand} />
+                            <Counter key={i} stat={stat} frame={frame - 6 - i * 6} fps={fps} size={valueSize} width={colWidth} unit={unit} brand={brand} />
                         ))}
                     </div>
                 )}
@@ -95,7 +102,7 @@ export function StatCounter({ heading, stats, chart, chartData, transparent, bra
     );
 }
 
-function Counter({ stat, frame, fps, size, unit, brand }: { stat: Stat; frame: number; fps: number; size: number; unit: number; brand: Brand }) {
+function Counter({ stat, frame, fps, size, width, unit, brand }: { stat: Stat; frame: number; fps: number; size: number; width: number; unit: number; brand: Brand }) {
     const { colors } = brand;
     const final = num(stat?.value);
     const format: StatFormat = stat?.format ?? 'int';
@@ -113,7 +120,7 @@ function Counter({ stat, frame, fps, size, unit, brand }: { stat: Stat; frame: n
                 <span style={{ ...valueStyle, color: colors.text }}>{text(current)}</span>
             </div>
             <div style={{ height: unit * 0.5, width: unit * 8 * p, background: colors.accent, borderRadius: unit, marginTop: unit * 1.6 }} />
-            {stat?.label && <div style={{ color: colors.muted, fontSize: unit * 3, fontWeight: 500, lineHeight: 1.25, marginTop: unit * 1.4, textAlign: 'center', whiteSpace: 'nowrap' }}>{stat.label}</div>}
+            {stat?.label && <div style={{ color: colors.muted, fontSize: unit * 3, fontWeight: 500, lineHeight: 1.25, marginTop: unit * 1.4, textAlign: 'center', maxWidth: width }}>{stat.label}</div>}
         </div>
     );
 }

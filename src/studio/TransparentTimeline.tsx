@@ -38,7 +38,7 @@ export function TransparentTimeline({ items, overlays, assets }: TransparentTime
     const frame = useCurrentFrame();
     const { width, height } = useVideoConfig();
     const t = frame / SCENE_FPS;
-    const position = items.some((item) => item.kind === 'recording') ? positionAt(items, t) : null;
+    const position = items.length ? positionAt(items, t) : null;
     const shortSide = Math.min(width, height);
     return (
         <AbsoluteFill style={{ background: 'transparent' }}>

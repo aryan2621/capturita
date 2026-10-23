@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { Project } from '../lib/api';
-import { overlaysAt, positionAt, totalDuration, type Edit } from '../editor/model';
+import { overlaysAt, positionAt, totalDuration, withHeldEnds, type Edit } from '../editor/model';
 import { projectBrand } from './brandKits';
 import { recordingInfo, sceneLookProps } from './sceneEnv';
 import { SCENE_FPS, SCENE_RENDER_VERSION, SCENES, TIMELINE_COMPOSITION } from './scenes';
@@ -71,7 +71,7 @@ export async function renderScenes(
 ): Promise<SceneFiles> {
     const files: SceneFiles = { scenes: new Map(), overlays: new Map() };
     const jobs: SceneJob[] = [];
-    const scenes = edit.items.filter((item) => item.kind === 'scene');
+    const scenes = withHeldEnds(edit.items).filter((item) => item.kind === 'scene');
     if (scenes.length === 0 && edit.overlays.length === 0) return files;
     const brand = await projectBrand(project, edit.brandKit);
     const recording = recordingInfo(project);
@@ -132,7 +132,7 @@ export async function renderTransparent(
     let ranges: [number, number][] | undefined;
     if (source.kind === 'timeline') {
         if (!edit.items.some((item) => item.kind === 'scene') && edit.overlays.length === 0) throw new Error('A transparent export holds only motion scenes and overlays, and this timeline has none.');
-        const items = edit.items.map((item) => (item.kind === 'scene' ? { ...item, props: sceneLookProps(item, brand, recording) } : item));
+        const items = withHeldEnds(edit.items).map((item) => (item.kind === 'scene' ? { ...item, props: sceneLookProps(item, brand, recording) } : item));
         const overlays = edit.overlays.map((overlay) => ({ ...overlay, props: sceneLookProps(overlay, brand, recording, true) }));
         job = { composition: TIMELINE_COMPOSITION, props: { items, overlays }, frames: sceneFrames(totalDuration(edit.items)), fps: SCENE_FPS, width, height };
         // Only the parts with scenes or overlays go through Chrome (left out of the hash: same pixels).

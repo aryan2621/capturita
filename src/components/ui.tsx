@@ -31,7 +31,15 @@ const sizes: Record<Size, string> = {
     'icon-sm': 'h-8 w-8',
 };
 
-export function Button({ variant = 'secondary', size = 'md', className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size }) {
+export function Button({
+    variant = 'secondary',
+    size = 'md',
+    className,
+    ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: Variant;
+    size?: Size;
+}) {
     return (
         <button
             className={cx(
@@ -53,7 +61,11 @@ export function IconButton({
     size = 'icon',
     children,
     ...props
-}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'title' | 'aria-label'> & { label: string; variant?: Variant; size?: 'icon' | 'icon-sm' }) {
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'title' | 'aria-label'> & {
+    label: string;
+    variant?: Variant;
+    size?: 'icon' | 'icon-sm';
+}) {
     return (
         <Button variant={variant} size={size} title={label} aria-label={label} {...props}>
             {children}
@@ -95,7 +107,10 @@ export function Switch({
             title={`${label}: ${checked ? 'on' : 'off'}`}
             disabled={disabled}
             onClick={() => onChange(!checked)}
-            className={cx('relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-40', checked ? 'bg-accent' : 'bg-line-strong')}
+            className={cx(
+                'relative h-5 w-9 shrink-0 rounded-full transition-colors before:absolute before:-inset-1 before:content-[""] disabled:opacity-40',
+                checked ? 'bg-accent' : 'bg-line-strong'
+            )}
         >
             <span className={cx('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all', checked ? 'left-[18px]' : 'left-0.5')} />
         </button>
@@ -111,14 +126,20 @@ export function Segmented<T extends string | number>({
     options,
     onChange,
     size = 'md',
+    label,
 }: {
     value: T;
     options: { value: T; label?: string; icon?: ReactNode; hint?: string }[];
     onChange: (value: T) => void;
     size?: 'sm' | 'md';
+    /** Accessible name of the group. */
+    label?: string;
 }) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
+    const [indicator, setIndicator] = useState<{
+        left: number;
+        width: number;
+    } | null>(null);
     const index = options.findIndex((option) => option.value === value);
 
     useLayoutEffect(() => {
@@ -138,8 +159,19 @@ export function Segmented<T extends string | number>({
         <div
             ref={containerRef}
             className='relative grid rounded-lg bg-panel-2 p-1'
-            style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+            style={{
+                gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
+            }}
             role='radiogroup'
+            aria-label={label}
+            onKeyDown={(event) => {
+                const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+                if (!step) return;
+                event.preventDefault();
+                const next = options[(Math.max(index, 0) + step + options.length) % options.length];
+                onChange(next.value);
+                requestAnimationFrame(() => (containerRef.current?.querySelector('[aria-checked="true"]') as HTMLElement | null)?.focus());
+            }}
         >
             <span
                 aria-hidden
@@ -153,11 +185,12 @@ export function Segmented<T extends string | number>({
                         key={String(option.value)}
                         role='radio'
                         aria-checked={active}
+                        tabIndex={active || index < 0 ? 0 : -1}
                         title={option.hint ?? option.label}
                         aria-label={option.label ? undefined : option.hint}
                         onClick={() => onChange(option.value)}
                         className={cx(
-                            'relative z-10 flex items-center justify-center gap-1.5 rounded-md transition-colors',
+                            'relative z-10 flex items-center justify-center gap-1.5 rounded-md px-2 transition-colors',
                             size === 'sm' ? 'h-7 text-xs' : 'h-8 text-sm',
                             active ? 'text-accent-fg' : 'text-muted hover:text-fg'
                         )}
@@ -172,7 +205,14 @@ export function Segmented<T extends string | number>({
 }
 
 /** A range input with a filled track. */
-export function RangeInput({ value, min, max, className, style, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'min' | 'max'> & { value: number; min: number; max: number }) {
+export function RangeInput({
+    value,
+    min,
+    max,
+    className,
+    style,
+    ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'min' | 'max'> & { value: number; min: number; max: number }) {
     const fill = max > min ? ((value - min) / (max - min)) * 100 : 0;
     return (
         <input
@@ -181,7 +221,10 @@ export function RangeInput({ value, min, max, className, style, ...props }: Omit
             min={min}
             max={max}
             className={cx('slider', className)}
-            style={{ ...style, ['--fill' as string]: `${Math.min(100, Math.max(0, fill))}%` }}
+            style={{
+                ...style,
+                ['--fill' as string]: `${Math.min(100, Math.max(0, fill))}%`,
+            }}
             {...props}
         />
     );
@@ -197,6 +240,7 @@ export function Slider({
     format,
     onChange,
     disabled,
+    field,
 }: {
     label: string;
     value: number;
@@ -206,20 +250,34 @@ export function Slider({
     format: (value: number) => string;
     onChange: (value: number) => void;
     disabled?: boolean;
+    /** Replaces the read-only value, e.g. a TimeField for exact entry. */
+    field?: ReactNode;
 }) {
     return (
         <label className='block space-y-1'>
             <div className='flex justify-between text-xs'>
                 <span className='text-fg'>{label}</span>
-                <span className='font-mono text-muted'>{format(value)}</span>
+                {field ?? <span className='font-mono text-muted'>{format(value)}</span>}
             </div>
-            <RangeInput value={value} min={min} max={max} step={step} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))} title={`${label}: ${format(value)}`} />
+            <RangeInput
+                value={value}
+                min={min}
+                max={max}
+                step={step}
+                disabled={disabled}
+                onChange={(e) => onChange(Number(e.target.value))}
+                title={`${label}: ${format(value)}`}
+            />
         </label>
     );
 }
 
 export function Kbd({ children }: { children: ReactNode }) {
-    return <kbd className='inline-flex min-w-5 items-center justify-center rounded border border-line bg-panel-2 px-1.5 font-mono text-[11px] text-muted'>{children}</kbd>;
+    return (
+        <kbd className='inline-flex min-w-5 items-center justify-center rounded border border-line bg-panel-2 px-1.5 font-mono text-[11px] text-muted'>
+            {children}
+        </kbd>
+    );
 }
 
 /**
@@ -300,14 +358,33 @@ export function Modal({
     closeRef.current = onClose;
     const dismissRef = useRef(dismissable);
     dismissRef.current = dismissable;
+    const dialogRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
+        const opener = document.activeElement as HTMLElement | null;
+        dialogRef.current?.focus();
         const onKey = (event: KeyboardEvent) => {
+            const dialog = dialogRef.current;
+            if (event.key === 'Tab' && dialog) {
+                // Keep keyboard focus inside the dialog instead of the editor behind it.
+                const items = [...dialog.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(
+                    (el) => !el.hasAttribute('disabled')
+                );
+                const [first, last] = [items[0], items[items.length - 1]];
+                const at = document.activeElement;
+                if (!first) event.preventDefault();
+                else if (event.shiftKey && (at === first || at === dialog)) (event.preventDefault(), last.focus());
+                else if (!event.shiftKey && at === last) (event.preventDefault(), first.focus());
+                return;
+            }
             if (event.key !== 'Escape') return;
             event.stopPropagation();
             if (dismissRef.current) closeRef.current();
         };
         window.addEventListener('keydown', onKey, true);
-        return () => window.removeEventListener('keydown', onKey, true);
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            opener?.focus?.();
+        };
     }, []);
     return (
         <div
@@ -315,7 +392,13 @@ export function Modal({
             onPointerDown={(e) => e.target === e.currentTarget && dismissable && onClose()}
             {...rest}
         >
-            <div className={cx('max-h-full w-full overflow-hidden rounded-2xl border border-line bg-panel shadow-panel', className)} role='dialog' aria-modal>
+            <div
+                ref={dialogRef}
+                tabIndex={-1}
+                className={cx('max-h-full w-full overflow-hidden rounded-2xl border border-line bg-panel shadow-panel outline-none', className)}
+                role='dialog'
+                aria-modal
+            >
                 {children}
             </div>
         </div>
@@ -332,6 +415,315 @@ export function ProgressBar({ value, showValue = true }: { value: number; showVa
             </div>
             {showValue && <span className='w-9 text-right font-mono text-xs text-muted'>{percent}%</span>}
         </div>
+    );
+}
+
+/** A real checkbox with a visible label; use instead of a hand-built role='checkbox'. */
+export function Checkbox({
+    checked,
+    onChange,
+    label,
+    disabled,
+    className,
+}: {
+    checked: boolean;
+    onChange: (value: boolean) => void;
+    label?: ReactNode;
+    disabled?: boolean;
+    className?: string;
+}) {
+    return (
+        <label className={cx('flex cursor-default items-center gap-2', disabled && 'opacity-40', className)}>
+            <input
+                type='checkbox'
+                checked={checked}
+                disabled={disabled}
+                onChange={(e) => onChange(e.target.checked)}
+                className='h-4 w-4 shrink-0 accent-[var(--accent)]'
+            />
+            {label}
+        </label>
+    );
+}
+
+/** One-of-many as a stacked list; for 3-4 options whose labels are too long for Segmented. */
+export function RadioList<T extends string>({
+    value,
+    options,
+    onChange,
+    label,
+}: {
+    value: T;
+    options: { value: T; label: string; hint?: string }[];
+    onChange: (value: T) => void;
+    label: string;
+}) {
+    return (
+        <div role='radiogroup' aria-label={label} className='space-y-1'>
+            {options.map((o) => (
+                <label
+                    key={o.value}
+                    className={cx(
+                        'flex cursor-default items-start gap-2 rounded-lg border px-3 py-2 transition-colors',
+                        o.value === value ? 'border-accent bg-panel-2' : 'border-line hover:border-line-strong'
+                    )}
+                >
+                    <input
+                        type='radio'
+                        name={label}
+                        checked={o.value === value}
+                        onChange={() => onChange(o.value)}
+                        className='mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--accent)]'
+                    />
+                    <span className='min-w-0'>
+                        <span className='block text-sm text-fg'>{o.label}</span>
+                        {o.hint && <span className='block text-xs text-muted'>{o.hint}</span>}
+                    </span>
+                </label>
+            ))}
+        </div>
+    );
+}
+
+/** A pressed/unpressed format button (Bold, Italic). */
+export function ToggleButton({
+    pressed,
+    onChange,
+    label,
+    children,
+}: {
+    pressed: boolean;
+    onChange: (value: boolean) => void;
+    label: string;
+    children: ReactNode;
+}) {
+    return (
+        <button
+            aria-pressed={pressed}
+            aria-label={label}
+            title={label}
+            onClick={() => onChange(!pressed)}
+            className={cx(
+                'h-8 w-8 rounded-lg border text-sm font-bold transition-colors',
+                pressed ? 'border-accent bg-accent text-accent-fg' : 'border-line bg-panel-2 text-muted hover:text-fg'
+            )}
+        >
+            {children}
+        </button>
+    );
+}
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+/** Colour well plus a hex field so a brand colour can be pasted. */
+export function ColorField({ value, onChange, label }: { value: string; onChange: (value: string) => void; label: string }) {
+    const [draft, setDraft] = useState<string | null>(null);
+    return (
+        <span className='inline-flex items-center gap-1.5'>
+            <input
+                type='color'
+                value={HEX.test(value) ? value : '#000000'}
+                onChange={(e) => onChange(e.target.value)}
+                aria-label={`${label} color`}
+                className='h-7 w-9 cursor-pointer rounded border border-line bg-transparent'
+            />
+            <input
+                value={draft ?? value}
+                onChange={(e) => {
+                    const v = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`;
+                    setDraft(v);
+                    if (HEX.test(v)) onChange(v.toLowerCase());
+                }}
+                onBlur={() => setDraft(null)}
+                aria-label={`${label} hex`}
+                spellCheck={false}
+                maxLength={7}
+                className='h-7 w-[4.5rem] rounded border border-line bg-panel-2 px-1.5 font-mono text-xs text-fg outline-none focus:border-accent'
+            />
+        </span>
+    );
+}
+
+const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${(seconds % 60).toFixed(1).padStart(4, '0')}`;
+const parseTime = (text: string) => {
+    const [a, b] = text.trim().split(':');
+    const value = b === undefined ? Number(a) : Number(a) * 60 + Number(b);
+    return Number.isFinite(value) ? value : null;
+};
+
+/** A typed time field (m:ss.s or plain seconds); commits on blur/Enter, reverts when invalid. */
+export function TimeField({
+    value,
+    onChange,
+    min = 0,
+    max = Infinity,
+    label,
+}: {
+    value: number;
+    onChange: (value: number) => void;
+    min?: number;
+    max?: number;
+    label: string;
+}) {
+    const [draft, setDraft] = useState<string | null>(null);
+    const commit = () => {
+        const parsed = draft === null ? null : parseTime(draft);
+        if (parsed !== null) onChange(Math.min(max, Math.max(min, parsed)));
+        setDraft(null);
+    };
+    return (
+        <input
+            value={draft ?? formatTime(value)}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            aria-label={label}
+            title='Type a time, like 1:05.5 or 12'
+            className='h-7 w-16 rounded border border-line bg-panel-2 px-1.5 text-right font-mono text-xs text-fg outline-none focus:border-accent'
+        />
+    );
+}
+
+/** Font choice where every option is drawn in its own face. */
+export function FontPicker<T extends string>({
+    value,
+    fonts,
+    onChange,
+    label,
+}: {
+    value: T;
+    fonts: { value: T; label: string; stack: string }[];
+    onChange: (value: T) => void;
+    label: string;
+}) {
+    const current = fonts.find((f) => f.value === value);
+    return (
+        <Popover
+            trigger={(open, toggle) => (
+                <button
+                    aria-haspopup='listbox'
+                    aria-expanded={open}
+                    aria-label={`${label}: ${current?.label ?? ''}`}
+                    onClick={toggle}
+                    className='flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-line bg-panel-2 px-3 text-sm text-fg hover:border-line-strong'
+                    style={{ fontFamily: current?.stack }}
+                >
+                    {current?.label}
+                    <span aria-hidden className='text-muted'>
+                        ▾
+                    </span>
+                </button>
+            )}
+        >
+            {(close) => (
+                <div role='listbox' aria-label={label} className='max-h-72 overflow-y-auto'>
+                    {fonts.map((f) => (
+                        <button
+                            key={f.value}
+                            role='option'
+                            aria-selected={f.value === value}
+                            onClick={() => {
+                                onChange(f.value);
+                                close();
+                            }}
+                            className={cx(
+                                'block w-full rounded-lg px-3 py-1.5 text-left text-base hover:bg-panel-2',
+                                f.value === value ? 'text-accent' : 'text-fg'
+                            )}
+                            style={{ fontFamily: f.stack }}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </Popover>
+    );
+}
+
+/** Drag a dot on a 16:9 pad to set an x/y point (0 to 1); arrow keys nudge it. */
+export function PositionPad({ x, y, onChange, label }: { x: number; y: number; onChange: (x: number, y: number) => void; label: string }) {
+    const clamp = (v: number) => Math.min(1, Math.max(0, v));
+    const move = (event: React.PointerEvent<HTMLDivElement>) => {
+        const box = event.currentTarget.getBoundingClientRect();
+        onChange(clamp((event.clientX - box.left) / box.width), clamp((event.clientY - box.top) / box.height));
+    };
+    return (
+        <div
+            role='group'
+            tabIndex={0}
+            aria-label={`${label}: ${Math.round(x * 100)}% across, ${Math.round(y * 100)}% down`}
+            className='relative aspect-video w-full touch-none rounded-lg border border-line bg-panel-2 outline-none focus-visible:border-accent'
+            onPointerDown={(e) => (e.currentTarget.setPointerCapture(e.pointerId), move(e))}
+            onPointerMove={(e) => e.buttons === 1 && move(e)}
+            onKeyDown={(e) => {
+                const d = e.shiftKey ? 0.1 : 0.02;
+                const dx = e.key === 'ArrowRight' ? d : e.key === 'ArrowLeft' ? -d : 0;
+                const dy = e.key === 'ArrowDown' ? d : e.key === 'ArrowUp' ? -d : 0;
+                if (!dx && !dy) return;
+                e.preventDefault();
+                onChange(clamp(x + dx), clamp(y + dy));
+            }}
+        >
+            <span
+                aria-hidden
+                className='absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent shadow'
+                style={{ left: `${x * 100}%`, top: `${y * 100}%` }}
+            />
+        </div>
+    );
+}
+
+/** A button that opens a menu of commands; unlike a <select> it never holds a value. */
+export function MenuButton({
+    label,
+    items,
+    onPick,
+    className,
+}: {
+    label: ReactNode;
+    items: { key: string; label: ReactNode; hint?: string }[];
+    onPick: (key: string) => void;
+    className?: string;
+}) {
+    return (
+        <Popover
+            trigger={(open, toggle) => (
+                <button
+                    aria-haspopup='menu'
+                    aria-expanded={open}
+                    onClick={toggle}
+                    className={cx(
+                        'flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-line bg-panel-2 px-3 text-xs text-fg hover:border-line-strong',
+                        className
+                    )}
+                >
+                    {label}
+                    <span aria-hidden className='text-muted'>
+                        ▾
+                    </span>
+                </button>
+            )}
+        >
+            {(close) => (
+                <div role='menu' className='max-h-72 overflow-y-auto'>
+                    {items.map((item) => (
+                        <button
+                            key={item.key}
+                            role='menuitem'
+                            onClick={() => {
+                                onPick(item.key);
+                                close();
+                            }}
+                            className='block w-full rounded-lg px-3 py-1.5 text-left hover:bg-panel-2'
+                        >
+                            <span className='block text-sm text-fg'>{item.label}</span>
+                            {item.hint && <span className='block text-xs text-muted'>{item.hint}</span>}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </Popover>
     );
 }
 

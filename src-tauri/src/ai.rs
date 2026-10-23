@@ -24,7 +24,7 @@ pub struct Model {
 }
 
 /// Models that follow the edit format reliably, 4-bit GGUFs. The first is the default.
-const MODELS: [Model; 2] = [
+const MODELS: [Model; 4] = [
     Model {
         id: "qwen3-4b",
         name: "Qwen3 4B",
@@ -43,12 +43,30 @@ const MODELS: [Model; 2] = [
         min_ram_gb: 16,
         note: "Follows longer, more detailed requests more closely. Slower.",
     },
+    Model {
+        id: "gemma-4-26b-a4b",
+        name: "Gemma 4 26B A4B",
+        file: "gemma-4-26b-a4b-it-qat-ud-q4_k_xl.gguf",
+        url: "https://huggingface.co/unsloth/gemma-4-26B-A4B-it-qat-GGUF/resolve/main/gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf",
+        size_mb: 14250,
+        min_ram_gb: 32,
+        note: "Large but quick: only 4B of its parameters work on each word. Better scene writing.",
+    },
+    Model {
+        id: "qwen3.8-27b",
+        name: "Qwen3.8 27B",
+        file: "qwen3.8-27b-ud-q4_k_m.gguf",
+        url: "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q4_K_M.gguf",
+        size_mb: 16460,
+        min_ram_gb: 32,
+        note: "The most capable here, best for long requests and whole-video drafts. Slowest.",
+    },
 ];
 const SETTINGS_FILE: &str = "ai-settings.json";
 /// Room for the transcript of a long recording (~30 minutes of speech).
 const CONTEXT_TOKENS: u32 = 16384;
 const START_TIMEOUT: Duration = Duration::from_secs(90);
-/// The model holds ~3 GB of memory; give it back after this long without a request.
+/// The model holds 3–16 GB of memory; give it back after this long without a request.
 const IDLE_STOP: Duration = Duration::from_secs(10 * 60);
 
 struct Running {

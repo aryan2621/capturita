@@ -81,6 +81,58 @@ pub fn import_audio(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<
 }
 
 #[derive(serde::Serialize)]
+pub struct Voice {
+    name: String,
+    /// Locale, e.g. "en_US".
+    language: String,
+}
+
+/// The Mac's text-to-speech voices (`say -v ?`), sorted by name.
+#[tauri::command]
+pub fn speech_voices() -> Result<Vec<Voice>, String> {
+    let output = std::process::Command::new("/usr/bin/say").args(["-v", "?"]).output().map_err(|e| e.to_string())?;
+    // Each line: "<name, may hold spaces>  <locale>  # <sample sentence>".
+    let mut voices: Vec<Voice> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| {
+            let (left, _) = line.split_once('#')?;
+            let (name, language) = left.trim_end().rsplit_once(char::is_whitespace)?;
+            Some(Voice { name: name.trim().to_string(), language: language.to_string() })
+        })
+        .collect();
+    voices.sort_by_key(|v| v.name.to_lowercase());
+    Ok(voices)
+}
+
+/// Reads `text` aloud with a Mac voice into the project's `audio/` folder (AAC in .m4a, offline)
+/// and returns the project-relative file, like an imported voiceover.
+#[tauri::command]
+pub async fn speak(app: AppHandle, id: String, text: String, voice: String) -> Result<String, String> {
+    if text.trim().is_empty() {
+        return Err("Type something for the voice to read".into());
+    }
+    let dir = project_dir(&app, &id)?.join("audio");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let file = format!("voice-{}.m4a", chrono::Local::now().timestamp_millis());
+    let out = dir.join(&file);
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        let mut command = std::process::Command::new("/usr/bin/say");
+        if !voice.is_empty() {
+            command.args(["-v", &voice]);
+        }
+        // "--" so a script starting with "-" isn't read as an option.
+        command.arg("-o").arg(&out).args(["--file-format=m4af", "--data-format=aac", "--", &text]).output()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("Could not start the Mac's speech: {e}"))?;
+    if !output.status.success() {
+        return Err(format!("The voice couldn't read that: {}", String::from_utf8_lossy(&output.stderr).trim()));
+    }
+    Ok(format!("audio/{file}"))
+}
+
+#[derive(serde::Serialize)]
 pub struct SoundPack {
     /// Absolute path of the pack folder, for previewing sounds.
     dir: String,

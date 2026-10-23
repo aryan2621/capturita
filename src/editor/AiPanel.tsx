@@ -214,7 +214,7 @@ export function AiPanel({
                                                 role='checkbox'
                                                 aria-checked={on}
                                                 onClick={() => setChosen((s) => (s.has(p.id) ? new Set([...s].filter((id) => id !== p.id)) : new Set(s).add(p.id)))}
-                                                className={cx('mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border', on ? 'border-accent bg-accent text-white' : 'border-line-strong')}
+                                                className={cx('mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border', on ? 'border-accent bg-accent text-accent-fg' : 'border-line-strong')}
                                                 aria-label={on ? 'Leave this edit out' : 'Include this edit'}
                                             >
                                                 {on && <Check className='h-3 w-3' />}

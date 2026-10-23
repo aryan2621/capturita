@@ -1,5 +1,6 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
+import { BrandTexture, useExit } from './SceneBase';
 import { frameLayout } from './layout';
 import { bodyFont, displayFont, type Brand, type RecordingInfo, type SceneAssets, type Segment, type TargetRect } from './assets';
 import { RecordingVideo } from './RecordingVideo';
@@ -23,7 +24,7 @@ export interface FeatureCalloutProps {
  */
 export function FeatureCallout({ segment, target, label, detail, motion, brand, recording, assets }: FeatureCalloutProps) {
     const frame = useCurrentFrame();
-    const { fps, width, height, durationInFrames } = useVideoConfig();
+    const { fps, width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
     const unit = layout.unit;
     const t = layout.text;
@@ -57,7 +58,7 @@ export function FeatureCallout({ segment, target, label, detail, motion, brand, 
 
     const spot = spring({ frame: frame - 30, fps, config: { damping: 200 } });
     const card = spring({ frame: frame - 40, fps, config: { damping: 16, stiffness: 120 } });
-    const exit = interpolate(frame, [durationInFrames - 10, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    const exit = useExit();
     const pad = unit * 1.2;
     const radius = unit * 1.2;
 
@@ -100,6 +101,7 @@ export function FeatureCallout({ segment, target, label, detail, motion, brand, 
 
     return (
         <AbsoluteFill style={{ background: colors.bg, overflow: 'hidden', lineHeight: 1.2, opacity: exit }}>
+            <BrandTexture brand={brand} />
             <div
                 style={{
                     position: 'absolute',

@@ -59,7 +59,7 @@ export function HidePanel({
                                         role='radio'
                                         aria-checked={active}
                                         onClick={() => onChange({ ...selected, style: option.value }, 'hide-style')}
-                                        className={cx('flex h-14 flex-col items-center justify-center gap-1 rounded-md text-xs transition-colors', active ? 'bg-accent text-white' : 'text-muted hover:bg-line hover:text-fg')}
+                                        className={cx('flex h-14 flex-col items-center justify-center gap-1 rounded-md text-xs transition-colors', active ? 'bg-accent text-accent-fg' : 'text-muted hover:bg-line hover:text-fg')}
                                         title={option.hint}
                                     >
                                         <Icon className='h-4 w-4' />

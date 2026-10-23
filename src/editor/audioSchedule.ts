@@ -56,6 +56,9 @@ const SPEECH_LEVEL = 0.02;
 
 export const gainOf = (level: TrackLevel) => (level.muted ? 0 : level.volume);
 
+/** Voiceovers that play, after the Voice lane's mute. */
+const heardVoices = (mix: AudioMix) => (mix.voiceMuted ? [] : mix.voiceovers);
+
 /**
  * Schedules the whole edited timeline from output time `start`, beginning at context time `at`.
  * Shared by live playback (AudioContext) and export (OfflineAudioContext) so both sound the same:
@@ -126,7 +129,7 @@ export function scheduleTimeline(context: BaseAudioContext, destination: AudioNo
         musicGain.connect(master);
         const node = context.createBufferSource();
         node.buffer = buffer;
-        if (mix.ducking.enabled && mix.ducking.amount < 0 && mix.voiceovers.length + (mix.ducking.underRecording ? 1 : 0) > 0) {
+        if (mix.ducking.enabled && mix.ducking.amount < 0 && heardVoices(mix).length + (mix.ducking.underRecording ? 1 : 0) > 0) {
             // The duck sits between the song and its volume, so volume changes while playing keep it.
             const duck = context.createGain();
             duck.connect(musicGain);
@@ -149,7 +152,7 @@ export function scheduleTimeline(context: BaseAudioContext, destination: AudioNo
 
     // Voiceovers and sound effects at output times, each with its own volume and fades.
     const clipBuffers = options.clips ?? new Map<string, AudioBuffer>();
-    for (const clip of [...mix.voiceovers, ...mix.effects]) {
+    for (const clip of [...heardVoices(mix), ...(mix.effectsMuted ? [] : mix.effects)]) {
         const buffer = clipBuffers.get(clip.file);
         if (buffer) scheduleClip(context, master, buffer, clip, at, start, sources);
     }
@@ -268,7 +271,7 @@ export function duckCurve(options: Pick<ScheduleOptions, 'tracks' | 'items' | 'm
     const { amount, attack, release, underRecording } = mix.ducking;
     const count = Math.ceil(length / DUCK_WINDOW) + 1;
     const curve = new Float32Array(count);
-    const voices = mix.voiceovers.flatMap((clip) => {
+    const voices = heardVoices(mix).flatMap((clip) => {
         const buffer = options.clips?.get(clip.file);
         return buffer && clip.volume > 0 ? [{ clip, buffer }] : [];
     });

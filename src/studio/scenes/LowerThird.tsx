@@ -1,5 +1,6 @@
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
+import { BrandTexture } from './SceneBase';
 import { frameLayout } from './layout';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
@@ -38,6 +39,7 @@ export function LowerThird({ name, title, side, logo, transparent, brand, assets
 
     return (
         <AbsoluteFill style={{ background: transparent ? 'transparent' : colors.bg, fontFamily: bodyFont(brand), lineHeight: 1.2 }}>
+            <BrandTexture brand={brand} transparent={transparent} />
             <div
                 style={{
                     position: 'absolute',

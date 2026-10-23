@@ -1,8 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { AudioLines, Captions as CaptionsIcon, EyeOff, Film, Mic, Sparkles, Type, Volume2, ZoomIn } from 'lucide-react';
+import { AudioLines, Captions as CaptionsIcon, EyeOff, Film, Mic, Music, Sparkles, Type, Volume2, VolumeX, ZoomIn } from 'lucide-react';
 import { formatDuration } from '../lib/api';
 import { cx } from '../components/ui';
-import { edgeLimits, HIDE_STYLES, TRANSITION_LABELS, isRecording, itemLength, itemStarts, MIN_CLIP, MIN_ZOOM, overlapAt, snapTo, timedSegments, totalDuration, type AudioClip, type Caption, type Clip, type HideRegion, type OverlayClip, type TextOverlay, type TimedItem, type TimelineItem, type Zoom } from './model';
+import { edgeLimits, HIDE_STYLES, TRANSITION_LABELS, isRecording, itemLength, itemStarts, MIN_CLIP, MIN_ZOOM, overlapAt, snapTo, timedSegments, totalDuration, type AudioClip, type Caption, type Clip, type HideRegion, type MusicTrack, type OverlayClip, type TextOverlay, type TimedItem, type TimelineItem, type Zoom } from './model';
 import type { Thumbnail } from './useThumbnails';
 import { peakBetween } from './waveform';
 import { sceneLabel } from '../studio/scenes';
@@ -63,6 +63,13 @@ interface TimelineProps {
     selectedAudioId: string | null;
     onSelectAudio: (id: string | null) => void;
     onAudioClipsChange: (lane: 'voice' | 'sfx', clips: AudioClip[], key: string) => void;
+    /** Muted Voice and SFX lanes, toggled from their labels. */
+    mutedLanes: { voice: boolean; sfx: boolean; music: boolean };
+    onLaneMute: (lane: 'voice' | 'sfx' | 'music', muted: boolean) => void;
+    /** The music's beats in output time; edges snap to them. */
+    beats: number[];
+    /** The background music, drawn on its own lane. */
+    music: MusicTrack | null;
 }
 
 /** Sub-row of each item so overlapping ones don't cover each other (first row free at its start), and the row count. */
@@ -108,7 +115,7 @@ const SNAP_PIXELS = 6;
 /** A press that moves less than this is a click (select), not a drag. */
 const DRAG_THRESHOLD = 3;
 
-type LaneKey = 'clips' | 'overlay' | 'zoom' | 'text' | 'hide' | 'captions' | 'audio' | 'voice' | 'sfx';
+type LaneKey = 'clips' | 'overlay' | 'zoom' | 'text' | 'hide' | 'captions' | 'audio' | 'voice' | 'sfx' | 'music';
 
 const LANE_INFO: Record<LaneKey, { label: string; hint: string; icon: ReactNode; height: number }> = {
     clips: { label: 'Clips', hint: 'Recording clips and scenes — drag an edge to trim', icon: <Film className='h-3.5 w-3.5' />, height: CLIP_HEIGHT },
@@ -119,12 +126,13 @@ const LANE_INFO: Record<LaneKey, { label: string; hint: string; icon: ReactNode;
     captions: { label: 'Captions', hint: 'Captions', icon: <CaptionsIcon className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
     audio: { label: 'Audio', hint: 'Audio', icon: <AudioLines className='h-3.5 w-3.5' />, height: AUDIO_HEIGHT },
     voice: { label: 'Voice', hint: 'Voiceovers — drag to move, drag an edge to trim', icon: <Mic className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
-    sfx: { label: 'SFX', hint: 'Sound effects — drag to move, drag an edge to trim', icon: <Volume2 className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
+    sfx: { label: 'Sounds', hint: 'Sound effects — drag to move, drag an edge to trim', icon: <Volume2 className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
+    music: { label: 'Music', hint: 'Background music (set it up in the Audio tab); the lines are its beats', icon: <Music className='h-3.5 w-3.5' />, height: ROW_HEIGHT },
 };
 
 /** Lanes stacked top to bottom; lanes with nothing on them are left out, except clips, zoom and audio. */
 function laneLayout(present: Record<LaneKey, boolean>, heights: Partial<Record<LaneKey, number>> = {}) {
-    const order: LaneKey[] = ['clips', 'overlay', 'zoom', 'text', 'hide', 'captions', 'audio', 'voice', 'sfx'];
+    const order: LaneKey[] = ['clips', 'overlay', 'zoom', 'text', 'hide', 'captions', 'audio', 'voice', 'sfx', 'music'];
     const tops = {} as Record<LaneKey, number>;
     const lanes: { key: LaneKey; top: number }[] = [];
     let top = 0;
@@ -179,6 +187,10 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
         selectedAudioId,
         onSelectAudio,
         onAudioClipsChange,
+        mutedLanes,
+        onLaneMute,
+        beats,
+        music,
     } = props;
     const { rows: overlayRows, count: overlayRowCount } = stackRows(overlays);
     const voiceRows = stackRows(voiceovers);
@@ -195,6 +207,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
             audio: true,
             voice: voiceovers.length > 0,
             sfx: effects.length > 0,
+            music: !!music,
         },
         { overlay: laneHeight(overlayRowCount), voice: laneHeight(voiceRows.count), sfx: laneHeight(sfxRows.count) }
     );
@@ -221,7 +234,10 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
     const [snapLine, setSnapLine] = useState<number | null>(null);
 
     const total = totalDuration(items);
-    const contentWidth = Math.max(viewWidth, viewWidth * zoom);
+    // Room at the end for the playhead's head and the last ruler label, which stick out past the
+    // last second; without it a fully zoomed-out timeline still scrolls a few pixels.
+    const fitWidth = Math.max(0, viewWidth - 24);
+    const contentWidth = Math.max(fitWidth, fitWidth * zoom);
     const scale = frozenScale ?? (total > 0 ? contentWidth / total : 0); // pixels per output second
     const starts = itemStarts(items);
 
@@ -293,6 +309,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
         }
         for (const overlay of [...overlays, ...voiceovers, ...effects]) if (overlay.id !== exclude) targets.push(overlay.start, overlay.start + overlay.duration);
         if (range) targets.push(...range);
+        targets.push(...beats);
         return targets;
     };
     const snap = (outputTime: number, event: PointerEvent, exclude?: string) => {
@@ -543,7 +560,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                     <div
                         key={clip.id}
                         className={cx(
-                            'absolute flex cursor-grab items-center gap-1 overflow-hidden rounded-md border px-2 text-[10px] font-medium active:cursor-grabbing',
+                            'absolute flex cursor-grab items-center gap-1 overflow-hidden rounded-md border px-2 text-[11px] font-medium active:cursor-grabbing',
                             clip.id === selectedAudioId ? `z-10 ${color.selected}` : `text-fg ${color.idle}`
                         )}
                         style={{ top: top + stack.rows[i] * (ROW_HEIGHT + 2), height: ROW_HEIGHT, left: clip.start * scale, width: Math.max(6, clip.duration * scale) }}
@@ -600,7 +617,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                 <div
                     key={`${item.id}-${clipIndex}`}
                     className={cx(
-                        'absolute flex cursor-grab items-center overflow-hidden rounded-md border text-[10px] font-medium active:cursor-grabbing',
+                        'absolute flex cursor-grab items-center overflow-hidden rounded-md border text-[11px] font-medium active:cursor-grabbing',
                         item.id === row.selectedItemId ? `z-10 ${row.className.selected}` : row.className.idle
                     )}
                     style={{ top: row.top, height: ROW_HEIGHT, left: from * scale, width: Math.max(6, (to - from) * scale) }}
@@ -661,13 +678,28 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                         style={{ top: RULER_HEIGHT + top, height: LANE_INFO[key].height }}
                         title={LANE_INFO[key].hint}
                     >
-                        {LANE_INFO[key].icon}
-                        {LANE_INFO[key].label}
+                        {key === 'voice' || key === 'sfx' || key === 'music' ? (
+                            <button
+                                className={`flex items-center gap-1.5 rounded hover:text-fg ${mutedLanes[key] ? 'text-danger-fg line-through' : ''}`}
+                                onClick={() => onLaneMute(key, !mutedLanes[key])}
+                                aria-pressed={mutedLanes[key]}
+                                title={mutedLanes[key] ? `Unmute the ${LANE_INFO[key].label} lane` : `Mute the ${LANE_INFO[key].label} lane`}
+                            >
+                                {mutedLanes[key] ? <VolumeX className='h-3.5 w-3.5' /> : LANE_INFO[key].icon}
+                                {LANE_INFO[key].label}
+                            </button>
+                        ) : (
+                            <>
+                                {LANE_INFO[key].icon}
+                                {LANE_INFO[key].label}
+                            </>
+                        )}
                     </div>
                 ))}
             </div>
 
-            <div ref={viewportRef} className='min-w-0 flex-1 overflow-x-auto overflow-y-hidden pb-1'>
+            {/* Zoomed out, the whole video fits: no scrollbar for the few pixels the playhead sticks out. */}
+            <div ref={viewportRef} className={cx('min-w-0 flex-1 overflow-y-hidden pb-1', zoom > 1 ? 'overflow-x-auto' : 'overflow-x-hidden')}>
                 <div style={{ width: total > 0 ? total * scale : contentWidth }}>
                     <Ruler total={total} scale={scale} onPointerDown={startScrub} />
                     <div ref={containerRef} className='relative' style={{ height: LANES_HEIGHT }} onPointerDown={startScrub}>
@@ -735,7 +767,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                                                 />
                                             ))}
                                         {clip.speed !== 1 && (
-                                            <span className='absolute bottom-1 right-2 rounded bg-black/70 px-1.5 text-[10px] font-medium text-white'>{clip.speed}×</span>
+                                            <span className='absolute bottom-1 right-2 rounded bg-black/70 px-1.5 text-[11px] font-medium text-white'>{clip.speed}×</span>
                                         )}
                                         <div
                                             className='absolute inset-y-0 left-0 cursor-ew-resize bg-accent/0 hover:bg-accent/60'
@@ -768,7 +800,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                                     <div
                                         key={overlay.id}
                                         className={cx(
-                                            'absolute flex cursor-grab items-center gap-1 overflow-hidden rounded-md border px-2 text-[10px] font-medium active:cursor-grabbing',
+                                            'absolute flex cursor-grab items-center gap-1 overflow-hidden rounded-md border px-2 text-[11px] font-medium active:cursor-grabbing',
                                             overlay.id === selectedOverlayId ? 'z-10 border-fg bg-lane-scene text-black' : 'border-lane-scene/60 bg-lane-scene/30 text-fg hover:bg-lane-scene/50'
                                         )}
                                         style={{ top: tops.overlay + overlayRows[i] * (ROW_HEIGHT + 2), height: ROW_HEIGHT, left: overlay.start * scale, width: Math.max(6, overlay.duration * scale) }}
@@ -799,6 +831,22 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                         )}
                         {voiceovers.length > 0 && renderAudioLane('voice', voiceovers, voiceRows)}
                         {effects.length > 0 && renderAudioLane('sfx', effects, sfxRows)}
+                        {music && (() => {
+                            // It plays from the start; without looping it stops when the song runs out.
+                            const end = music.loop || !music.length ? total : Math.min(total, Math.max(0, music.length - music.offset));
+                            return (
+                                <div
+                                    className={`pointer-events-none absolute overflow-hidden rounded border border-accent/50 bg-accent/20 ${music.muted ? 'opacity-40' : ''}`}
+                                    style={{ top: tops.music, left: 0, width: end * scale, height: ROW_HEIGHT }}
+                                    title={music.name}
+                                >
+                                    {beats.filter((b) => b < end).map((b) => (
+                                        <div key={b} className='absolute top-0 h-full w-px bg-accent/40' style={{ left: b * scale }} />
+                                    ))}
+                                    <span className='relative truncate px-1.5 text-[11px] leading-[22px] text-fg'>{music.name}</span>
+                                </div>
+                            );
+                        })()}
                         {renderRow<Zoom>({
                             top: tops.zoom,
                             items: zooms,
@@ -832,7 +880,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                             kind: 'hidden area',
                             label: (hide) => HIDE_STYLES.find((s) => s.value === hide.style)?.label ?? 'Hidden',
                             title: (hide) => `Hidden area (${hide.style})`,
-                            className: { idle: 'border-lane-hide/60 bg-lane-hide/30 text-fg hover:bg-lane-hide/50', selected: 'border-fg bg-lane-hide text-white' },
+                            className: { idle: 'border-lane-hide/60 bg-lane-hide/30 text-fg hover:bg-lane-hide/50', selected: 'border-fg bg-lane-hide text-black' },
                         })}
                         {captions.length > 0 && renderRow<Caption>({
                             top: tops.captions,
@@ -849,7 +897,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                             <div
                                 key={`vo-${item.id}`}
                                 className={cx(
-                                    'absolute z-[5] flex cursor-pointer items-center overflow-hidden rounded-md border border-dashed text-[10px] font-medium',
+                                    'absolute z-[5] flex cursor-pointer items-center overflow-hidden rounded-md border border-dashed text-[11px] font-medium',
                                     item.id === selectedCaptionId ? 'z-10 border-fg bg-lane-caption text-black' : 'border-lane-caption/70 bg-lane-caption/20 text-fg hover:bg-lane-caption/40'
                                 )}
                                 style={{ top: tops.captions, height: ROW_HEIGHT, left: from * scale, width: Math.max(6, (to - from) * scale) }}
@@ -861,7 +909,7 @@ export const Timeline = forwardRef<TimelineHandle, TimelineProps>(function Timel
                                 }}
                                 title={`Voiceover caption: ${item.text} — moves with its voiceover clip`}
                             >
-                                <span className='pointer-events-none truncate px-2'>VO · {item.text}</span>
+                                <span className='pointer-events-none truncate px-2'>Voice · {item.text}</span>
                             </div>
                         ))}
                         {range && (
@@ -947,7 +995,7 @@ function Ruler({ total, scale, onPointerDown }: { total: number; scale: number; 
     if (minor * scale >= 8) for (let t = 0; t <= total + 0.001; t += minor) ticks.push(t);
     const label = (t: number) => (step < 1 ? `${formatDuration(t)}.${Math.round((t % 1) * 100).toString().padStart(2, '0')}` : formatDuration(t));
     return (
-        <div className='relative cursor-pointer text-[10px] text-subtle' style={{ height: RULER_HEIGHT }} onPointerDown={onPointerDown}>
+        <div className='relative cursor-pointer text-[11px] text-subtle' style={{ height: RULER_HEIGHT }} onPointerDown={onPointerDown}>
             {ticks.map((t) => (
                 <span key={`tick-${t}`} className='absolute bottom-0 h-1.5 w-px bg-line-strong' style={{ left: t * scale }} />
             ))}

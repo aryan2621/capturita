@@ -1,6 +1,8 @@
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
+import { BrandTexture, useExit } from './SceneBase';
 import { frameLayout } from './layout';
+import { fitSize } from './text';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export interface TitleRevealProps {
@@ -22,15 +24,16 @@ export function TitleReveal({ eyebrow, title, subtitle, transparent, brand, asse
     const { colors } = brand;
     // The title wraps between words where it can't fit on one line; its size fits the longest word.
     const words = title.split(/(\s+)/).filter(Boolean);
-    const longestWord = Math.max(1, ...words.map((w) => w.trim().length));
+    const longestWord = words.reduce((a, w) => (w.trim().length > a.length ? w.trim() : a), '');
     const room = width - layout.safeX * 2;
-    const titleSize = Math.min(unit * 13, room / (longestWord * 0.6), room / (Math.min(title.length, 14) * 0.56));
+    // Short titles stay on one line; the longest word always fits (measured with the real font).
+    const titleSize = Math.min(fitSize(longestWord, room * 0.9, brand.fonts.display, unit * 13), room / (Math.min(title.length, 14) * 0.56));
     let charIndex = 0;
 
     const eyebrowIn = interpolate(frame, [4, 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
     const line = spring({ frame: frame - 26, fps, config: { damping: 200 } });
     const subtitleIn = spring({ frame: frame - 34, fps, config: { damping: 200 } });
-    const exit = interpolate(frame, [durationInFrames - 10, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    const exit = useExit();
     const drift = interpolate(frame, [0, durationInFrames], [1, 1.05]);
 
     return (
@@ -45,6 +48,7 @@ export function TitleReveal({ eyebrow, title, subtitle, transparent, brand, asse
                 opacity: exit,
             }}
         >
+            <BrandTexture brand={brand} transparent={transparent} />
             <div style={{ transform: `scale(${drift})`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 {brand.logo && <Img src={assetUrl(assets, brand.logo)} style={{ height: unit * 7, width: 'auto', marginBottom: unit * 3, opacity: eyebrowIn, objectFit: 'contain' }} />}
                 <div style={{ color: colors.muted, fontSize: unit * 2.6, fontWeight: 600, lineHeight: 1.2, letterSpacing: unit * 0.6, opacity: eyebrowIn, textTransform: 'uppercase', maxWidth: room, textAlign: 'center' }}>{eyebrow}</div>

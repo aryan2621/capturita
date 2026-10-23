@@ -4,9 +4,21 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { Captions as CaptionsIcon, FileDown, Highlighter, Loader2, RefreshCw, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, errorMessage, type CaptionProgress, type Project } from '../lib/api';
-import { Button, Segmented, Select, Slider, Switch, cx } from '../components/ui';
+import { Button, FontPicker, RadioList, Segmented, Select, Slider, Switch, cx } from '../components/ui';
 import { CAPTION_SOURCES, defaultCaptionSource, makeCaptions, makeVoiceCaptions, speechSources, type CaptionSource } from './captions';
-import { CAPTION_HIGHLIGHT_STYLES, FONTS, fontStack, retimeCaption, toSrt, type AudioClip, type Caption, type CaptionBackground, type CaptionHighlightStyle, type Captions, type FontKey, type TimelineItem } from './model';
+import {
+    CAPTION_HIGHLIGHT_STYLES,
+    CAPTION_PRESETS,
+    FONTS,
+    retimeCaption,
+    toSrt,
+    type AudioClip,
+    type Caption,
+    type CaptionBackground,
+    type CaptionHighlightStyle,
+    type Captions,
+    type TimelineItem,
+} from './model';
 
 const LANGUAGES: [string, string][] = [
     ['auto', 'Detect automatically'],
@@ -32,14 +44,16 @@ const LANGUAGES: [string, string][] = [
 const COLORS = ['#ffffff', '#ffd200', '#111111', '#38ef7d', '#7cc4ff'];
 const HIGHLIGHTS = ['#ffd200', '#38ef7d', '#ff5c7a', '#7cc4ff'];
 
-
 const PHASE_LABEL: Record<CaptionProgress['phase'], string> = {
     download: 'Downloading the speech model (one time)',
     load: 'Loading the speech model',
     transcribe: 'Listening to your recording',
 };
 
-const clock = (t: number) => `${Math.floor(t / 60)}:${Math.floor(t % 60).toString().padStart(2, '0')}`;
+const clock = (t: number) =>
+    `${Math.floor(t / 60)}:${Math.floor(t % 60)
+        .toString()
+        .padStart(2, '0')}`;
 
 /** Captions made from the recording's speech, on this Mac: generate, style, edit, export. */
 export function CaptionsPanel({
@@ -103,7 +117,15 @@ export function CaptionsPanel({
             if (withVoice || available.length === 0) {
                 for (const clip of voiceovers) made.items.push(...(await makeVoiceCaptions(project, clip, captions.language)).items);
             }
-            onChange({ ...captions, items: made.items, fillers: made.fillers, visible: true }, 'captions-generate');
+            onChange(
+                {
+                    ...captions,
+                    items: made.items,
+                    fillers: made.fillers,
+                    visible: true,
+                },
+                'captions-generate'
+            );
             setModelMb(null);
             toast.success(made.items.length ? `${made.items.length} captions made — check them below` : 'No speech found in this recording');
         } catch (error) {
@@ -115,7 +137,14 @@ export function CaptionsPanel({
     };
 
     const setStyle = (patch: Partial<Captions['style']>, key: string) => onChange({ ...captions, style: { ...style, ...patch } }, key);
-    const setItem = (caption: Caption, key: string) => onChange({ ...captions, items: items.map((c) => (c.id === caption.id ? caption : c)) }, key);
+    const setItem = (caption: Caption, key: string) =>
+        onChange(
+            {
+                ...captions,
+                items: items.map((c) => (c.id === caption.id ? caption : c)),
+            },
+            key
+        );
     const removeItem = (id: string) => {
         onChange({ ...captions, items: items.filter((c) => c.id !== id) }, 'captions-remove');
         if (selectedId === id) onSelect(null);
@@ -124,7 +153,9 @@ export function CaptionsPanel({
     const saveSrt = async () => {
         try {
             const path = await api.saveExportText(projectName, 'srt', toSrt({ items: clips, captions, audio: { voiceovers } }));
-            toast.success('Captions saved as .srt', { action: { label: 'Show', onClick: () => revealItemInDir(path) } });
+            toast.success('Captions saved as .srt', {
+                action: { label: 'Show', onClick: () => revealItemInDir(path) },
+            });
         } catch (error) {
             toast.error(errorMessage(error));
         }
@@ -141,7 +172,11 @@ export function CaptionsPanel({
         return (
             <section className='space-y-3'>
                 {header}
-                <p className='text-xs text-muted'>This recording has no sound, so there's nothing to caption. Turn the microphone (or Mac audio) on in the recorder next time.</p>
+                <p className='text-xs text-muted'>
+                    {project.kind === 'studio'
+                        ? 'Captions come from voiceovers. Add one in the Audio tab (record it, or type a script for a voice to read), then caption it here.'
+                        : "This recording has no sound, so there's nothing to caption. Turn the microphone (or Mac audio) on in the recorder next time."}
+                </p>
             </section>
         );
     }
@@ -159,7 +194,12 @@ export function CaptionsPanel({
                         {progress.phase !== 'load' && <span className='font-mono text-muted'>{Math.round(progress.progress * 100)}%</span>}
                     </div>
                     <div className='h-1.5 overflow-hidden rounded-full bg-line'>
-                        <div className='h-full bg-accent transition-[width]' style={{ width: `${progress.phase === 'load' ? 100 : Math.round(progress.progress * 100)}%` }} />
+                        <div
+                            className='h-full bg-accent transition-[width]'
+                            style={{
+                                width: `${progress.phase === 'load' ? 100 : Math.round(progress.progress * 100)}%`,
+                            }}
+                        />
                     </div>
                     <p className='text-xs text-muted'>Runs on this Mac — nothing is uploaded.</p>
                 </div>
@@ -175,7 +215,9 @@ export function CaptionsPanel({
             <section className='space-y-3'>
                 {header}
                 {redoing ? (
-                    <p className='rounded-lg bg-warning-soft p-2.5 text-xs text-warning-fg'>Making captions again replaces the current {items.length} captions, including any words you fixed.</p>
+                    <p className='rounded-lg bg-warning-soft p-2.5 text-xs text-warning-fg'>
+                        Making captions again replaces the current {items.length} captions, including any words you fixed.
+                    </p>
                 ) : (
                     <p className='text-xs text-muted'>Turn what's said in the recording into captions, on this Mac. You can fix any word afterwards.</p>
                 )}
@@ -190,16 +232,10 @@ export function CaptionsPanel({
                     </Select>
                 </label>
                 {available.length > 1 && (
-                    <label className='block space-y-1'>
+                    <div className='space-y-1'>
                         <span className='text-xs text-muted'>Caption what</span>
-                        <Select value={source} onChange={(e) => setSource(e.target.value as CaptionSource)}>
-                            {CAPTION_SOURCES.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </Select>
-                    </label>
+                        <RadioList label='Caption what' value={source} onChange={setSource} options={CAPTION_SOURCES} />
+                    </div>
                 )}
                 {available.length > 0 && voiceovers.length > 0 && (
                     <div className='flex items-center justify-between gap-3 text-xs'>
@@ -226,18 +262,42 @@ export function CaptionsPanel({
         <section className='space-y-4'>
             <div className='flex items-center justify-between'>
                 {header}
-                <Switch label='Show captions in the video' checked={captions.visible} onChange={(visible) => onChange({ ...captions, visible }, 'captions-visible')} />
+                <Switch
+                    label='Show captions in the video'
+                    checked={captions.visible}
+                    onChange={(visible) => onChange({ ...captions, visible }, 'captions-visible')}
+                />
             </div>
 
             <div className='space-y-3'>
-                <Select value={style.font} onChange={(e) => setStyle({ font: e.target.value as FontKey }, 'captions-font')} style={{ fontFamily: fontStack(style.font) }} aria-label='Caption font'>
-                    {FONTS.map((font) => (
-                        <option key={font.value} value={font.value} style={{ fontFamily: font.stack }}>
-                            {font.label}
-                        </option>
-                    ))}
-                </Select>
-                <Slider label='Size' value={style.size} min={0.03} max={0.09} step={0.0025} format={(v) => `${Math.round((v / 0.05) * 100)}%`} onChange={(size) => setStyle({ size }, 'captions-size')} />
+                <Segmented<string>
+                    size='sm'
+                    value={CAPTION_PRESETS.find((p) => JSON.stringify(p.style) === JSON.stringify(style))?.label ?? ''}
+                    onChange={(label) =>
+                        onChange(
+                            {
+                                ...captions,
+                                style: CAPTION_PRESETS.find((p) => p.label === label)!.style,
+                            },
+                            'captions-preset'
+                        )
+                    }
+                    options={CAPTION_PRESETS.map(({ label, hint }) => ({
+                        value: label,
+                        label,
+                        hint,
+                    }))}
+                />
+                <FontPicker label='Caption font' value={style.font} fonts={FONTS} onChange={(font) => setStyle({ font }, 'captions-font')} />
+                <Slider
+                    label='Size'
+                    value={style.size}
+                    min={0.03}
+                    max={0.09}
+                    step={0.0025}
+                    format={(v) => `${Math.round((v / 0.05) * 100)}%`}
+                    onChange={(size) => setStyle({ size }, 'captions-size')}
+                />
                 <Segmented<CaptionBackground>
                     size='sm'
                     value={style.background}
@@ -253,8 +313,16 @@ export function CaptionsPanel({
                     value={style.position}
                     onChange={(position) => setStyle({ position }, 'captions-position')}
                     options={[
-                        { value: 'bottom', label: 'Bottom', hint: 'Captions at the bottom of the video' },
-                        { value: 'top', label: 'Top', hint: 'Captions at the top of the video' },
+                        {
+                            value: 'bottom',
+                            label: 'Bottom',
+                            hint: 'Captions at the bottom of the video',
+                        },
+                        {
+                            value: 'top',
+                            label: 'Top',
+                            hint: 'Captions at the top of the video',
+                        },
                     ]}
                 />
                 <div className='flex items-center gap-2'>
@@ -262,7 +330,11 @@ export function CaptionsPanel({
                         <button
                             key={color}
                             onClick={() => setStyle({ color }, 'captions-color')}
-                            className={cx('h-6 w-6 rounded-full border border-line ring-offset-2 ring-offset-panel', style.color === color && 'ring-2 ring-accent')}
+                            className={cx(
+                                'h-6 w-6 rounded-full border border-line ring-offset-2 ring-offset-panel',
+                                style.color === color && 'ring-2 ring-accent'
+                            )}
+                            aria-pressed={style.color === color}
                             style={{ background: color }}
                             title={`Text colour ${color}`}
                             aria-label={`Caption colour ${color}`}
@@ -270,7 +342,11 @@ export function CaptionsPanel({
                     ))}
                     <button
                         onClick={() => setStyle({ bold: !style.bold }, 'captions-bold')}
-                        className={cx('ml-auto h-7 rounded-md px-2 text-xs font-bold', style.bold ? 'bg-accent text-white' : 'bg-panel-2 text-muted hover:text-fg')}
+                        className={cx(
+                            'ml-auto h-7 rounded-md px-2 text-xs font-bold',
+                            style.bold ? 'bg-accent text-accent-fg' : 'bg-panel-2 text-muted hover:text-fg'
+                        )}
+                        aria-label='Bold'
                         title='Bold'
                         aria-pressed={style.bold}
                     >
@@ -282,7 +358,11 @@ export function CaptionsPanel({
                         <Highlighter className='h-4 w-4 shrink-0 text-muted' />
                         <span className='text-xs text-fg'>Highlight the word being said</span>
                         <div className='ml-auto'>
-                            <Switch label='Highlight the spoken word' checked={!!style.highlight} onChange={(on) => setStyle({ highlight: on ? HIGHLIGHTS[0] : null }, 'captions-highlight')} />
+                            <Switch
+                                label='Highlight the spoken word'
+                                checked={!!style.highlight}
+                                onChange={(on) => setStyle({ highlight: on ? HIGHLIGHTS[0] : null }, 'captions-highlight')}
+                            />
                         </div>
                     </div>
                     {style.highlight && (
@@ -291,7 +371,11 @@ export function CaptionsPanel({
                                 size='sm'
                                 value={style.highlightStyle ?? 'color'}
                                 onChange={(highlightStyle) => setStyle({ highlightStyle: highlightStyle as CaptionHighlightStyle }, 'captions-highlight-style')}
-                                options={CAPTION_HIGHLIGHT_STYLES.map((o) => ({ value: o.value, label: o.label, hint: o.hint }))}
+                                options={CAPTION_HIGHLIGHT_STYLES.map((o) => ({
+                                    value: o.value,
+                                    label: o.label,
+                                    hint: o.hint,
+                                }))}
                             />
                         </div>
                     )}
@@ -301,7 +385,11 @@ export function CaptionsPanel({
                                 <button
                                     key={color}
                                     onClick={() => setStyle({ highlight: color }, 'captions-highlight')}
-                                    className={cx('h-6 w-6 rounded-full border border-line ring-offset-2 ring-offset-panel', style.highlight === color && 'ring-2 ring-accent')}
+                                    className={cx(
+                                        'h-6 w-6 rounded-full border border-line ring-offset-2 ring-offset-panel',
+                                        style.highlight === color && 'ring-2 ring-accent'
+                                    )}
+                                    aria-pressed={style.highlight === color}
                                     style={{ background: color }}
                                     title={`Highlight colour ${color}`}
                                     aria-label={`Highlight colour ${color}`}
@@ -330,7 +418,10 @@ export function CaptionsPanel({
                         <div
                             key={caption.id}
                             data-caption={caption.id}
-                            className={cx('group flex gap-2 rounded-lg border p-1.5', caption.id === selectedId ? 'border-lane-caption bg-lane-caption/10' : 'border-transparent hover:bg-panel-2')}
+                            className={cx(
+                                'group flex gap-2 rounded-lg border p-1.5',
+                                caption.id === selectedId ? 'border-lane-caption bg-lane-caption/10' : 'border-transparent hover:bg-panel-2'
+                            )}
                         >
                             <button
                                 className='mt-1 w-10 shrink-0 text-left font-mono text-[11px] text-muted hover:text-fg'
@@ -343,7 +434,7 @@ export function CaptionsPanel({
                                 }}
                                 title={caption.voice ? 'Voiceover caption — jump to it' : 'Jump to this caption'}
                             >
-                                {caption.voice ? 'VO' : clock(caption.start)}
+                                {caption.voice ? 'Voice' : clock(caption.start)}
                             </button>
                             <AutoTextarea
                                 value={caption.text}
@@ -354,7 +445,7 @@ export function CaptionsPanel({
                             />
                             <button
                                 onClick={() => removeItem(caption.id)}
-                                className='h-6 w-6 shrink-0 rounded text-muted opacity-0 hover:text-fg group-hover:opacity-100'
+                                className='h-6 w-6 shrink-0 rounded text-muted opacity-0 hover:text-fg focus-visible:opacity-100 group-hover:opacity-100'
                                 title='Delete this caption'
                                 aria-label='Delete this caption'
                             >

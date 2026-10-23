@@ -2,6 +2,7 @@ import qrcode from 'qrcode-generator';
 import { useMemo } from 'react';
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
+import { BrandTexture, useExit } from './SceneBase';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export type SocialNetwork = 'x' | 'github' | 'linkedin' | 'youtube' | 'instagram';
@@ -29,7 +30,7 @@ const TYPE_FROM = 56;
 /** The closing card: logo, headline, a call-to-action button that gets pressed, the address typed out, a QR code and socials. */
 export function EndCard({ headline, cta, url, showQr, socials, transparent, brand, assets }: EndCardProps) {
     const frame = useCurrentFrame();
-    const { fps, width, height, durationInFrames } = useVideoConfig();
+    const { fps, width, height } = useVideoConfig();
     const portrait = height > width * 1.05;
     // Portrait frames have height to spare: everything is drawn a third larger.
     const unit = (Math.min(width, height) / 100) * (portrait ? 1.35 : 1);
@@ -49,7 +50,7 @@ export function EndCard({ headline, cta, url, showQr, socials, transparent, bran
     const typed = Math.max(0, Math.min(address.length, Math.floor((frame - TYPE_FROM) / 1.4)));
     const caret = frame >= TYPE_FROM - 6 && (typed < address.length || Math.floor(frame / 9) % 2 === 0);
     const qrIn = spring({ frame: frame - 24, fps, config: { damping: 18, stiffness: 120 } });
-    const exit = interpolate(frame, [durationInFrames - 10, durationInFrames], [1, 0], clamp);
+    const exit = useExit();
 
     const qr = useMemo(() => {
         if (!withQr) return null;
@@ -138,6 +139,7 @@ export function EndCard({ headline, cta, url, showQr, socials, transparent, bran
                 opacity: exit,
             }}
         >
+            <BrandTexture brand={brand} transparent={transparent} />
             <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', padding: unit * 6 }}>
                 <div style={{ display: 'flex', flexDirection: portrait ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: unit * (portrait ? 7 : 10) }}>
                     {main}

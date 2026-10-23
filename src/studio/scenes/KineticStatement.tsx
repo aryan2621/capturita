@@ -1,5 +1,6 @@
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
+import { BrandTexture, useExit } from './SceneBase';
 import { bodyFont, displayFont, type Brand } from './assets';
 
 export type KineticStyle = 'punch' | 'stack' | 'slot' | 'sweep';
@@ -16,13 +17,29 @@ export interface KineticStatementProps {
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 const bare = (word: string) => word.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
+/** Seconds until the first emphasised word lands (else the last word), for a sound on it. Same timing as the render. */
+export function kineticBeat({ lines, emphasis, style }: { lines?: { text?: string }[]; emphasis?: string; style?: string }) {
+    const rows = (Array.isArray(lines) ? lines : []).map((line) => String(line?.text ?? '').trim()).filter(Boolean).slice(0, 4);
+    const accents = new Set(String(emphasis ?? '').split(',').map(bare).filter(Boolean));
+    let at = 0;
+    let last = 4;
+    for (const [line, row] of rows.entries()) {
+        for (const [w, word] of row.split(/\s+/).entries()) {
+            const start = style === 'stack' ? 4 + line * 12 + w * 2 : 4 + at++ * 4;
+            if (accents.has(bare(word))) return (start + 8) / 30;
+            last = start;
+        }
+    }
+    return (last + 8) / 30;
+}
+
 /**
  * One to four short lines, animated word by word: punched in, stacked up line by line, rolled in
  * like a slot machine, or with a highlight swept behind the accent words.
  */
 export function KineticStatement({ lines, emphasis, style, transparent, brand }: KineticStatementProps) {
     const frame = useCurrentFrame();
-    const { fps, width, height, durationInFrames } = useVideoConfig();
+    const { fps, width, height } = useVideoConfig();
     const unit = Math.min(width, height) / 100;
     const { colors } = brand;
     const kind: KineticStyle = ['punch', 'stack', 'slot', 'sweep'].includes(style) ? style : 'punch';
@@ -38,8 +55,8 @@ export function KineticStatement({ lines, emphasis, style, transparent, brand }:
     const rowCount = portrait ? rows.reduce((n, row) => n + Math.ceil(row.length / fitChars), 0) : rows.length;
     const fontSize = Math.min(unit * (portrait ? 16 : rows.length > 2 ? 10 : 12.5), (width * 0.86) / (fitChars * 0.56), (height * 0.7) / (rowCount * 1.15));
 
-    const exit = interpolate(frame, [durationInFrames - 10, durationInFrames], [1, 0], clamp);
-    const exitLift = interpolate(frame, [durationInFrames - 10, durationInFrames], [0, -unit * 2], clamp);
+    const exit = useExit();
+    const exitLift = (1 - exit) * -unit * 2;
 
     let index = 0;
     return (
@@ -53,6 +70,7 @@ export function KineticStatement({ lines, emphasis, style, transparent, brand }:
                 opacity: exit,
             }}
         >
+            <BrandTexture brand={brand} transparent={transparent} />
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: fontSize * 0.08, transform: `translateY(${exitLift}px)` }}>
                 {rows.map((row, line) => (
                     <div key={line} style={{ display: 'flex', flexWrap: portrait ? 'wrap' : 'nowrap', maxWidth: width * 0.9, justifyContent: 'center', columnGap: fontSize * 0.26, rowGap: fontSize * 0.08 }}>

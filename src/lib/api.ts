@@ -58,6 +58,8 @@ export interface RecordingOptions {
     /** Removes speaker sound from the mic (voice processing). Off gives the rawest voice when using headphones. */
     echoCancellation: boolean;
     fps: number;
+    /** Seconds to wait before starting; 0 starts at once. */
+    countdown?: number;
 }
 
 export interface Track {
@@ -72,8 +74,12 @@ export interface Track {
 /** Video tracks always know their pixel size. */
 export type VideoTrack = Track & { width: number; height: number };
 
+export const isStudio = (project: Project) => project.kind === 'studio';
+
 export interface Project {
     version: number;
+    /** 'studio': motion scenes only. Its screen track is a placeholder with an empty `file`. */
+    kind?: 'recording' | 'studio';
     id: string;
     path: string;
     createdAt: string;
@@ -187,6 +193,7 @@ export const api = {
     cancel: () => invoke<void>('cancel_recording'),
 
     listRecordings: () => invoke<Project[]>('list_recordings'),
+    createStudioProject: () => invoke<Project>('create_studio_project'),
     deleteRecording: (id: string) => invoke<void>('delete_recording', { id }),
     loadEdit: (id: string) => invoke<unknown | null>('load_edit', { id }),
     saveEdit: (id: string, edit: unknown) => invoke<void>('save_edit', { id, edit }),
@@ -196,6 +203,10 @@ export const api = {
     /** Copies a voiceover or sound effect into the project's audio/ folder; returns its path there. */
     importAudio: async (id: string, kind: 'voice' | 'sfx', file: File) =>
         invoke<string>('import_audio', new Uint8Array(await file.arrayBuffer()), { headers: { id, kind, name: encodeURIComponent(file.name) } }),
+    /** The Mac's text-to-speech voices. */
+    speechVoices: () => invoke<{ name: string; language: string }[]>('speech_voices'),
+    /** Reads a script aloud with a Mac voice into the project's audio/ folder; returns its path there. */
+    speak: (id: string, text: string, voice: string) => invoke<string>('speak', { id, text, voice }),
     /** The licensed sound pack (Capturita/Sounds). */
     listSounds: () => invoke<{ dir: string; files: string[] }>('list_sounds'),
     /** Adds a file to the sound pack; returns its name there. */

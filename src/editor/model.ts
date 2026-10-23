@@ -130,6 +130,14 @@ export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
     highlightStyle: 'color',
 };
 
+/** One-click caption looks; each sets the whole style. */
+export const CAPTION_PRESETS: { label: string; hint: string; style: CaptionStyle }[] = [
+    { label: 'Clean', hint: 'White words in a dark box', style: DEFAULT_CAPTION_STYLE },
+    { label: 'Bold pop', hint: 'Big words; the spoken one grows in colour', style: { ...DEFAULT_CAPTION_STYLE, font: 'rounded', size: 0.065, background: 'shadow', highlightStyle: 'pop' } },
+    { label: 'Boxed', hint: 'A coloured box behind the spoken word', style: { ...DEFAULT_CAPTION_STYLE, font: 'avenir', size: 0.055, background: 'none', highlight: '#6c8cff', highlightStyle: 'box' } },
+    { label: 'Subtle', hint: 'Small plain words, no highlight', style: { ...DEFAULT_CAPTION_STYLE, size: 0.04, bold: false, background: 'shadow', highlight: null } },
+];
+
 /** Text shown over the video. Times are source times, like zooms. */
 export interface TextOverlay {
     id: string;
@@ -196,6 +204,9 @@ export interface AudioMix {
     voiceovers: AudioClip[];
     /** Sound effects placed at output times (the SFX lane). */
     effects: AudioClip[];
+    /** Lane mutes: the clips stay, but neither the preview nor the export plays them. */
+    voiceMuted?: boolean;
+    effectsMuted?: boolean;
     /** Lowers the music while someone speaks. */
     ducking: Ducking;
 }
@@ -256,6 +267,10 @@ export interface MusicTrack extends TrackLevel {
     offset: number;
     /** Repeat the song if the video is longer. */
     loop: boolean;
+    /** Beat times in the song (seconds), found when it was added (beats.ts). */
+    beats?: number[];
+    /** Length of the song, seconds. */
+    length?: number;
 }
 
 export const DEFAULT_MUSIC_VOLUME = 0.35;
@@ -445,13 +460,14 @@ export const newId = () => Math.random().toString(36).slice(2, 10);
 export function defaultEdit(project: Project): Edit {
     return {
         version: 2,
-        items: [{ kind: 'recording', id: newId(), start: 0, end: sourceDuration(project), speed: 1 }],
+        // A Studio video has no recording; it's created with starter scenes (see studioStarter).
+        items: project.kind === 'studio' ? [] : [{ kind: 'recording', id: newId(), start: 0, end: sourceDuration(project), speed: 1 }],
         background: GRADIENTS[0],
         padding: 0.06,
         radius: 0.012,
         shadow: 0.5,
         crop: { x: 0, y: 0, width: 1, height: 1 },
-        aspect: 'auto',
+        aspect: project.kind === 'studio' ? '16:9' : 'auto',
         camera: { visible: true, corner: 'bottom-left', size: 0.24, shape: 'circle', shrinkOnZoom: true },
         cursor: {
             visible: true,
@@ -730,7 +746,9 @@ export function transitionFx(transition: Exclude<Transition, { type: 'cut' }>, m
         }
         case 'blur': {
             const blur = Math.sin(Math.PI * p) * 0.03;
-            return { outgoing: { ...IDENTITY_FX, blur, opacity: incomingOnTop ? 1 : 1 - p }, incoming: { ...IDENTITY_FX, blur, opacity: incomingOnTop ? p : 1 }, dip: null };
+            // Blur softens the frame's edges too; growing a little keeps them outside the frame.
+            const scale = 1 + blur * 4;
+            return { outgoing: { ...IDENTITY_FX, blur, scale, opacity: incomingOnTop ? 1 : 1 - p }, incoming: { ...IDENTITY_FX, blur, scale, opacity: incomingOnTop ? p : 1 }, dip: null };
         }
         case 'dip': {
             // Out to the colour over the first half, in from it over the second.
@@ -763,6 +781,8 @@ export interface Position {
     /** A colour wash over the items (dip to colour), drawn under overlays. */
     dip: { color: string; opacity: number } | null;
 }
+
+const NO_CLIP: Clip = { kind: 'recording', id: '', start: 0, end: 0, speed: 1 };
 
 export function positionAt(items: TimelineItem[], outputTime: number): Position {
     const starts = itemStarts(items);
@@ -807,8 +827,17 @@ export function positionAt(items: TimelineItem[], outputTime: number): Position 
         atEnd = true;
         for (let i = index - 1; i >= 0 && waiting < 0; i--) if (isRecording(items[i])) waiting = i;
     }
-    const clip = items[waiting] as Clip;
+    // A Studio video has no recording clip at all: point at an empty one.
+    const clip = (items[waiting] as Clip | undefined) ?? NO_CLIP;
     return { index, item, clipIndex: waiting, clip, source: atEnd ? clip.end : clip.start, recording: false, scenes, recordingFx: IDENTITY_FX, dip };
+}
+
+/** The items with `holdEnd` set on scenes a transition takes off screen, so they don't also fade out. */
+export function withHeldEnds(items: TimelineItem[]): TimelineItem[] {
+    return items.map((item, i) => {
+        const next = items[i + 1]?.transition;
+        return item.kind === 'scene' && next && next.type !== 'cut' ? { ...item, props: { ...item.props, holdEnd: true } } : item;
+    });
 }
 
 /** Output time of a source time inside the recording clip at `index`. */
@@ -853,13 +882,14 @@ export function removeRange(items: TimelineItem[], from: number, to: number): Ti
         if (keepLeft) result.push({ ...item, end: sourceFrom });
         if (item.end - sourceTo >= MIN_CLIP / 2) result.push({ ...item, id: keepLeft ? newId() : item.id, start: sourceTo, transition: keepLeft ? undefined : item.transition });
     });
-    return result.some(isRecording) ? result : null;
+    // A Studio video has no recording to keep, only at least one scene.
+    return result.some(isRecording) || (!items.some(isRecording) && result.length > 0) ? result : null;
 }
 
-/** Removes an item, unless it's the last recording clip. */
+/** Removes an item, unless it's the last recording clip or the only item. */
 export function removeItem(items: TimelineItem[], id: string) {
     const item = items.find((i) => i.id === id);
-    if (!item || (isRecording(item) && items.filter(isRecording).length <= 1)) return items;
+    if (!item || items.length <= 1 || (isRecording(item) && items.filter(isRecording).length <= 1)) return items;
     return items.filter((i) => i.id !== id);
 }
 

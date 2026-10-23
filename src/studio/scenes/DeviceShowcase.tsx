@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
+import { BrandTexture, useExit } from './SceneBase';
 import { frameLayout } from './layout';
 import { bodyFont, displayFont, type Brand, type RecordingInfo, type SceneAssets, type Segment } from './assets';
 import { RecordingVideo } from './RecordingVideo';
@@ -102,7 +103,7 @@ export function DeviceShowcase({ device, segment, headline, detail, placement, u
     const enter = spring({ frame, fps, config: { damping: 20, stiffness: 70, mass: 1.1 } });
     const textIn = spring({ frame: frame - 12, fps, config: { damping: 200 } });
     const push = interpolate(frame, [0, durationInFrames], [1, 1.07]);
-    const exit = interpolate(frame, [durationInFrames - 10, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    const exit = useExit();
 
     // Fit the device: by width, leaving room for text beside or under it, and by height.
     // `reach` is how much wider than the screen the frame is drawn (the laptop's base); `chrome`
@@ -131,6 +132,7 @@ export function DeviceShowcase({ device, segment, headline, detail, placement, u
 
     return (
         <AbsoluteFill style={{ background: `radial-gradient(110% 90% at 50% 100%, ${colors.surface} 0%, ${colors.bg} 70%)`, lineHeight: 1.2, opacity: exit }}>
+            <BrandTexture brand={brand} />
             <AbsoluteFill
                 style={{
                     flexDirection: side ? 'row' : 'column',

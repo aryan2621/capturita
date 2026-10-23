@@ -16,7 +16,11 @@ export interface Brand {
     fonts: { display: SceneFont; body: SceneFont };
     /** Project-relative path of the logo, if the kit has one. */
     logo?: string;
+    /** Texture over each scene's gradient: none, film grain, or slow drifting colour. */
+    background?: BrandBackground;
 }
+
+export type BrandBackground = 'gradient' | 'grain' | 'flow';
 
 export const DEFAULT_BRAND: Brand = {
     colors: { bg: '#0b0d17', surface: '#1d2440', text: '#ffffff', muted: '#9aa3c7', accent: '#6c8cff' },

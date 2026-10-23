@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { openPath } from '@tauri-apps/plugin-opener';
-import { FolderOpen, LayoutGrid, List, Plus, Settings } from 'lucide-react';
+import { FolderOpen, LayoutGrid, List, Plus, Settings, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, errorMessage, type Permissions, type Project } from '../lib/api';
 import { PermissionsBanner } from '../components/PermissionsBanner';
@@ -36,6 +36,8 @@ export function MainWindow() {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [recorderOpen, setRecorderOpen] = useState(false);
     const [view, setView] = useState<LibraryView>(loadView);
+    const [query, setQuery] = useState('');
+    const [sort, setSort] = useState<'newest' | 'name' | 'longest'>('newest');
     const changeView = (next: LibraryView) => {
         setView(next);
         try {
@@ -52,6 +54,15 @@ export function MainWindow() {
             .then(setRecordings)
             .catch((error) => toast.error(errorMessage(error)));
     }, []);
+
+    const newStudioVideo = () =>
+        api
+            .createStudioProject()
+            .then((project) => {
+                refreshRecordings();
+                setEditing(project);
+            })
+            .catch((error) => toast.error(errorMessage(error)));
 
     const refreshPermissions = useCallback(() => {
         api.permissions()
@@ -98,7 +109,11 @@ export function MainWindow() {
                     // ⌘⇧R from another app: bring Capturita forward so the missing choice can be made.
                     setRecorderOpen(true);
                     const window = getCurrentWindow();
-                    window.unminimize().then(() => window.show()).then(() => window.setFocus()).catch(() => {});
+                    window
+                        .unminimize()
+                        .then(() => window.show())
+                        .then(() => window.setFocus())
+                        .catch(() => {});
                 }}
                 onClose={() => setRecorderOpen(false)}
             />
@@ -108,83 +123,120 @@ export function MainWindow() {
     if (editing) {
         return (
             <>
-            <EditorView
-                // A fresh editor per project: no state (edit, music, dialogs) carries over when a
-                // new recording opens while another project is being edited.
-                key={editing.id}
-                project={editing}
-                onClose={() => {
-                    setEditing(null);
-                    refreshRecordings();
-                }}
-            />
-            {recorder}
+                <EditorView
+                    // A fresh editor per project: no state (edit, music, dialogs) carries over when a
+                    // new recording opens while another project is being edited.
+                    key={editing.id}
+                    project={editing}
+                    onClose={() => {
+                        setEditing(null);
+                        refreshRecordings();
+                    }}
+                />
+                {recorder}
             </>
         );
     }
 
     // Same shape as the editor branch ([page, recorder]), so the recorder keeps its state when the editor opens or closes.
+    const needle = query.trim().toLowerCase();
+    const shown = recordings
+        .filter((r) => !needle || r.source.name.toLowerCase().includes(needle))
+        .sort((a, b) => (sort === 'name' ? a.source.name.localeCompare(b.source.name) : sort === 'longest' ? b.duration - a.duration : 0));
+
     return (
         <>
-        <div className='flex h-full flex-col'>
-            <header className='flex h-14 shrink-0 items-center gap-3 border-b border-line bg-panel px-5'>
-                <span className='flex h-7 w-7 items-center justify-center rounded-lg bg-accent shadow-sm'>
-                    <span className='h-2.5 w-2.5 rounded-full bg-white' />
-                </span>
-                <span className='font-serif text-[17px] font-medium tracking-tight'>Capturita</span>
-                <div className='ml-auto flex items-center gap-2'>
-                    <Button variant='primary' size='sm' onClick={() => setRecorderOpen(true)} title='New recording (or press ⌘⇧R anywhere)'>
-                        <Plus className='h-4 w-4' /> New recording
-                    </Button>
-                    <IconButton label='Open the recordings folder' onClick={async () => openPath(await api.recordingsDir())}>
-                        <FolderOpen className='h-4 w-4' />
-                    </IconButton>
-                    <IconButton label='Settings' onClick={() => setSettingsOpen(true)}>
-                        <Settings className='h-4 w-4' />
-                    </IconButton>
-                </div>
-            </header>
+            <div className='flex h-full flex-col'>
+                <header className='flex h-14 shrink-0 items-center gap-3 border-b border-line bg-panel px-5'>
+                    <span className='flex h-7 w-7 items-center justify-center rounded-lg bg-accent shadow-sm'>
+                        <span className='h-2.5 w-2.5 rounded-full bg-white' />
+                    </span>
+                    <span className='font-serif text-[17px] font-medium tracking-tight'>Capturita</span>
+                    <div className='ml-auto flex items-center gap-2'>
+                        <Button size='sm' onClick={newStudioVideo} title='A motion-graphics video without a recording: teasers, “coming soon”, launch cards'>
+                            <Sparkles className='h-4 w-4' /> New Studio video
+                        </Button>
+                        <Button variant='primary' size='sm' onClick={() => setRecorderOpen(true)} title='New recording (or press ⌘⇧R anywhere)'>
+                            <Plus className='h-4 w-4' /> New recording
+                        </Button>
+                        <IconButton label='Open the recordings folder' onClick={async () => openPath(await api.recordingsDir())}>
+                            <FolderOpen className='h-4 w-4' />
+                        </IconButton>
+                        <IconButton label='Settings' onClick={() => setSettingsOpen(true)}>
+                            <Settings className='h-4 w-4' />
+                        </IconButton>
+                    </div>
+                </header>
 
-            <main className='flex min-h-0 flex-1 flex-col gap-4 p-6'>
-                {permissions && <PermissionsBanner permissions={permissions} onChange={setPermissions} />}
-                {recordings.length === 0 ? (
-                    <section className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto'>
-                        <LibraryHeader recordings={recordings} />
-                        <EmptyLibrary onNew={() => setRecorderOpen(true)} />
-                    </section>
-                ) : (
-                    <section className='flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1'>
-                        <div className='flex items-center justify-between gap-3'>
+                <main className='flex min-h-0 flex-1 flex-col gap-4 p-6'>
+                    {permissions && <PermissionsBanner permissions={permissions} onChange={setPermissions} />}
+                    {recordings.length === 0 ? (
+                        <section className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto'>
                             <LibraryHeader recordings={recordings} />
-                            <div className='w-[92px]'>
-                                <Segmented<LibraryView>
-                                    size='sm'
-                                    value={view}
-                                    onChange={changeView}
-                                    options={[
-                                        { value: 'cards', icon: <LayoutGrid className='h-3.5 w-3.5' />, hint: 'Show as a grid' },
-                                        { value: 'table', icon: <List className='h-3.5 w-3.5' />, hint: 'Show as a list' },
-                                    ]}
+                            <EmptyLibrary onNew={() => setRecorderOpen(true)} onNewStudio={newStudioVideo} />
+                        </section>
+                    ) : (
+                        <section className='flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1'>
+                            <div className='flex items-center justify-between gap-3'>
+                                <LibraryHeader recordings={recordings} />
+                                <input
+                                    type='search'
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder='Search recordings'
+                                    aria-label='Search recordings'
+                                    className='ml-auto h-8 w-48 rounded-lg border border-line bg-panel-2 px-3 text-xs text-fg outline-none focus:border-accent'
                                 />
+                                <div className='w-56'>
+                                    <Segmented
+                                        size='sm'
+                                        label='Sort by'
+                                        value={sort}
+                                        onChange={setSort}
+                                        options={[
+                                            { value: 'newest', label: 'Newest' },
+                                            { value: 'name', label: 'Name' },
+                                            { value: 'longest', label: 'Longest' },
+                                        ]}
+                                    />
+                                </div>
+                                <div className='w-[92px]'>
+                                    <Segmented<LibraryView>
+                                        size='sm'
+                                        value={view}
+                                        onChange={changeView}
+                                        options={[
+                                            { value: 'cards', icon: <LayoutGrid className='h-3.5 w-3.5' />, hint: 'Show as a grid' },
+                                            { value: 'table', icon: <List className='h-3.5 w-3.5' />, hint: 'Show as a list' },
+                                        ]}
+                                    />
+                                </div>
                             </div>
-                        </div>
-                        <RecordingsList recordings={recordings} view={view} onOpen={setEditing} onDeleted={refreshRecordings} />
-                    </section>
-                )}
-            </main>
+                            <RecordingsList recordings={shown} view={view} grouped={sort === 'newest'} onOpen={setEditing} onDeleted={refreshRecordings} />
+                            {shown.length === 0 && <p className='text-sm text-muted'>Nothing matches “{query}”.</p>}
+                        </section>
+                    )}
+                </main>
 
-            {settingsOpen && (
-                <SettingsDialog
-                    onClose={() => setSettingsOpen(false)}
-                    onRunSetup={() => {
-                        setSettingsOpen(false);
-                        setSetup('welcome');
-                    }}
-                />
-            )}
-            {setup && <SetupFlow initialStep={setup} onClose={() => setSetup(null)} onPermissionsChange={setPermissions} onStartRecording={() => setRecorderOpen(true)} />}
-        </div>
-        {recorder}
+                {settingsOpen && (
+                    <SettingsDialog
+                        onClose={() => setSettingsOpen(false)}
+                        onRunSetup={() => {
+                            setSettingsOpen(false);
+                            setSetup('welcome');
+                        }}
+                    />
+                )}
+                {setup && (
+                    <SetupFlow
+                        initialStep={setup}
+                        onClose={() => setSetup(null)}
+                        onPermissionsChange={setPermissions}
+                        onStartRecording={() => setRecorderOpen(true)}
+                    />
+                )}
+            </div>
+            {recorder}
         </>
     );
 }
@@ -204,7 +256,7 @@ function RecorderDialog({ open, onClose, children }: { open: boolean; onClose: (
             className={open ? 'fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm' : 'hidden'}
             onPointerDown={(e) => e.target === e.currentTarget && onClose()}
         >
-            <div className='flex h-[min(640px,100%)] w-full max-w-[880px] flex-col'>{children}</div>
+            <div className='flex h-[min(660px,100%)] w-full max-w-[980px] flex-col'>{children}</div>
         </div>
     );
 }

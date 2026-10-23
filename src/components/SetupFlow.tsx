@@ -48,7 +48,7 @@ export function SetupFlow({
                         ))}
                     </div>
                     {step !== 'done' && (
-                        <button className='ml-3 text-xs text-muted hover:text-fg' onClick={close} title='Skip setup; you can open it again from the header'>
+                        <button className='ml-3 text-xs text-muted hover:text-fg' onClick={close} title='Skip setup; run it again from Settings → General'>
                             Skip setup
                         </button>
                     )}

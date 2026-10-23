@@ -223,7 +223,8 @@ export async function exportVideo(options: {
                 return tryOpen(new BlobSource(await response.blob()));
             }
         };
-        const screenSink = await open(screen);
+        // A Studio video has no screen recording to decode.
+        const screenSink = screen.file ? await open(screen) : null;
         const cameraSink = camera && edit.camera.visible ? await open(camera) : null;
 
         // Every output frame's position in the recording (cuts and speed applied).
@@ -232,7 +233,7 @@ export async function exportVideo(options: {
         const positions = timeline.map((position) => position.source);
         const localTimes = (track: VideoTrack) =>
             positions.map((source) => Math.min(Math.max(0, source - track.offset), Math.max(0, track.duration - 0.001)));
-        const screenFrames = screenSink.samplesAtTimestamps(localTimes(screen))[Symbol.asyncIterator]();
+        const screenFrames = screenSink ? screenSink.samplesAtTimestamps(localTimes(screen))[Symbol.asyncIterator]() : null;
         const cameraFrames = cameraSink && camera ? cameraSink.samplesAtTimestamps(localTimes(camera))[Symbol.asyncIterator]() : null;
 
         // Each scene's rendered file, read in order at the frames the timeline shows it. A scene
@@ -308,7 +309,7 @@ export async function exportVideo(options: {
             checkCancelled();
             const time = i / settings.fps;
             await addAudioUntil(time + AUDIO_SLICE);
-            const screenSample = await nextSample(screenFrames);
+            const screenSample = screenFrames ? await nextSample(screenFrames) : null;
             const cameraSample = cameraFrames ? await nextSample(cameraFrames) : null;
             const cameraLocal = camera ? positions[i] - camera.offset : -1;
             const position = timeline[i];

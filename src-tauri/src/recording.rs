@@ -219,7 +219,9 @@ pub async fn prepare_recording(app: AppHandle, helper: State<'_, Helper>, option
     let name = chrono::Local::now().format("%Y-%m-%d at %H.%M.%S").to_string();
     let dir = recordings_root(&app)?.join(name);
     args["outputDir"] = json!(dir.to_string_lossy());
-    args["countdown"] = json!(COUNTDOWN_SECONDS);
+    // Settings → Countdown; 0 starts immediately.
+    let countdown = args["countdown"].as_u64().map_or(COUNTDOWN_SECONDS, |c| c.min(10));
+    args["countdown"] = json!(countdown);
     *app.state::<Recording>().options.lock().unwrap() = Some(args.clone());
 
     update(&app, |s| s.status = Status::Countdown);
@@ -231,7 +233,7 @@ pub async fn prepare_recording(app: AppHandle, helper: State<'_, Helper>, option
         }
     }
 
-    match helper.call(&app, "start", args, Some(Duration::from_secs(COUNTDOWN_SECONDS + 30))).await {
+    match helper.call(&app, "start", args, Some(Duration::from_secs(countdown + 30))).await {
         Ok(_) => {
             update(&app, |s| {
                 s.status = Status::Recording;
@@ -288,6 +290,34 @@ pub fn list_recordings(app: AppHandle) -> Result<Vec<Value>, String> {
         .collect();
     projects.sort_by(|a, b| b["createdAt"].as_str().cmp(&a["createdAt"].as_str()));
     Ok(projects)
+}
+
+/// A new Studio video: a project with only motion scenes and no screen recording. Its screen
+/// track is an empty placeholder (`file: ""`) that sets the default 1080p size.
+#[tauri::command]
+pub fn create_studio_project(app: AppHandle) -> Result<Value, String> {
+    let id = chrono::Local::now().format("Studio %Y-%m-%d at %H.%M.%S").to_string();
+    let dir = recordings_root(&app)?.join(&id);
+    std::fs::create_dir(&dir).map_err(|e| e.to_string())?;
+    let mut project = json!({
+        "version": 1,
+        "kind": "studio",
+        "id": id,
+        "createdAt": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "duration": 0,
+        "source": { "type": "display", "name": "Studio video", "area": { "x": 0, "y": 0, "width": 1920, "height": 1080 } },
+        "tracks": {
+            "screen": { "file": "", "offset": 0, "duration": 0, "width": 1920, "height": 1080 },
+            "systemAudio": null,
+            "microphone": null,
+            "camera": null,
+            "cursor": { "file": "" }
+        }
+    });
+    let text = serde_json::to_string_pretty(&project).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("project.json"), text).map_err(|e| e.to_string())?;
+    project["path"] = json!(dir.to_string_lossy());
+    Ok(project)
 }
 
 /// A recording's folder. Only plain folder names inside the recordings folder are accepted.

@@ -1,15 +1,56 @@
 import { useRef, useState } from 'react';
-import { Music, Repeat, Trash2, Upload, Volume2, VolumeX } from 'lucide-react';
+import { AudioWaveform, Music, Repeat, Trash2, Upload, Volume2, VolumeX } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, errorMessage } from '../lib/api';
-import { Button, Slider, Switch } from '../components/ui';
-import { DEFAULT_MUSIC_VOLUME, type AudioMix, type MusicTrack } from './model';
+import { api, errorMessage, fileUrl, type Project } from '../lib/api';
+import { loadMusic } from './audioSchedule';
+import { beatsOnTimeline, detectBeats, fitScenesToBeats } from './beats';
+import { Button, Slider, Switch, TimeField } from '../components/ui';
+import { LibraryPicker } from '../studio/library';
+import { DEFAULT_MUSIC_VOLUME, totalDuration, type AudioMix, type MusicTrack, type TimelineItem } from './model';
 
 const percent = (v: number) => `${Math.round(v * 100)}%`;
 const seconds = (v: number) => `${v.toFixed(0)} s`;
 
-/** Background music: pick a song, set its volume, where it starts, and whether it loops. */
-export function MusicPanel({ projectId, audio, onChange }: { projectId: string; audio: AudioMix; onChange: (audio: AudioMix, key: string) => void }) {
+/** The song's beats and length, decoded from the project file. */
+async function analyse(project: Project, file: string) {
+    const context = new OfflineAudioContext(1, 1, 44100);
+    const buffer = await loadMusic(context, `${fileUrl(project, file)}?v=${Date.now()}`);
+    return {
+        beats: detectBeats(buffer).map((b) => Math.round(b * 1000) / 1000),
+        length: buffer.duration,
+    };
+}
+
+/** Copies a song into the project (replacing its music file) as a track, beats found when possible. */
+export async function importMusicTrack(project: Project, file: File, previous: MusicTrack | null): Promise<MusicTrack> {
+    const stored = await api.importMusic(project.id, file);
+    // Beats are a bonus: a song that can't be analysed still plays.
+    const found = await analyse(project, stored).catch(() => ({}));
+    return {
+        file: stored,
+        name: file.name,
+        volume: previous?.volume ?? DEFAULT_MUSIC_VOLUME,
+        muted: false,
+        offset: 0,
+        loop: previous?.loop ?? true,
+        ...found,
+    };
+}
+
+/** Background music: pick a song, set its volume, where it starts, and whether it loops; find its beats and cut scenes on them. */
+export function MusicPanel({
+    project,
+    audio,
+    items,
+    onChange,
+    onItemsChange,
+}: {
+    project: Project;
+    audio: AudioMix;
+    items: TimelineItem[];
+    onChange: (audio: AudioMix, key: string) => void;
+    onItemsChange: (items: TimelineItem[]) => void;
+}) {
     const input = useRef<HTMLInputElement>(null);
     const [busy, setBusy] = useState(false);
     const music = audio.music;
@@ -19,11 +60,7 @@ export function MusicPanel({ projectId, audio, onChange }: { projectId: string; 
         if (!file) return;
         setBusy(true);
         try {
-            const stored = await api.importMusic(projectId, file);
-            set(
-                { file: stored, name: file.name, volume: music?.volume ?? DEFAULT_MUSIC_VOLUME, muted: false, offset: 0, loop: music?.loop ?? true },
-                'music-file'
-            );
+            set(await importMusicTrack(project, file, music), 'music-file');
         } catch (error) {
             toast.error(errorMessage(error));
         } finally {
@@ -34,7 +71,13 @@ export function MusicPanel({ projectId, audio, onChange }: { projectId: string; 
 
     return (
         <div className='space-y-3 rounded-lg border border-line bg-panel-2 p-3'>
-            <input ref={input} type='file' accept='audio/*,.mp3,.m4a,.aac,.wav,.aif,.aiff,.flac' className='hidden' onChange={(e) => choose(e.target.files?.[0])} />
+            <input
+                ref={input}
+                type='file'
+                accept='audio/*,.mp3,.m4a,.aac,.wav,.aif,.aiff,.flac'
+                className='hidden'
+                onChange={(e) => choose(e.target.files?.[0])}
+            />
             <div className='flex items-center justify-between gap-2 text-xs'>
                 <span className='flex min-w-0 items-center gap-2'>
                     <Music className='h-3.5 w-3.5 shrink-0' />
@@ -52,29 +95,112 @@ export function MusicPanel({ projectId, audio, onChange }: { projectId: string; 
                         >
                             {music.muted ? <VolumeX className='h-3.5 w-3.5' /> : <Volume2 className='h-3.5 w-3.5' />}
                         </Button>
-                        <Button size='icon' variant='ghost' className='h-7 w-7' onClick={() => input.current?.click()} disabled={busy} title='Replace the song' aria-label='Replace the song'>
+                        <LibraryPicker kind='music' disabled={busy} onPick={choose} />
+                        <Button
+                            size='icon'
+                            variant='ghost'
+                            className='h-7 w-7'
+                            onClick={() => input.current?.click()}
+                            disabled={busy}
+                            title='Replace the song'
+                            aria-label='Replace the song'
+                        >
                             <Upload className='h-3.5 w-3.5' />
                         </Button>
-                        <Button size='icon' variant='ghost' className='h-7 w-7' onClick={() => set(null, 'music-remove')} title='Remove music' aria-label='Remove music'>
+                        <Button
+                            size='icon'
+                            variant='ghost'
+                            className='h-7 w-7'
+                            onClick={() => set(null, 'music-remove')}
+                            title='Remove music'
+                            aria-label='Remove music'
+                        >
                             <Trash2 className='h-3.5 w-3.5' />
                         </Button>
                     </span>
                 ) : (
-                    <Button size='sm' variant='subtle' onClick={() => input.current?.click()} disabled={busy}>
-                        <Upload className='h-3.5 w-3.5' /> {busy ? 'Adding…' : 'Add music'}
-                    </Button>
+                    <span className='flex items-center gap-1.5'>
+                        <LibraryPicker kind='music' disabled={busy} onPick={choose} />
+                        <Button size='sm' variant='subtle' onClick={() => input.current?.click()} disabled={busy}>
+                            <Upload className='h-3.5 w-3.5' /> {busy ? 'Adding…' : 'Add music'}
+                        </Button>
+                    </span>
                 )}
             </div>
             {music ? (
                 <>
-                    <Slider label='Volume' value={music.volume} min={0} max={1} step={0.05} format={percent} onChange={(volume) => set({ ...music, volume }, 'music-volume')} />
-                    <Slider label='Start the song at' value={music.offset} min={0} max={120} step={1} format={seconds} onChange={(offset) => set({ ...music, offset }, 'music-offset')} />
+                    <Slider
+                        label='Volume'
+                        value={music.volume}
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        format={percent}
+                        onChange={(volume) => set({ ...music, volume }, 'music-volume')}
+                    />
+                    <Slider
+                        label='Start the song at'
+                        value={music.offset}
+                        min={0}
+                        max={120}
+                        step={1}
+                        format={seconds}
+                        onChange={(offset) => set({ ...music, offset }, 'music-offset')}
+                        field={
+                            <TimeField
+                                label='Start the song at'
+                                value={music.offset}
+                                max={120}
+                                onChange={(offset) => set({ ...music, offset }, 'music-offset')}
+                            />
+                        }
+                    />
                     <div className='flex items-center justify-between text-xs'>
                         <span className='flex items-center gap-2 text-muted'>
                             <Repeat className='h-3.5 w-3.5' /> Loop if the video is longer
                         </span>
                         <Switch label='Loop music' checked={music.loop} onChange={(loop) => set({ ...music, loop }, 'music-loop')} />
                     </div>
+                    {music.beats?.length ? (
+                        <div className='space-y-1.5'>
+                            <Button
+                                size='sm'
+                                className='w-full'
+                                disabled={!items.some((item) => item.kind === 'scene')}
+                                onClick={() => onItemsChange(fitScenesToBeats(items, beatsOnTimeline(music, totalDuration(items) + 5)))}
+                                title={
+                                    items.some((item) => item.kind === 'scene')
+                                        ? 'Lengthen or shorten each scene a little so the cut to the next one lands on a beat'
+                                        : 'Add a scene first (Add scene, below the preview)'
+                                }
+                            >
+                                <AudioWaveform className='h-3.5 w-3.5' /> Cut scenes on the beat
+                            </Button>
+                            <p className='text-[11px] text-muted'>
+                                {Math.round((60 * (music.beats.length - 1)) / Math.max(0.1, music.beats[music.beats.length - 1] - music.beats[0]))} BPM · edges
+                                snap to beats on the timeline.
+                            </p>
+                        </div>
+                    ) : (
+                        <Button
+                            size='sm'
+                            variant='ghost'
+                            className='w-full'
+                            disabled={busy}
+                            onClick={async () => {
+                                setBusy(true);
+                                try {
+                                    set({ ...music, ...(await analyse(project, music.file)) }, 'music-beats');
+                                } catch (error) {
+                                    toast.error(errorMessage(error));
+                                } finally {
+                                    setBusy(false);
+                                }
+                            }}
+                        >
+                            <AudioWaveform className='h-3.5 w-3.5' /> {busy ? 'Listening…' : 'Find the beats'}
+                        </Button>
+                    )}
                 </>
             ) : (
                 <p className='text-xs text-muted'>Plays under your recording and is included in the export. Fade in/out below applies to it too.</p>
