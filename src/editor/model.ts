@@ -271,6 +271,8 @@ export interface MusicTrack extends TrackLevel {
     beats?: number[];
     /** Length of the song, seconds. */
     length?: number;
+    /** A song from the suggestions list: its credit line. */
+    suggested?: { credit: string };
 }
 
 export const DEFAULT_MUSIC_VOLUME = 0.35;
@@ -301,13 +303,13 @@ export interface Motion {
 }
 
 /** Kinds of transition that blend two items over a stretch of time (everything but a cut). */
-export type TransitionKind = 'crossfade' | 'slide' | 'push' | 'wipe' | 'zoom' | 'blur' | 'dip';
+export type TransitionKind = 'glide' | 'crossfade' | 'slide' | 'push' | 'wipe' | 'zoom' | 'blur' | 'dip' | 'circle' | 'diagonal' | 'flash' | 'whip' | 'flood';
 /** The way motion runs on screen (slide, push, wipe). */
 export type TransitionDirection = 'left' | 'right' | 'up' | 'down';
 
-export const TRANSITION_KINDS: TransitionKind[] = ['crossfade', 'slide', 'push', 'wipe', 'zoom', 'blur', 'dip'];
-export const DIRECTED_TRANSITIONS: TransitionKind[] = ['slide', 'push', 'wipe'];
-export const TRANSITION_LABELS: Record<string, string> = { cut: 'Cut', crossfade: 'Crossfade', slide: 'Slide', push: 'Push', wipe: 'Wipe', zoom: 'Zoom through', blur: 'Blur', dip: 'Dip to colour' };
+export const TRANSITION_KINDS: TransitionKind[] = ['glide', 'crossfade', 'slide', 'push', 'wipe', 'zoom', 'blur', 'dip', 'circle', 'diagonal', 'flash', 'whip', 'flood'];
+export const DIRECTED_TRANSITIONS: TransitionKind[] = ['slide', 'push', 'wipe', 'whip', 'diagonal'];
+export const TRANSITION_LABELS: Record<string, string> = { cut: 'Cut', glide: 'Glide', crossfade: 'Crossfade', slide: 'Slide', push: 'Push', wipe: 'Wipe', zoom: 'Zoom through', blur: 'Blur', dip: 'Dip to colour', circle: 'Circle reveal', diagonal: 'Diagonal wipe', flash: 'Flash', whip: 'Whip', flood: 'Colour flood' };
 
 /** How a timeline item enters from the one before it. */
 export type Transition = { type: 'cut'; sound?: SoundCue } | { type: TransitionKind; duration: number; direction?: TransitionDirection; color?: string; sound?: SoundCue };
@@ -414,6 +416,10 @@ export interface CursorStyle {
     clickStyle: ClickStyle;
     /** The cursor dips briefly on each click, like a button being pressed. */
     pressEffect: boolean;
+    /** The cursor turns into a pointing hand around each click. Unset in older edits, which stay off. */
+    clickHand?: boolean;
+    /** Seconds either side of a click the hand shows for (1 when unset). */
+    handWindow?: number;
     clickSound: boolean;
     /** A soft tick, or a two-part mechanical mouse click (both synthesized). */
     clickSoundType: ClickSoundType;
@@ -479,6 +485,7 @@ export function defaultEdit(project: Project): Edit {
             clickStyle: 'ripple',
             clickColor: CLICK_COLORS[0],
             pressEffect: true,
+            clickHand: true,
             clickSound: false,
             clickSoundType: 'tick',
             clickVolume: 0.6,
@@ -698,36 +705,126 @@ export interface LayerFx {
     scale: number;
     clip: { top: number; right: number; bottom: number; left: number } | null;
     blur: number;
+    /** Shape reveal: the layer shows only inside the shape at `progress` (0 hidden → 1 whole frame). */
+    mask?: { shape: 'circle' | 'diagonal'; progress: number } | null;
+    /** 0 to 1: how much the layer is darkened (depth: the layer under a moving one). */
+    dim?: number;
+    /** Blur only along this axis (a camera streak) instead of all round. */
+    blurAxis?: 'x' | 'y';
+}
+
+/** The diagonal mask as a polygon in 0..1 frame coordinates (the region x + y <= 2 * progress). */
+export function diagonalPoints(progress: number): [number, number][] {
+    const s = 2 * clamp01(progress);
+    const a = Math.min(s, 1);
+    const b = Math.max(0, s - 1);
+    return [[0, 0], [a, 0], [a, b], [b, a], [0, a]];
+}
+
+/** A colour wash over both layers. With `radius` it is a circle from the centre (1 covers the frame) instead of the whole frame. */
+export interface Dip {
+    color: string;
+    opacity: number;
+    radius?: number;
 }
 
 export const IDENTITY_FX: LayerFx = { opacity: 1, x: 0, y: 0, scale: 1, clip: null, blur: 0 };
-export const isIdentityFx = (fx: LayerFx) => fx.opacity >= 1 && fx.x === 0 && fx.y === 0 && fx.scale === 1 && !fx.clip && fx.blur <= 0;
+export const isIdentityFx = (fx: LayerFx) => fx.opacity >= 1 && fx.x === 0 && fx.y === 0 && fx.scale === 1 && !fx.clip && !fx.mask && fx.blur <= 0 && !fx.dim;
 
 const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
+const easeInOutQuint = (x: number) => (x < 0.5 ? 16 * x ** 5 : 1 - (-2 * x + 2) ** 5 / 2);
+const easeInQuint = (x: number) => x ** 5;
+const easeOutQuint = (x: number) => 1 - (1 - x) ** 5;
+const easeInQuart = (x: number) => x ** 4;
+const easeOutQuart = (x: number) => 1 - (1 - x) ** 4;
+const easeInOutExpo = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x < 0.5 ? 2 ** (20 * x - 10) / 2 : (2 - 2 ** (-20 * x + 10)) / 2);
+const smooth = (from: number, to: number, x: number) => {
+    const t = clamp01((x - from) / (to - from));
+    return t * t * (3 - 2 * t);
+};
 const DIRECTION_VECTOR: Record<TransitionDirection, [number, number]> = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
+
+/**
+ * Blur like a camera shutter: the streak is how far the layer travels while the shutter is open,
+ * so it is nil at rest, peaks at top speed and clears as the layer lands. `distance` is the travel
+ * in frame fractions over `duration` seconds, `shutter` the exposure in seconds; the result is a
+ * gaussian sigma as a fraction of the frame's short side, capped at `cap`.
+ */
+function velocityBlur(ease: (x: number) => number, p: number, duration: number, distance: number, shutter: number, cap: number) {
+    const h = 0.01;
+    const [a, b] = [Math.max(0, p - h), Math.min(1, p + h)];
+    const speed = (Math.abs(ease(b) - ease(a)) / (b - a)) * (distance / Math.max(duration, 0.05));
+    return Math.min(cap, speed * shutter * 0.4);
+}
+
+/** How much a directional blur is squashed before blurring (and stretched back after), so a round blur becomes a streak. */
+export const STREAK = 12;
+
+/**
+ * The CSS filter of a layer: blur and dim. A directional blur runs in a space squashed STREAK times
+ * along its axis, so its radius there is STREAK times smaller. The canvas export and the CSS preview both use this.
+ */
+export function layerFilter(fx: LayerFx, shortSide: number, withBlur = true) {
+    const parts: string[] = [];
+    if (withBlur && fx.blur > 0) parts.push(`blur(${((fx.blur * shortSide) / (fx.blurAxis ? STREAK : 1)).toFixed(2)}px)`);
+    if (fx.dim) parts.push(`brightness(${(1 - fx.dim).toFixed(3)})`);
+    return parts.join(' ');
+}
 
 /**
  * The outgoing and incoming layers' looks at progress `mix` (0 → 1) through a transition.
  * `incomingOnTop` says which is drawn above: the recording is always the bottom layer, so when
  * it's the incoming item, effects that need the top layer apply to the outgoing scene instead.
  * Also returns a colour wash drawn over both (dip to colour).
+ *
+ * Motion uses hard curves (slow start, fast middle, long settle) with shutter-accurate blur and
+ * depth (the layer underneath drifts and dims), so a join reads as a camera move, not a slide change.
+ * A layer with a mask or clip is never scaled: CSS scales a clip with the element, the canvas doesn't.
  */
-export function transitionFx(transition: Exclude<Transition, { type: 'cut' }>, mix: number, incomingOnTop: boolean): { outgoing: LayerFx; incoming: LayerFx; dip: { color: string; opacity: number } | null } {
+export function transitionFx(transition: Exclude<Transition, { type: 'cut' }>, mix: number, incomingOnTop: boolean): { outgoing: LayerFx; incoming: LayerFx; dip: Dip | null } {
     const p = clamp01(mix);
-    const e = easeInOutCubic(p);
+    const d = transition.duration;
     const [dx, dy] = DIRECTION_VECTOR[transition.direction ?? 'left'];
+    const axis: 'x' | 'y' = dx ? 'x' : 'y';
     const fade = (opacity: number): LayerFx => ({ ...IDENTITY_FX, opacity });
     switch (transition.type) {
-        case 'slide': {
-            // The top layer moves: in from the far edge when it's incoming, out the near edge when it's outgoing.
-            if (incomingOnTop) return { outgoing: IDENTITY_FX, incoming: { ...IDENTITY_FX, x: -dx * (1 - e), y: -dy * (1 - e) }, dip: null };
-            return { outgoing: { ...IDENTITY_FX, x: dx * e, y: dy * e }, incoming: IDENTITY_FX, dip: null };
+        case 'glide': {
+            // Overlapping action: the outgoing item starts leaving (a slow push in, a touch of blur, a rise) before the
+            // incoming one has arrived, and the incoming one is still settling (from slightly big, blurred, low) as it lands.
+            // They overlap by ~40% instead of one finishing first. Neither scale drops below 1, so the frame stays covered.
+            const leaving = clamp01(p / 0.7);
+            const arriving = clamp01((p - 0.3) / 0.7);
+            const outgoing: LayerFx = { ...IDENTITY_FX, scale: 1 + 0.05 * easeInOutCubic(p), y: -0.015 * easeInOutCubic(p), blur: 0.012 * leaving ** 2, opacity: incomingOnTop ? 1 : 1 - leaving ** 2 };
+            const incoming: LayerFx = { ...IDENTITY_FX, scale: 1 + 0.04 * (1 - arriving) ** 3, y: 0.015 * (1 - arriving) ** 2, blur: 0.012 * (1 - arriving) ** 2, opacity: incomingOnTop ? 1 - (1 - arriving) ** 3 : 1 };
+            return { outgoing, incoming, dip: null };
         }
-        case 'push':
-            return { outgoing: { ...IDENTITY_FX, x: dx * e, y: dy * e }, incoming: { ...IDENTITY_FX, x: -dx * (1 - e), y: -dy * (1 - e) }, dip: null };
+        case 'slide': {
+            // The top layer glides in (or out) while the one under it drifts the same way, dimmed, a quarter as far.
+            if (incomingOnTop) {
+                const e = easeOutQuint(p);
+                return { outgoing: { ...IDENTITY_FX, x: dx * 0.25 * e, y: dy * 0.25 * e, dim: 0.35 * e }, incoming: { ...IDENTITY_FX, x: -dx * (1 - e), y: -dy * (1 - e) }, dip: null };
+            }
+            const e = easeInQuint(p);
+            return { outgoing: { ...IDENTITY_FX, x: dx * e, y: dy * e }, incoming: { ...IDENTITY_FX, x: -dx * 0.25 * (1 - e), y: -dy * 0.25 * (1 - e), dim: 0.35 * (1 - e) }, dip: null };
+        }
+        case 'push': {
+            const e = easeInOutQuint(p);
+            const blur = velocityBlur(easeInOutQuint, p, d, 1, 1 / 60, 0.05);
+            // Blur softens the layers' edges; growing a little keeps them outside the frame.
+            const look: Partial<LayerFx> = { blur, blurAxis: axis, scale: 1 + blur };
+            return { outgoing: { ...IDENTITY_FX, ...look, x: dx * e, y: dy * e }, incoming: { ...IDENTITY_FX, ...look, x: -dx * (1 - e), y: -dy * (1 - e) }, dip: null };
+        }
+        case 'whip': {
+            // A camera pan: an exponential curve (almost still, then gone), a 360° shutter and a slight push in.
+            const e = easeInOutExpo(p);
+            const blur = velocityBlur(easeInOutExpo, p, d, 1, 1 / 30, 0.12);
+            const look: Partial<LayerFx> = { blur, blurAxis: axis, scale: 1 + blur * 0.5 };
+            return { outgoing: { ...IDENTITY_FX, ...look, x: dx * e, y: dy * e }, incoming: { ...IDENTITY_FX, ...look, x: -dx * (1 - e), y: -dy * (1 - e) }, dip: null };
+        }
         case 'wipe': {
             // A hard edge travels in the direction of motion; the top layer is cut along it. Moving
             // left, the incoming item is hidden left of the edge, the outgoing one right of it.
+            const e = easeInOutQuint(p);
             const inset = (share: number, fromTrailing: boolean) => {
                 const clip = { top: 0, right: 0, bottom: 0, left: 0 };
                 const side = dx < 0 ? 'left' : dx > 0 ? 'right' : dy < 0 ? 'top' : 'bottom';
@@ -739,9 +836,13 @@ export function transitionFx(transition: Exclude<Transition, { type: 'cut' }>, m
             return { outgoing: { ...IDENTITY_FX, clip: inset(e, true) }, incoming: IDENTITY_FX, dip: null };
         }
         case 'zoom': {
-            // Through the outgoing item: it grows and fades as the incoming one settles from slightly small.
-            const outgoing: LayerFx = { ...IDENTITY_FX, scale: 1 + 0.5 * e, opacity: incomingOnTop ? 1 : 1 - e };
-            const incoming: LayerFx = { ...IDENTITY_FX, scale: 0.85 + 0.15 * e, opacity: incomingOnTop ? e : 1 };
+            // Punch through the outgoing item: it rushes at the camera while the incoming one settles from just behind.
+            // Neither scale drops below 1, so the frame is always covered.
+            const out = easeInQuart(p);
+            const into = easeOutQuart(p);
+            const handoff = smooth(0.4, 0.6, p);
+            const outgoing: LayerFx = { ...IDENTITY_FX, scale: 1 + 0.8 * out, blur: velocityBlur(easeInQuart, p, d, 0.8, 1 / 30, 0.04), opacity: incomingOnTop ? 1 : 1 - handoff };
+            const incoming: LayerFx = { ...IDENTITY_FX, scale: 1.25 - 0.25 * into, blur: velocityBlur(easeOutQuart, p, d, 0.25, 1 / 30, 0.03), opacity: incomingOnTop ? handoff : 1 };
             return { outgoing, incoming, dip: null };
         }
         case 'blur': {
@@ -755,8 +856,30 @@ export function transitionFx(transition: Exclude<Transition, { type: 'cut' }>, m
             const wash = 1 - Math.abs(2 * p - 1);
             return { outgoing: fade(p < 0.5 ? 1 : 0), incoming: fade(p < 0.5 ? 0 : 1), dip: { color: transition.color ?? '#000000', opacity: easeInOutCubic(wash) } };
         }
-        default:
-            return { outgoing: fade(incomingOnTop ? 1 : 1 - p), incoming: fade(incomingOnTop ? p : 1), dip: null };
+        case 'circle':
+        case 'diagonal': {
+            // The shape opens fast and settles; the layer it uncovers pulls back and dims, so the reveal has depth.
+            const e = easeOutQuint(p);
+            const mask = (progress: number): LayerFx => ({ ...IDENTITY_FX, mask: { shape: transition.type as 'circle' | 'diagonal', progress } });
+            if (incomingOnTop) return { outgoing: { ...IDENTITY_FX, scale: 1 + 0.08 * e, dim: 0.3 * e }, incoming: mask(e), dip: null };
+            return { outgoing: mask(1 - e), incoming: { ...IDENTITY_FX, scale: 1.08 - 0.08 * e, dim: 0.3 * (1 - e) }, dip: null };
+        }
+        case 'flash': {
+            // Like a camera flash: a fast rise to full white at 40%, then a long falloff, with the items swapping at the peak.
+            const wash = p < 0.4 ? (p / 0.4) ** 2 : ((1 - p) / 0.6) ** 3;
+            const swap = smooth(0.3, 0.5, p);
+            return { outgoing: fade(incomingOnTop ? 1 : 1 - swap), incoming: fade(incomingOnTop ? swap : 1), dip: { color: transition.color ?? '#ffffff', opacity: wash } };
+        }
+        case 'flood': {
+            // The colour circle grows from the centre to cover the frame (items swap under it), then contracts to reveal the next.
+            const radius = p < 0.5 ? easeInOutQuint(p * 2) : 1 - easeInOutQuint(p * 2 - 1);
+            return { outgoing: fade(p < 0.5 ? 1 : 0), incoming: fade(p < 0.5 ? 0 : 1), dip: { color: transition.color ?? '#000000', opacity: 1, radius } };
+        }
+        default: {
+            // A plain eased fade: nothing moves, so nothing can look like it is wandering.
+            const e = easeInOutCubic(p);
+            return { outgoing: fade(incomingOnTop ? 1 : 1 - e), incoming: fade(incomingOnTop ? e : 1), dip: null };
+        }
     }
 }
 
@@ -779,7 +902,7 @@ export interface Position {
     /** How the recording is drawn (identity outside transitions). */
     recordingFx: LayerFx;
     /** A colour wash over the items (dip to colour), drawn under overlays. */
-    dip: { color: string; opacity: number } | null;
+    dip: Dip | null;
 }
 
 const NO_CLIP: Clip = { kind: 'recording', id: '', start: 0, end: 0, speed: 1 };
@@ -832,11 +955,18 @@ export function positionAt(items: TimelineItem[], outputTime: number): Position 
     return { index, item, clipIndex: waiting, clip, source: atEnd ? clip.end : clip.start, recording: false, scenes, recordingFx: IDENTITY_FX, dip };
 }
 
-/** The items with `holdEnd` set on scenes a transition takes off screen, so they don't also fade out. */
+/**
+ * The items with `holdEnd` set on scenes a transition takes off screen, so they don't also fade out,
+ * and `clock` (seconds into the video the scene starts) so their light and camera drift carry across joins.
+ */
 export function withHeldEnds(items: TimelineItem[]): TimelineItem[] {
+    const starts = itemStarts(items);
     return items.map((item, i) => {
-        const next = items[i + 1]?.transition;
-        return item.kind === 'scene' && next && next.type !== 'cut' ? { ...item, props: { ...item.props, holdEnd: true } } : item;
+        if (item.kind !== 'scene') return item;
+        const next = items[i + 1];
+        // A cut to another scene holds too: fading out would dip to the wallpaper behind the scenes.
+        const held = next && ((next.transition && next.transition.type !== 'cut') || next.kind === 'scene');
+        return { ...item, props: { ...item.props, clock: starts[i], ...(held ? { holdEnd: true } : {}) } };
     });
 }
 
@@ -909,15 +1039,11 @@ export function edgeLimits(items: TimelineItem[], index: number, edge: 'start' |
 
 /**
  * Puts a scene on the timeline at an output time: splits the recording clip there, or goes
- * before/after the item under the playhead when near its edge. It and the item after it
- * crossfade.
+ * before/after the item under the playhead when near its edge. It joins the others with a
+ * hard cut: most joins in a good edit are cuts, and a style adds its soft transitions.
  */
 export function insertScene(items: TimelineItem[], outputTime: number, scene: SceneClip): TimelineItem[] {
-    const crossfade: Transition = { type: 'crossfade', duration: DEFAULT_CROSSFADE };
-    const withScene = (list: TimelineItem[], at: number) => {
-        const next = list[at];
-        return [...list.slice(0, at), { ...scene, transition: at > 0 ? crossfade : undefined }, ...(next ? [{ ...next, transition: crossfade }] : []), ...list.slice(at + 1)];
-    };
+    const withScene = (list: TimelineItem[], at: number) => [...list.slice(0, at), { ...scene, transition: undefined }, ...(list[at] ? [{ ...list[at], transition: undefined }] : []), ...list.slice(at + 1)];
     const split = splitAt(items, outputTime);
     if (split) return withScene(split.items, split.items.findIndex((i) => i.id === split.selected));
     const { index } = positionAt(items, outputTime);

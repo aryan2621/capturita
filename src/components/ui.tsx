@@ -190,13 +190,13 @@ export function Segmented<T extends string | number>({
                         aria-label={option.label ? undefined : option.hint}
                         onClick={() => onChange(option.value)}
                         className={cx(
-                            'relative z-10 flex items-center justify-center gap-1.5 rounded-md px-2 transition-colors',
+                            'relative z-10 flex min-w-0 items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap rounded-md px-2 transition-colors',
                             size === 'sm' ? 'h-7 text-xs' : 'h-8 text-sm',
                             active ? 'text-accent-fg' : 'text-muted hover:text-fg'
                         )}
                     >
                         {option.icon}
-                        {option.label}
+                        <span className='truncate'>{option.label}</span>
                     </button>
                 );
             })}

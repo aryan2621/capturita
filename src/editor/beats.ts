@@ -1,4 +1,4 @@
-import { itemLength, itemStarts, overlapAt, type MusicTrack, type TimelineItem } from './model';
+import { itemLength, totalDuration, itemStarts, overlapAt, type MusicTrack, type TimelineItem } from './model';
 
 const HOP = 512;
 /** How hard a gap away from the period is penalised; 100 follows about ±15% tempo drift. */
@@ -113,6 +113,25 @@ export function beatsOnTimeline(music: MusicTrack | null, total: number): number
  */
 export function fitScenesToBeats(items: TimelineItem[], beats: number[]): TimelineItem[] {
     if (!beats.length) return items;
+    return withSceneBeats(retimeToBeats(items, beats), beats);
+}
+
+/** Re-fits scenes to the music after something (a style) changed their lengths, so cuts and `props.beats` follow. */
+export function fitToMusic(items: TimelineItem[], music: MusicTrack | null): TimelineItem[] {
+    return fitScenesToBeats(items, beatsOnTimeline(music, totalDuration(items) + 5));
+}
+
+/** Gives each scene the beats inside it, in seconds from its own start, as `props.beats`. */
+export function withSceneBeats(items: TimelineItem[], beats: number[]): TimelineItem[] {
+    const starts = itemStarts(items);
+    return items.map((item, i) => {
+        if (item.kind !== 'scene') return item;
+        const inside = beats.filter((b) => b >= starts[i] && b < starts[i] + itemLength(item)).map((b) => Math.round((b - starts[i]) * 1000) / 1000);
+        return { ...item, props: { ...item.props, beats: inside } };
+    });
+}
+
+function retimeToBeats(items: TimelineItem[], beats: number[]): TimelineItem[] {
     let out = items;
     for (let i = 0; i < out.length - 1; i++) {
         const item = out[i];

@@ -1,6 +1,7 @@
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
-import { BrandTexture, useExit } from './SceneBase';
+import { BrandTexture, Depth, useExit } from './SceneBase';
+import { heroTextFx } from './atmosphere';
 import { frameLayout } from './layout';
 import { fitSize } from './text';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
@@ -9,6 +10,10 @@ export interface TitleRevealProps {
     eyebrow: string;
     title: string;
     subtitle: string;
+    /** A soft glow behind the title. */
+    glow?: boolean;
+    /** Red and cyan fringes on the title. */
+    aberration?: boolean;
     /** Transparent background, for overlays rendered with alpha. */
     transparent?: boolean;
     brand: Brand;
@@ -16,9 +21,9 @@ export interface TitleRevealProps {
 }
 
 /** A generated title card: logo and eyebrow fade in, title rises letter by letter, accent line draws, subtitle follows. */
-export function TitleReveal({ eyebrow, title, subtitle, transparent, brand, assets }: TitleRevealProps) {
+export function TitleReveal({ eyebrow, title, subtitle, glow, aberration, transparent, brand, assets }: TitleRevealProps) {
     const frame = useCurrentFrame();
-    const { fps, width, height, durationInFrames } = useVideoConfig();
+    const { fps, width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
     const unit = layout.text;
     const { colors } = brand;
@@ -34,7 +39,6 @@ export function TitleReveal({ eyebrow, title, subtitle, transparent, brand, asse
     const line = spring({ frame: frame - 26, fps, config: { damping: 200 } });
     const subtitleIn = spring({ frame: frame - 34, fps, config: { damping: 200 } });
     const exit = useExit();
-    const drift = interpolate(frame, [0, durationInFrames], [1, 1.05]);
 
     return (
         <AbsoluteFill
@@ -48,8 +52,9 @@ export function TitleReveal({ eyebrow, title, subtitle, transparent, brand, asse
                 opacity: exit,
             }}
         >
-            <BrandTexture brand={brand} transparent={transparent} />
-            <div style={{ transform: `scale(${drift})`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Depth z={-0.5}><BrandTexture brand={brand} transparent={transparent} /></Depth>
+            <Depth z={1} style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 {brand.logo && <Img src={assetUrl(assets, brand.logo)} style={{ height: unit * 7, width: 'auto', marginBottom: unit * 3, opacity: eyebrowIn, objectFit: 'contain' }} />}
                 <div style={{ color: colors.muted, fontSize: unit * 2.6, fontWeight: 600, lineHeight: 1.2, letterSpacing: unit * 0.6, opacity: eyebrowIn, textTransform: 'uppercase', maxWidth: room, textAlign: 'center' }}>{eyebrow}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', maxWidth: room, marginTop: unit * 1.5, fontFamily: displayFont(brand) }}>
@@ -70,6 +75,7 @@ export function TitleReveal({ eyebrow, title, subtitle, transparent, brand, asse
                                             letterSpacing: -titleSize * 0.023,
                                             display: 'inline-block',
                                             whiteSpace: 'pre',
+                                            ...heroTextFx(unit, { glow, aberration }, colors.accent),
                                             transform: `translateY(${(1 - p) * 110}%)`,
                                         }}
                                     >
@@ -85,6 +91,7 @@ export function TitleReveal({ eyebrow, title, subtitle, transparent, brand, asse
                     {subtitle}
                 </div>
             </div>
+            </Depth>
         </AbsoluteFill>
     );
 }

@@ -1,7 +1,7 @@
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
 import { BrandTexture, clamp, SceneImage, sceneGradient, useExit } from './SceneBase';
-import { frameLayout } from './layout';
+import { frameLayout, grow } from './layout';
 import { fitSize } from './text';
 import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
@@ -20,12 +20,13 @@ export function LogoWall({ heading, logos, style, mono, transparent, brand, asse
     const frame = useCurrentFrame();
     const { fps, width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
-    const u = layout.unit;
-    const t = layout.text;
+    const u = layout.unit * grow(width, height);
+    const t = layout.text * grow(width, height);
     const { colors } = brand;
     const exit = useExit();
     const list = (Array.isArray(logos) ? logos : []).filter((l) => l?.logo).slice(0, 12);
-    const shown = list.length ? list : Array.from({ length: 6 }, () => ({ logo: '' }));
+    const shown = list.length ? list : ['Acme', 'Globex', 'Initech', 'Umbrella', 'Hooli', 'Stark'].map(() => ({ logo: '' }));
+    const placeholders = ['Acme', 'Globex', 'Initech', 'Umbrella', 'Hooli', 'Stark'];
     const innerW = width - layout.safeX * 2;
     const headIn = spring({ frame, fps, config: { damping: 200 } });
     const logoFilter = mono ? 'grayscale(1) brightness(1.6) contrast(0.9)' : 'none';
@@ -33,8 +34,12 @@ export function LogoWall({ heading, logos, style, mono, transparent, brand, asse
     const headSize = fitSize(heading, innerW, brand.fonts.display, t * 5);
 
     const tile = (logo: string, key: string | number, opacity = 1) => (
-        <div key={key} style={{ height: tileH, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity }}>
-            <SceneImage src={logo} assets={assets} brand={brand} fit='contain' label='Logo' style={{ height: '100%', width: logo ? '100%' : tileH * 2, maxWidth: tileH * 3, filter: logoFilter, borderRadius: logo ? 0 : u }} />
+        <div key={key} style={{ height: tileH, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity, padding: `0 ${u * 2}px`, borderRadius: u * 1.8, background: `${colors.surface}99`, border: `1px solid ${colors.muted}33` }}>
+            {logo ? (
+                <SceneImage src={logo} assets={assets} brand={brand} fit='contain' label='Logo' style={{ height: '70%', width: '100%', maxWidth: tileH * 3, filter: logoFilter }} />
+            ) : (
+                <span style={{ color: colors.muted, fontFamily: displayFont(brand), fontSize: tileH * 0.34, fontWeight: 800, letterSpacing: -0.5 }}>{placeholders[Number(key) % placeholders.length]}</span>
+            )}
         </div>
     );
 
@@ -62,7 +67,7 @@ export function LogoWall({ heading, logos, style, mono, transparent, brand, asse
             </div>
         );
     } else {
-        const cols = layout.portrait ? 2 : Math.min(4, Math.ceil(Math.sqrt(shown.length * 1.6)));
+        const cols = layout.portrait ? 2 : shown.length <= 6 ? 3 : Math.min(4, Math.ceil(Math.sqrt(shown.length * 1.6)));
         body = (
             <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: `${u * 4}px ${u * 6}px`, width: Math.min(innerW, cols * tileH * 3.6) }}>
                 {shown.map((l, i) => tile(l.logo, i, interpolate(frame, [8 + i * 3, 18 + i * 3], [0, 1], clamp)))}

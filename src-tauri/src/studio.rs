@@ -18,7 +18,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::recording::recordings_root;
+use crate::recording::{project_dir, recordings_root};
 
 #[derive(Default)]
 pub struct Studio {
@@ -39,6 +39,9 @@ pub struct SceneJob {
     #[serde(default)]
     alpha: bool,
     out: String,
+    /// Render only this frame, as a JPEG picture (`out` ends in .jpg).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    still: Option<u32>,
     /// Inclusive frame ranges to render (transparent timeline); the rest is written as empty frames.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ranges: Option<Vec<[u32; 2]>>,
@@ -92,6 +95,22 @@ fn find_node() -> Result<PathBuf, String> {
         .ok_or_else(|| "Motion scenes need Node.js to render. Install it from nodejs.org and try again.".into())
 }
 
+/// Remotion keeps Chrome Headless Shell beside the working directory's package.json. The
+/// shipped renderer runs from the data folder, so the download lands there (once, outside
+/// the signed bundle); the development one keeps using studio-renderer/.
+fn work_dir(app: &AppHandle, renderer: &Renderer) -> Result<PathBuf, String> {
+    if renderer.bundle.is_none() {
+        return Ok(renderer.dir.clone());
+    }
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("studio-renderer");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let manifest = dir.join("package.json");
+    if !manifest.exists() {
+        std::fs::write(&manifest, r#"{ "name": "capturita-studio-cache", "private": true }"#).map_err(|e| e.to_string())?;
+    }
+    Ok(dir)
+}
+
 /// Renders the scenes whose files don't exist yet. Finished files are kept as a cache, so an
 /// unchanged scene renders once. `project` is the project folder; the renderer serves it over
 /// local http so scenes can show the recording and the brand logo.
@@ -120,21 +139,7 @@ pub async fn studio_render(app: AppHandle, jobs: Vec<SceneJob>, project: String)
     let jobs_file = log_dir.join("studio-render-jobs.json");
     std::fs::write(&jobs_file, serde_json::to_vec(&pending).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
 
-    // Remotion keeps Chrome Headless Shell beside the working directory's package.json. The
-    // shipped renderer runs from the data folder, so the download lands there (once, outside
-    // the signed bundle); the development one keeps using studio-renderer/.
-    let work_dir = match renderer.bundle {
-        Some(_) => {
-            let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("studio-renderer");
-            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            let manifest = dir.join("package.json");
-            if !manifest.exists() {
-                std::fs::write(&manifest, r#"{ "name": "capturita-studio-cache", "private": true }"#).map_err(|e| e.to_string())?;
-            }
-            dir
-        }
-        None => renderer.dir.clone(),
-    };
+    let work_dir = work_dir(&app, &renderer)?;
 
     let mut command = Command::new(node);
     command.arg(renderer.dir.join("render.mjs")).arg("--jobs").arg(&jobs_file).arg("--root").arg(&project);
@@ -191,6 +196,47 @@ pub async fn studio_render(app: AppHandle, jobs: Vec<SceneJob>, project: String)
             Err(format!("A motion scene couldn't be rendered.\n{last}"))
         }
     }
+}
+
+/// Looks at a product's web page (screenshots down the page, logo, share image, colour, text) for
+/// a launch video, saving the images in the project's images/ folder. Returns the renderer's
+/// `capture` report: file names are relative to images/.
+#[tauri::command]
+pub async fn studio_capture_url(app: AppHandle, url: String, project: String) -> Result<Value, String> {
+    let url = reqwest::Url::parse(url.trim()).map_err(|_| "That isn't a web address".to_string())?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("Enter a web address starting with http:// or https://".into());
+    }
+    let images = project_dir(&app, &project)?.join("images");
+    std::fs::create_dir_all(&images).map_err(|e| e.to_string())?;
+    let prefix = format!("capture-{}-", chrono::Local::now().timestamp_millis());
+    let renderer = renderer(&app)?;
+    let node = find_node()?;
+    let work = work_dir(&app, &renderer)?;
+    let script = renderer.dir.join("render.mjs");
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        Command::new(node)
+            .arg(script)
+            .args(["--capture", url.as_str(), "--out"])
+            .arg(images)
+            .args(["--prefix", &prefix])
+            .current_dir(work)
+            .stdin(Stdio::null())
+            .output()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("Could not start the page capture: {e}"))?;
+    let errors = String::from_utf8_lossy(&output.stderr);
+    let last = |count: usize| errors.lines().filter(|l| !l.trim().is_empty()).rev().take(count).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n");
+    if !output.status.success() {
+        return Err(if output.status.code() == Some(NO_BROWSER) { last(2) } else { last(3) });
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .find_map(|v| v.get("capture").cloned())
+        .ok_or_else(|| "The page capture returned nothing".to_string())
 }
 
 #[tauri::command]

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
 import type { LayerFx } from '../editor/model';
 import { SCENE_FPS, SCENES } from './scenes';
@@ -31,14 +31,18 @@ export interface SceneLayerHandle {
 }
 
 /**
- * Scenes (or overlays) drawn by Remotion Players stacked over the preview canvas. Each keeps its
- * Player mounted (hidden when off screen) so its fonts and layout are ready when the playhead
- * reaches it; the editor's clock moves them with seekTo, never their own playback. Overlays get
+ * Scenes (or overlays) drawn by Remotion Players stacked over the preview canvas. Players are
+ * mounted only for the scenes on screen and the one before and after (hidden until shown), so
+ * fonts and layout are ready when the playhead reaches the next one without every scene of a
+ * long video running live; the editor's clock moves them with seekTo, never their own playback. Overlays get
  * a transparent background, as in their rendered files.
  */
 export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; overlay?: boolean; env: SceneEnv; width: number; height: number }>(function SceneLayer({ pieces, overlay = false, env, width, height }, ref) {
-    const layers = useRef(new Map<string, { element: HTMLDivElement | null; player: PlayerRef | null; frame: number; visible: boolean }>());
+    const layers = useRef(new Map<string, { element: HTMLDivElement | null; inner: HTMLDivElement | null; player: PlayerRef | null; frame: number; visible: boolean }>());
     const dipRef = useRef<HTMLDivElement | null>(null);
+    // Scene indices that get a mounted Player: those on screen plus one either side.
+    const [mounted, setMounted] = useState<[number, number]>([0, 1]);
+    const mountedRef = useRef(mounted);
     const scenes = useMemo(
         () =>
             pieces.flatMap((item) => {
@@ -57,7 +61,7 @@ export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; o
     const layer = (id: string) => {
         let entry = layers.current.get(id);
         if (!entry) {
-            entry = { element: null, player: null, frame: -1, visible: false };
+            entry = { element: null, inner: null, player: null, frame: -1, visible: false };
             layers.current.set(id, entry);
         }
         return entry;
@@ -74,6 +78,14 @@ export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; o
                     dipElement.style.opacity = String(dip.opacity);
                 }
             }
+            const on = scenes.flatMap((s, i) => (active.some((a) => a.id === s.item.id && a.opacity > 0) ? [i] : []));
+            if (on.length) {
+                const range: [number, number] = [Math.max(0, Math.min(...on) - 1), Math.max(...on) + 1];
+                if (range[0] !== mountedRef.current[0] || range[1] !== mountedRef.current[1]) {
+                    mountedRef.current = range;
+                    setMounted(range);
+                }
+            }
             for (const [id, entry] of layers.current) {
                 const scene = active.find((s) => s.id === id);
                 const visible = !!scene && scene.opacity > 0;
@@ -85,6 +97,7 @@ export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; o
                         entry.element.style.transform = style.transform;
                         entry.element.style.clipPath = style.clipPath;
                         entry.element.style.filter = style.filter;
+                        if (entry.inner) entry.inner.style.transform = style.inner;
                     }
                 }
                 entry.visible = visible;
@@ -103,7 +116,7 @@ export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; o
 
     return (
         <div className='pointer-events-none absolute inset-0 overflow-hidden rounded-lg'>
-            {scenes.map(({ item, definition, props, frames }) => (
+            {scenes.map(({ item, definition, props, frames }, index) => index >= mounted[0] && index <= mounted[1] && (
                 <div
                     key={item.id}
                     ref={(element) => {
@@ -112,20 +125,27 @@ export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; o
                     className='absolute inset-0'
                     style={{ visibility: 'hidden' }}
                 >
-                    <Player
-                        ref={(player: PlayerRef | null) => {
-                            const entry = layer(item.id);
-                            entry.player = player;
-                            entry.frame = -1;
+                    <div
+                        ref={(inner) => {
+                            layer(item.id).inner = inner;
                         }}
-                        component={definition.component}
-                        inputProps={props}
-                        durationInFrames={frames}
-                        fps={SCENE_FPS}
-                        compositionWidth={width}
-                        compositionHeight={height}
-                        style={{ width: '100%', height: '100%' }}
-                    />
+                        className='absolute inset-0'
+                    >
+                        <Player
+                            ref={(player: PlayerRef | null) => {
+                                const entry = layer(item.id);
+                                entry.player = player;
+                                entry.frame = -1;
+                            }}
+                            component={definition.component}
+                            inputProps={props}
+                            durationInFrames={frames}
+                            fps={SCENE_FPS}
+                            compositionWidth={width}
+                            compositionHeight={height}
+                            style={{ width: '100%', height: '100%' }}
+                        />
+                    </div>
                 </div>
             ))}
             {!overlay && <div ref={dipRef} className='absolute inset-0' style={{ visibility: 'hidden' }} />}

@@ -144,6 +144,10 @@ const SCENE_CHOICES = [
     { id: 'VideoClip', hint: 'A video clip you add (b-roll)' },
     { id: 'Waveform', hint: 'Bars moving with an audio file' },
     { id: 'Showcase3D', hint: 'A phone, laptop or your logo in 3D' },
+    { id: 'TextAnimation', hint: '', overlayHint: 'Text that types, rises, blurs or sweeps in' },
+    { id: 'ImageAnimation', hint: '', overlayHint: 'A picture that rises, fades, wipes or slides in' },
+    { id: 'ElementAnimation', hint: '', overlayHint: 'A drawn check, arrow, underline, ring, sparkles or confetti' },
+    { id: 'ProgressAnimation', hint: '', overlayHint: 'A ring or bar filling to a number' },
     {
         id: 'Custom',
         hint: 'Your own layers: text, shapes, icons, animated elements',
@@ -181,7 +185,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     /** A selected voiceover or sound effect. */
     const [selectedAudioId, setSelectedAudioId] = useState<string | null>(null);
     /** What the ✨ menu adds: a scene in the timeline, or an overlay drawn over it. */
-    const [addAs, setAddAs] = useState<'scene' | 'overlay'>('scene');
+    const [addAs, setAddAs] = useState<'scene' | 'overlay' | 'animation'>('scene');
     const [sceneQuery, setSceneQuery] = useState('');
     /** True when the recording had no edit.json yet, so auto-zoom runs once the cursor loads. */
     const freshRef = useRef(false);
@@ -349,7 +353,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         pendingSave.current = null;
         setSaveState('saving');
         return api
-            .saveEdit(project.id, value)
+            .saveEdit(project.id, value, studio ? totalDuration(value.items) : undefined)
             .then(() => setSaveState(pendingSave.current ? 'pending' : 'saved'))
             .catch((error) => {
                 setSaveState('error');
@@ -1198,9 +1202,11 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                     {(close) => {
                                         const sceneChoices = SCENE_CHOICES.filter(
                                             ({ id, hint, overlayHint }) =>
-                                                (addAs === 'scene' ? canBeScene(id) : canBeOverlay(id)) &&
+                                                (addAs === 'animation'
+                                                    ? SCENES[id].group === 'animation'
+                                                    : SCENES[id].group !== 'animation' && (addAs === 'scene' ? canBeScene(id) : canBeOverlay(id))) &&
                                                 !(studio && needsRecording(id)) &&
-                                                `${SCENES[id].label} ${addAs === 'scene' ? hint : overlayHint}`
+                                                `${SCENES[id].label} ${addAs === 'scene' ? hint : overlayHint || hint}`
                                                     .toLowerCase()
                                                     .includes(sceneQuery.trim().toLowerCase())
                                         );
@@ -1222,13 +1228,18 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                                                 label: 'Overlay',
                                                                 hint: 'Drawn over the video',
                                                             },
+                                                            {
+                                                                value: 'animation',
+                                                                label: 'Animation',
+                                                                hint: 'Text, image and element animations',
+                                                            },
                                                         ]}
                                                     />
                                                     <input
                                                         autoFocus
                                                         value={sceneQuery}
                                                         onChange={(e) => setSceneQuery(e.target.value)}
-                                                        placeholder='Search scenes'
+                                                        placeholder={addAs === 'animation' ? 'Search animations' : 'Search scenes'}
                                                         aria-label='Search scenes'
                                                         className='h-7 w-full rounded-md border border-line bg-panel-2 px-2 text-xs text-fg outline-none focus:border-accent'
                                                     />
@@ -1237,7 +1248,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                                 <div className='max-h-[min(60vh,28rem)] space-y-0.5 overflow-y-auto overscroll-contain'>
                                                     {sceneChoices.length === 0 && (
                                                         <p className='px-2 py-3 text-xs text-muted'>
-                                                            No {addAs === 'scene' ? 'scenes' : 'overlays'} match “{sceneQuery.trim()}”. Try another word.
+                                                            No {addAs === 'scene' ? 'scenes' : addAs === 'overlay' ? 'overlays' : 'animations'} match “{sceneQuery.trim()}”. Try another word.
                                                         </p>
                                                     )}
                                                     {sceneChoices.map(({ id, hint, overlayHint }) => (
@@ -1245,13 +1256,13 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                                             key={id}
                                                             onClick={() => {
                                                                 close();
-                                                                if (addAs === 'scene') addScene(id);
+                                                                if (addAs === 'scene' || (addAs === 'animation' && !canBeOverlay(id))) addScene(id);
                                                                 else addOverlay(id);
                                                             }}
                                                             className='block w-full rounded-lg px-2 py-1.5 text-left hover:bg-panel-2'
                                                         >
                                                             <div className='text-sm text-fg'>{SCENES[id].label}</div>
-                                                            <div className='text-xs text-muted'>{addAs === 'scene' ? hint : overlayHint}</div>
+                                                            <div className='text-xs text-muted'>{addAs === 'scene' ? hint : overlayHint || hint}</div>
                                                         </button>
                                                     ))}
                                                 </div>
@@ -1573,7 +1584,12 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             </div>
 
             {showShortcuts && <ShortcutsSheet onClose={() => setShowShortcuts(false)} />}
-            {exporting && <ExportDialog project={project} edit={edit} cursor={cursor} onClose={() => setExporting(false)} />}
+            {exporting && <ExportDialog
+                    project={project}
+                    edit={edit}
+                    cursor={cursor}
+                    onClose={() => setExporting(false)}
+                />}
 
             {/* Frame sources for the canvas. Kept in the page (not display:none) so WebKit keeps decoding them. */}
             <div className='pointer-events-none fixed left-0 top-0 h-px w-px overflow-hidden opacity-0' aria-hidden>

@@ -11,6 +11,10 @@ import { resumeStep, setResumeStep, setupDone, type SetupStep } from '../lib/set
 import { RecorderPanel } from '../components/RecorderPanel';
 import { EmptyLibrary, LibraryHeader, RecordingsList, type LibraryView } from '../components/RecordingsList';
 import { EditorView } from './EditorView';
+import { defaultEdit, totalDuration } from '../editor/model';
+import { loadBrandKits, setBrandKits } from '../studio/brandKits';
+import { NewStudioDialog } from '../studio/NewStudioDialog';
+import { templateBackground, templateItems, templateKit, type StudioTemplate } from '../studio/templates';
 import { Button, IconButton, Segmented } from '../components/ui';
 import { SettingsDialog } from '../components/SettingsDialog';
 
@@ -55,14 +59,25 @@ export function MainWindow() {
             .catch((error) => toast.error(errorMessage(error)));
     }, []);
 
-    const newStudioVideo = () =>
-        api
-            .createStudioProject()
-            .then((project) => {
-                refreshRecordings();
-                setEditing(project);
-            })
-            .catch((error) => toast.error(errorMessage(error)));
+    const [studioOpen, setStudioOpen] = useState(false);
+
+    /** Creates the project; a template also adds its kit and saves its scenes first, so the editor opens on them. */
+    const newStudioVideo = async (template: StudioTemplate | null) => {
+        setStudioOpen(false);
+        try {
+            const project = await api.createStudioProject();
+            if (template) {
+                const kit = templateKit(template);
+                setBrandKits([...(await loadBrandKits()), kit]);
+                const items = templateItems(template);
+                await api.saveEdit(project.id, { ...defaultEdit(project), items, brandKit: kit.id, background: templateBackground(template) }, totalDuration(items));
+            }
+            refreshRecordings();
+            setEditing(project);
+        } catch (error) {
+            toast.error(errorMessage(error));
+        }
+    };
 
     const refreshPermissions = useCallback(() => {
         api.permissions()
@@ -153,7 +168,7 @@ export function MainWindow() {
                     </span>
                     <span className='font-serif text-[17px] font-medium tracking-tight'>Capturita</span>
                     <div className='ml-auto flex items-center gap-2'>
-                        <Button size='sm' onClick={newStudioVideo} title='A motion-graphics video without a recording: teasers, “coming soon”, launch cards'>
+                        <Button size='sm' onClick={() => setStudioOpen(true)} title='A motion-graphics video without a recording: teasers, “coming soon”, launch cards'>
                             <Sparkles className='h-4 w-4' /> New Studio video
                         </Button>
                         <Button variant='primary' size='sm' onClick={() => setRecorderOpen(true)} title='New recording (or press ⌘⇧R anywhere)'>
@@ -173,7 +188,7 @@ export function MainWindow() {
                     {recordings.length === 0 ? (
                         <section className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto'>
                             <LibraryHeader recordings={recordings} />
-                            <EmptyLibrary onNew={() => setRecorderOpen(true)} onNewStudio={newStudioVideo} />
+                            <EmptyLibrary onNew={() => setRecorderOpen(true)} onNewStudio={() => setStudioOpen(true)} />
                         </section>
                     ) : (
                         <section className='flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1'>
@@ -218,6 +233,7 @@ export function MainWindow() {
                     )}
                 </main>
 
+                {studioOpen && <NewStudioDialog onClose={() => setStudioOpen(false)} onContinue={newStudioVideo} />}
                 {settingsOpen && (
                     <SettingsDialog
                         onClose={() => setSettingsOpen(false)}

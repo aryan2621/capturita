@@ -1,10 +1,12 @@
 import { fileUrl, type CursorData, type Project } from '../lib/api';
 import { cameraViewport, cursorVisibility, smoothCursorAt } from './motion';
-import { captionAtOutput, fontStack, hideActive, textFrame, type Caption, type CaptionStyle, type HideRegion, type LayerFx, type TextFrame, type Background, type CursorShape, type Edit, type NormalizedRect, type TextOverlay } from './model';
+import { captionAtOutput, type Dip, diagonalPoints, layerFilter, STREAK, fontStack, hideActive, textFrame, type Caption, type CaptionStyle, type HideRegion, type LayerFx, type TextFrame, type Background, type CursorShape, type Edit, type NormalizedRect, type TextOverlay } from './model';
 
 /** Cursor height in screen points before scaling. */
 const CURSOR_POINTS = 22;
 const CLICK_DURATION = 0.45;
+/** Seconds either side of a click that the cursor shows as a pointing hand, when the edit doesn't say. */
+const HAND_WINDOW = 1;
 /** The cursor dips to this size on a click, then springs back. */
 const PRESS_DEPTH = 0.22;
 const PRESS_IN = 0.08;
@@ -179,6 +181,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, width: number, height: 
             if (style.clickStyle === 'none' || time < t || time >= t + CLICK_DURATION) continue;
             drawClick(ctx, style.clickStyle, style.clickColor, toFrame(x, y), (time - t) / CLICK_DURATION, unit, scale, button === 'right');
         }
+        const shape: CursorShape = style.clickHand && cursor.clicks.some(([t]) => Math.abs(time - t) <= (style.handWindow ?? HAND_WINDOW)) ? 'hand' : style.shape;
         const alpha = style.hideIdle ? cursorVisibility(cursor, time, style.idleDelay) : 1;
         const pointer = alpha > 0.001 ? smoothCursorAt(cursor, time, style.animation) : null;
         if (pointer) {
@@ -195,10 +198,10 @@ export function drawFrame(ctx: CanvasRenderingContext2D, width: number, height: 
             for (let i = copies; i >= 1; i--) {
                 const k = i / (copies + 1);
                 ctx.globalAlpha = alpha * (1 - k) * 0.35;
-                drawCursor(ctx, style.shape, point.x + (trail.x - point.x) * k, point.y + (trail.y - point.y) * k, size);
+                drawCursor(ctx, shape, point.x + (trail.x - point.x) * k, point.y + (trail.y - point.y) * k, size);
             }
             ctx.globalAlpha = alpha;
-            drawCursor(ctx, style.shape, point.x, point.y, size);
+            drawCursor(ctx, shape, point.x, point.y, size);
             ctx.restore();
         }
     }
@@ -569,6 +572,9 @@ export async function preloadBackground(project: Project, background: Background
     if (!image.complete) await image.decode().catch(() => {});
 }
 
+/** Scratch canvas for directional blur, reused between frames. */
+let streakCanvas: HTMLCanvasElement | null = null;
+
 /**
  * Draws one layer (a rendered scene frame, or the recording drawn on its own canvas) with a
  * transition look: clipped, moved, scaled about the centre, blurred and faded. The preview's
@@ -584,21 +590,47 @@ export function drawLayer(ctx: CanvasRenderingContext2D, image: CanvasImageSourc
         ctx.rect(left * width, top * height, Math.max(0, (1 - left - right) * width), Math.max(0, (1 - top - bottom) * height));
         ctx.clip();
     }
+    if (fx.mask) {
+        ctx.beginPath();
+        if (fx.mask.shape === 'circle') ctx.arc(width / 2, height / 2, fx.mask.progress * Math.hypot(width, height) / 2, 0, Math.PI * 2);
+        else diagonalPoints(fx.mask.progress).forEach(([x, y], i) => (i ? ctx.lineTo(x * width, y * height) : ctx.moveTo(x * width, y * height)));
+        ctx.clip();
+    }
     ctx.translate(fx.x * width + width / 2, fx.y * height + height / 2);
     ctx.scale(fx.scale, fx.scale);
     ctx.translate(-width / 2, -height / 2);
-    if (fx.blur > 0) ctx.filter = `blur(${(fx.blur * Math.min(width, height)).toFixed(2)}px)`;
-    ctx.drawImage(image, 0, 0, width, height);
+    const short = Math.min(width, height);
+    const axis = fx.blur > 0 ? fx.blurAxis : undefined;
+    let source = image;
+    if (axis) {
+        // A streak: blur round in a copy squashed along the axis, then draw it stretched back.
+        const [w, h] = axis === 'x' ? [Math.ceil(width / STREAK), height] : [width, Math.ceil(height / STREAK)];
+        const scratch = (streakCanvas ??= document.createElement('canvas'));
+        scratch.width = w;
+        scratch.height = h;
+        const sctx = scratch.getContext('2d')!;
+        sctx.filter = layerFilter({ ...fx, dim: 0 }, short);
+        sctx.drawImage(image, 0, 0, w, h);
+        source = scratch;
+    }
+    const filter = layerFilter(fx, short, !axis);
+    if (filter) ctx.filter = filter;
+    ctx.drawImage(source, 0, 0, width, height);
     ctx.restore();
 }
 
 /** The colour wash of a dip transition, over the items and under overlays. */
-export function drawDip(ctx: CanvasRenderingContext2D, dip: { color: string; opacity: number } | null, width: number, height: number) {
+export function drawDip(ctx: CanvasRenderingContext2D, dip: Dip | null, width: number, height: number) {
     if (!dip || dip.opacity <= 0) return;
     ctx.save();
     ctx.globalAlpha = dip.opacity;
     ctx.fillStyle = dip.color;
-    ctx.fillRect(0, 0, width, height);
+    if (dip.radius === undefined) ctx.fillRect(0, 0, width, height);
+    else {
+        ctx.beginPath();
+        ctx.arc(width / 2, height / 2, dip.radius * Math.hypot(width, height) / 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
     ctx.restore();
 }
 
@@ -656,33 +688,28 @@ function drawCursor(ctx: CanvasRenderingContext2D, shape: CursorShape, x: number
     else drawArrow(ctx, x, y, size);
 }
 
-/** A pointing hand, drawn in a 24×24 box with the fingertip at (10.5, 2). */
+/** The pointing hand: index finger up, three curled fingers, thumb out. Drawn on a ~340×440 grid with the fingertip at (137, 45). */
+const HAND = new Path2D('M112 70 A25 25 0 0 1 162 70 L162 150 A22.5 22.5 0 0 1 207 150 L207 160 A22.5 22.5 0 0 1 252 160 L252 170 A22.5 22.5 0 0 1 297 170 L297 285 C297 335 255 365 205 365 L165 365 C140 365 120 350 105 330 L30 245 A25 25 0 0 1 60 205 L112 245 Z');
+const HAND_LINES = new Path2D('M162 150 L162 228 M207 160 L207 228 M252 170 L252 228');
+
+/** A white pointing hand with a heavy black outline, its fingertip at (x, y), about `size` tall. */
 function drawHand(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
-    const k = size / 24;
+    const k = size / 300;
     ctx.save();
-    ctx.translate(x - 10.5 * k, y - 2 * k);
+    ctx.translate(x - 137 * k, y - 45 * k);
     ctx.scale(k, k);
-    ctx.beginPath();
-    ctx.roundRect(8.5, 1, 4, 12, 2); // index finger
-    ctx.roundRect(12.2, 8.5, 3.4, 6, 1.7); // middle finger
-    ctx.roundRect(15.4, 9.5, 3.2, 5.5, 1.6); // ring finger
-    ctx.roundRect(5.2, 11, 3.6, 5.5, 1.8); // thumb
-    ctx.roundRect(6.5, 11.5, 12.5, 10, [2, 2, 4, 4]); // palm
     ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
-    ctx.shadowBlur = 3;
-    ctx.shadowOffsetY = 1;
+    ctx.shadowBlur = 3 / k;
+    ctx.shadowOffsetY = 1 / k;
     ctx.fillStyle = '#fff';
-    ctx.fill('nonzero');
+    ctx.fill(HAND);
     ctx.shadowColor = 'transparent';
-    ctx.lineWidth = 1.3;
+    ctx.lineWidth = 15;
     ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.strokeStyle = '#111';
-    ctx.stroke();
-    // Fill again so the outlines between overlapping fingers disappear.
-    ctx.fill('nonzero');
-    ctx.beginPath();
-    ctx.roundRect(8.5, 1, 4, 12, 2);
-    ctx.stroke();
+    ctx.stroke(HAND);
+    ctx.stroke(HAND_LINES);
     ctx.restore();
 }
 

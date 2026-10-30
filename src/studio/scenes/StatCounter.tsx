@@ -1,6 +1,7 @@
+import { useBeatPulse } from './beat';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
-import { BrandTexture, useExit } from './SceneBase';
+import { BrandTexture, Depth, useExit } from './SceneBase';
 import { bodyFont, displayFont, type Brand } from './assets';
 import { fitSize } from './text';
 
@@ -76,7 +77,8 @@ export function StatCounter({ heading, stats, chart, chartData, transparent, bra
                 opacity: exit,
             }}
         >
-            <BrandTexture brand={brand} transparent={transparent} />
+            <Depth z={-0.5}><BrandTexture brand={brand} transparent={transparent} /></Depth>
+            <Depth z={1} style={{ alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: unit * (portrait ? 6 : 5) }}>
                 {heading && (
                     <div style={{ color: colors.muted, fontSize: unit * 3.4, fontWeight: 600, lineHeight: 1.2, letterSpacing: unit * 0.3, textTransform: 'uppercase', opacity: headingIn, textAlign: 'center' }}>
@@ -98,6 +100,7 @@ export function StatCounter({ heading, stats, chart, chartData, transparent, bra
                     </div>
                 )}
             </div>
+            </Depth>
         </AbsoluteFill>
     );
 }
@@ -106,6 +109,7 @@ function Counter({ stat, frame, fps, size, width, unit, brand }: { stat: Stat; f
     const { colors } = brand;
     const final = num(stat?.value);
     const format: StatFormat = stat?.format ?? 'int';
+    const pulse = useBeatPulse(0.25);
     const p = spring({ frame, fps, config: { damping: 30, stiffness: 60 }, durationInFrames: 50 });
     const appear = interpolate(frame, [0, 6], [0, 1], clamp);
     const current = format === 'compact' || !Number.isInteger(final) ? final * p : Math.round(final * p);
@@ -113,7 +117,7 @@ function Counter({ stat, frame, fps, size, width, unit, brand }: { stat: Stat; f
     const landed = interpolate(frame, [40, 46, 54], [0, 1, 0], clamp);
     const valueStyle = { fontFamily: displayFont(brand), fontSize: size, fontWeight: 800, lineHeight: 1, letterSpacing: -size * 0.02, fontVariantNumeric: 'tabular-nums' as const, gridArea: '1 / 1', textAlign: 'center' as const, whiteSpace: 'nowrap' as const };
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: appear, transform: `translateY(${(1 - appear) * unit * 2}px) scale(${1 + landed * 0.03})` }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: appear, transform: `translateY(${(1 - appear) * unit * 2}px) scale(${1 + landed * 0.03 + pulse * 0.025})` }}>
             {/* The final value, hidden, holds the width so the count doesn't shift as digits change. */}
             <div style={{ display: 'grid' }}>
                 <span style={{ ...valueStyle, visibility: 'hidden' }}>{text(final)}</span>

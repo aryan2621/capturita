@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Globe, ImagePlus, LayoutGrid, Loader2, Palette, Plus, Stamp, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, ColorField, FontPicker, IconButton, MenuButton, Segmented, Select } from '../components/ui';
+import { Button, ColorField, FontPicker, IconButton, Segmented, Select } from '../components/ui';
 import { errorMessage } from '../lib/api';
 import type { Edit } from '../editor/model';
+import { fitToMusic } from '../editor/beats';
 import { brandLogoUrl, importBrandLogo, kitFromSite, newBrandKit, paletteFromLogo, setBrandKits, useBrandKits, type BrandKit } from './brandKits';
 import type { BrandColors } from './scenes/assets';
 import { fontStack, SCENE_FONTS } from './scenes/fonts';
 import { KIT_PRESETS, type KitPreset } from './presets';
-import { applyStyle, STYLES } from './styles';
+import { LookGrid } from './LookGrid';
+import { applyStyle, shuffleStyle, STYLES } from './styles';
 
 const COLOR_FIELDS: { key: keyof BrandColors; label: string }[] = [
     { key: 'bg', label: 'Background' },
@@ -58,7 +60,7 @@ export function BrandSection({ edit, onChange }: { edit: Edit; onChange: (patch:
         onChange(
             {
                 brandKit: next.id,
-                ...(styled ? { items: applyStyle(edit.items, style) } : {}),
+                ...(styled ? { items: fitToMusic(applyStyle(edit.items, style), edit.audio.music) } : {}),
             },
             `preset-${Date.now()}`
         );
@@ -210,20 +212,18 @@ export function BrandSection({ edit, onChange }: { edit: Edit; onChange: (patch:
                 </div>
             )}
             {edit.items.some((item) => item.kind === 'scene') && (
-                <MenuButton
-                    label='Apply a video style…'
-                    items={STYLES.map((style) => ({
-                        key: style.id,
-                        label: style.label,
-                        hint: style.hint,
-                    }))}
-                    onPick={(id) => {
-                        const style = STYLES.find((s) => s.id === id);
-                        if (!style) return;
-                        onChange({ items: applyStyle(edit.items, style) }, `style-${Date.now()}`);
-                        toast.success(`${style.label} style: transitions, pacing and camera updated`);
-                    }}
-                />
+                <div className='space-y-2'>
+                    <span className='block text-xs'>Apply a look to the scenes</span>
+                    <LookGrid
+                        styles={STYLES}
+                        onPick={(id) => {
+                            const style = id === 'shuffle' ? shuffleStyle() : STYLES.find((s) => s.id === id);
+                            if (!style) return;
+                            onChange({ items: fitToMusic(applyStyle(edit.items, style), edit.audio.music) }, `style-${Date.now()}`);
+                            toast.success(`${style.label} look: ${style.hint}`);
+                        }}
+                    />
+                </div>
             )}
             {!kit && <p className='text-xs text-muted'>Motion scenes use the default colours. Pick or make a kit to use your own colours, fonts and logo.</p>}
             {kit && (

@@ -1,10 +1,11 @@
+import { useBeatPulse } from './beat';
 import type { CSSProperties } from 'react';
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
-import { BrandTexture, useExit } from './SceneBase';
+import { BrandTexture, Depth, useExit } from './SceneBase';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
-export type LogoStingStyle = 'pop' | 'wipe' | 'draw' | 'glow';
+export type LogoStingStyle = 'pop' | 'wipe' | 'draw' | 'glow' | 'squash';
 
 export interface LogoStingProps {
     style: LogoStingStyle;
@@ -21,11 +22,12 @@ const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 
 /** Frame the logo lands on, per style; the burst and the wordmark key off it. */
 /** Frame the logo lands on, per style. */
-export const LOGO_HITS: Record<LogoStingStyle, number> = { pop: 10, wipe: 16, draw: 22, glow: 18 };
+export const LOGO_HITS: Record<LogoStingStyle, number> = { pop: 10, wipe: 16, draw: 22, glow: 18, squash: 14 };
 
 /** A short brand reveal: the logo arrives (pop, wipe, ring or glow), an accent burst fires, the name and tagline follow. */
 export function LogoSting({ style, wordmark, tagline, burst, transparent, brand, assets }: LogoStingProps) {
     const frame = useCurrentFrame();
+    const beatPulse = useBeatPulse(0.25);
     const { fps, width, height, durationInFrames } = useVideoConfig();
     const unit = Math.min(width, height) / 100;
     // Square and portrait frames stack the name under the logo.
@@ -45,6 +47,9 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
         logoStyle = { transform: `scale(${pop}) rotate(${(1 - pop) * -12}deg)` };
     } else if (kind === 'wipe') {
         logoStyle = { clipPath: `inset(0 ${(1 - smooth) * 100}% 0 0)`, transform: `translateX(${(1 - smooth) * -unit * 4}px)` };
+    } else if (kind === 'squash') {
+        // Flat line to full height; a crossfade from a drawn shape would read as cheap.
+        logoStyle = { transform: `scaleY(${0.014 + 0.986 * smooth})`, opacity: interpolate(frame, [0, 3], [0, 1], clamp) };
     } else if (kind === 'draw') {
         const inside = spring({ frame: frame - hit + 6, fps, config: { damping: 14, stiffness: 140 } });
         logoStyle = { opacity: inside, transform: `scale(${0.7 + inside * 0.3})` };
@@ -60,7 +65,7 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
     const ringOut = spring({ frame: frame - hit - 4, fps, config: { damping: 200 }, durationInFrames: 16 });
 
     // Glow behind the logo: peaks on the hit, settles to a soft halo.
-    const glow = kind === 'glow' ? interpolate(frame, [0, hit, hit + 20], [0, 1, 0.45], clamp) : interpolate(frame, [hit, hit + 6, hit + 30], [0, 0.5, 0.2], clamp);
+    const glow = (kind === 'glow' ? interpolate(frame, [0, hit, hit + 20], [0, 1, 0.45], clamp) : interpolate(frame, [hit, hit + 6, hit + 30], [0, 0.5, 0.2], clamp)) * (1 + beatPulse * 0.4);
 
     const nameIn = spring({ frame: frame - hit - 4, fps, config: { damping: 200 } });
     const taglineIn = spring({ frame: frame - hit - 14, fps, config: { damping: 200 } });
@@ -87,7 +92,8 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
                 opacity: exit,
             }}
         >
-            <BrandTexture brand={brand} transparent={transparent} />
+            <Depth z={-0.5}><BrandTexture brand={brand} transparent={transparent} /></Depth>
+            <Depth z={1} style={{ alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', transform: `scale(${settle})` }}>
                 <div style={{ display: 'flex', flexDirection: stacked ? 'column' : 'row', alignItems: 'center', gap: unit * (stacked ? 4 : 4.5) }}>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -158,6 +164,7 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
                     </div>
                 )}
             </div>
+            </Depth>
         </AbsoluteFill>
     );
 }

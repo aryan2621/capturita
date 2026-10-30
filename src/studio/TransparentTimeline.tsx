@@ -1,6 +1,6 @@
 import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import { overlaysAt, positionAt, type OverlayClip, type TimelineItem } from '../editor/model';
-import { fxStyle } from './fxStyle';
+import { dipStyle, fxStyle } from './fxStyle';
 import { SCENE_FPS, SCENES } from './scenes';
 import type { SceneAssets } from './scenes/assets';
 
@@ -46,11 +46,13 @@ export function TransparentTimeline({ items, overlays, assets }: TransparentTime
                 const style = fxStyle(scene.fx, shortSide);
                 return (
                     <AbsoluteFill key={scene.item.id} style={{ opacity: scene.opacity, transform: style.transform || undefined, clipPath: style.clipPath || undefined, filter: style.filter || undefined }}>
-                        <Piece scene={scene.item.scene} props={scene.item.props} time={scene.time} duration={scene.item.duration} assets={assets} />
+                        <AbsoluteFill style={{ transform: style.inner || undefined }}>
+                            <Piece scene={scene.item.scene} props={scene.item.props} time={scene.time} duration={scene.item.duration} assets={assets} />
+                        </AbsoluteFill>
                     </AbsoluteFill>
                 );
             })}
-            {position?.dip && position.dip.opacity > 0 && <AbsoluteFill style={{ background: position.dip.color, opacity: position.dip.opacity }} />}
+            {position?.dip && position.dip.opacity > 0 && <AbsoluteFill style={dipStyle(position.dip)} />}
             {overlaysAt(overlays, t).map(({ item, time }) => (
                 <AbsoluteFill key={item.id}>
                     <Piece scene={item.scene} props={item.props} time={time} duration={item.duration} assets={assets} />

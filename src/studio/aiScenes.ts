@@ -12,7 +12,7 @@ import { Thumbnail } from '@remotion/player';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { CursorData, Project } from '../lib/api';
-import { DEFAULT_CROSSFADE, insertScene, isRecording, newId, outputTimeOf, recordingCaptions, totalDuration, type Edit, type OverlayClip, type SceneClip, type TimelineItem, type Transition } from '../editor/model';
+import { insertScene, isRecording, newId, outputTimeOf, recordingCaptions, totalDuration, type Edit, type OverlayClip, type SceneClip, type TimelineItem } from '../editor/model';
 import { canBeOverlay, canBeScene, needsRecording, SCENE_FPS, SCENES, sceneLabel, type ListItemField, type SceneField } from './scenes';
 import type { SceneEnv, Segment, TargetRect } from './scenes/assets';
 import { initialSceneProps, recordingRange, sceneInputProps } from './sceneEnv';
@@ -74,6 +74,53 @@ const TEXT_LIMITS: Record<string, number> = {
     'TitleReveal.subtitle': 70,
     'KineticStatement.lines.text': 28,
     'KineticStatement.emphasis': 40,
+    'KineticType.text': 70,
+    'KineticType.emphasis': 40,
+    'KineticType.swaps': 60,
+    'FeatureOrbit.heading': 36,
+    'FeatureOrbit.features.text': 20,
+    'CodeToUi.heading': 36,
+    'CodeToUi.fileName': 24,
+    'CodeToUi.code': 320,
+    'CodeToUi.title': 28,
+    'CodeToUi.toggles.text': 22,
+    'CodeToUi.rows.text': 28,
+    'CodeToUi.toast': 30,
+    'NetworkField.heading': 36,
+    'NetworkField.subtitle': 60,
+    'Text3D.text': 30,
+    'Text3D.subtitle': 60,
+    'BigNumber.value': 8,
+    'BigNumber.label': 40,
+    'Chart.heading': 40,
+    'Chart.points.label': 10,
+    'CursorDemo.title': 28,
+    'CursorDemo.typed': 30,
+    'CursorDemo.button': 16,
+    'CursorDemo.result': 34,
+    'Changelog.heading': 30,
+    'Changelog.entries.version': 8,
+    'Changelog.entries.text': 40,
+    'SocialProof.reviews': 36,
+    'SocialProof.badge': 30,
+    'Locations.heading': 36,
+    'Locations.places.name': 18,
+    'Countdown.label': 36,
+    'Countdown.note': 40,
+    'Faq.heading': 30,
+    'Faq.items.q': 44,
+    'Faq.items.a': 60,
+    'Chat.heading': 30,
+    'Chat.messages.text': 60,
+    'Notifications.heading': 30,
+    'Notifications.items.title': 24,
+    'Notifications.items.text': 44,
+    'Integrations.center': 20,
+    'Integrations.items.text': 16,
+    'UiCard.title': 28,
+    'UiCard.toggles.text': 22,
+    'UiCard.rows.text': 28,
+    'UiCard.toast': 30,
     'DeviceShowcase.headline': 40,
     'DeviceShowcase.detail': 80,
     'DeviceShowcase.url': 32,
@@ -93,6 +140,10 @@ const TEXT_LIMITS: Record<string, number> = {
     'ScreenshotShowcase.headline': 40,
     'ScreenshotShowcase.detail': 80,
     'ScreenshotShowcase.url': 32,
+    'HowItWorks.heading': 36,
+    'HowItWorks.steps.title': 24,
+    'HowItWorks.steps.text': 60,
+    'UiCollage.headline': 40,
     'FeatureGrid.heading': 36,
     'FeatureGrid.items.title': 22,
     'FeatureGrid.items.text': 48,
@@ -132,7 +183,7 @@ const TEXT_LIMITS: Record<string, number> = {
 const DEFAULT_LIMIT = 60;
 
 /** Texts that can't be empty. */
-const REQUIRED = new Set(['Roadmap.milestones.title', 'Team.people.name', 'FeatureGrid.items.title', 'Testimonial.quote', 'Pricing.tiers.name', 'Pricing.tiers.price', 'CodeTyping.code', 'Comparison.rows.feature', 'TitleReveal.title', 'KineticStatement.lines.text', 'FeatureCallout.label', 'StatCounter.stats.label', 'LowerThird.name', 'EndCard.headline', 'EndCard.cta']);
+const REQUIRED = new Set(['Roadmap.milestones.title', 'Team.people.name', 'FeatureGrid.items.title', 'HowItWorks.steps.title', 'Testimonial.quote', 'Pricing.tiers.name', 'Pricing.tiers.price', 'CodeTyping.code', 'Comparison.rows.feature', 'TitleReveal.title', 'KineticStatement.lines.text', 'KineticType.text', 'CodeToUi.code', 'NetworkField.heading', 'Text3D.text', 'FeatureOrbit.features.text', 'BigNumber.value', 'BigNumber.label', 'UiCard.title', 'FeatureCallout.label', 'StatCounter.stats.label', 'LowerThird.name', 'EndCard.headline', 'EndCard.cta']);
 
 /** Default texts that mean "fill me in"; the model must not leave them. */
 const PLACEHOLDERS = ['your product', 'yourproduct.com', '@yourproduct', 'your name', 'founder, your product', 'one line about what it does', 'customer name', 'role, company', 'one line about this screen', "from 'yourproduct'"];
@@ -141,12 +192,31 @@ const GUIDES: Record<string, string> = {
     LogoSting: 'The brand logo appears with a hit (2–3 s), for the very start. The wordmark is only for a logo without its name in it; usually "". Tagline optional.',
     TitleReveal: 'A full-screen title card: small eyebrow, big title, one-line subtitle. For the opening or a chapter.',
     KineticStatement: 'One bold statement, 1–4 short lines animated word by word. Accent words must appear in the lines.',
+    KineticType: 'Big type that animates on screen, 1–3 short lines (one per row of text), with accent words that appear in the text. Modes: mask-slide, scale-slam, split-letters, word-swap (swaps = 2–4 words that replace each other), marquee.',
+    FeatureOrbit: '3–8 features as short chips (1–3 words each) on a 3D ring around a heading. Names of features the user listed; no claims.',
+    CodeToUi: 'A short code sample (at most about 8 lines) types itself, then turns into an illustrative app window (title, 1–3 switches, up to 3 rows, optional toast). The code is the user\'s; the window labels name features they listed; no numbers.',
+    NetworkField: 'Drifting points joined by lines, with a heading and subtitle over them. Only for products about networks, integrations or connecting things.',
+    Text3D: 'Big 3D extruded title, 1–3 short rows (one per row of text) and an optional subtitle. An alternative to a kinetic statement for the hook.',
+    BigNumber: 'One huge figure counting up with a short label under it. Only a figure the user gave, written as given (10x, $4.2M, 98%).',
+    Chart: 'Animated bars or a line over 2–8 labelled points, for growth over time. Only numbers the user gave, written as given.',
+    CursorDemo: 'A card fills in, a cursor clicks its button and a confirmation appears: a walkthrough of one action without a recording. Labels name the product action.',
+    Changelog: "A what's new list: 2–5 version pills each with one short line. Only changes the user described.",
+    SocialProof: 'A star rating with the review count and an optional badge. Only a rating and counts the user gave, written as given.',
+    Locations: 'A dot map with 1–8 labelled pins. Only places the user named; x and y place each pin as a percentage of the map.',
+    Countdown: 'A launch clock counting down from a start (days, hours, minutes, seconds) with a line under it. Only for a launch the user dated.',
+    Faq: '2–4 question cards each with a one-line answer, for questions the user or the source text raised.',
+    Chat: 'A conversation of 2–5 chat bubbles alternating user and reply, for an assistant, support or messaging feature. Only exchanges the user described; the reply never claims results the source does not.',
+    Notifications: '2–4 notification toasts dropping in, each a short title and line, for activity, alerts or collaboration. Only events the source names.',
+    Integrations: 'The product in the middle with 3–8 tool names around it, each joined by a line. Only tools the source names.',
+    UiCard: 'A generated app window (illustrative, not a screenshot): a title, 1–3 switches, up to 3 list rows and an optional toast. Labels name features the user listed; no numbers or claims.',
     DeviceShowcase: 'The recording plays inside a laptop, browser or window, with a headline beside or below it.',
     FeatureCallout: 'Zooms into the recording and points at one control with a label and a one-line detail.',
     StatCounter: '1–3 numbers counting up, each with a short label; optional chart. Only numbers the user gave.',
     LowerThird: 'Name and role of the person speaking, drawn over the video.',
     EndCard: 'The closing card: headline, call-to-action button, web address, optional QR code and social handles.',
     ScreenshotShowcase: 'A screenshot the user adds, in a phone, tablet, laptop or browser frame, with a headline and detail.',
+    HowItWorks: '2–4 numbered steps joined by a line, each a 1–3 word title and one short line, under a heading.',
+    UiCollage: 'A headline over 3–5 floating screenshots (the user adds the pictures).',
     FeatureGrid: '2–6 features as cards: an icon, a 1–3 word title and one short line each, under a heading.',
     Testimonial: 'One customer quote with their name and role and a star rating. Only quotes the user gave.',
     Pricing: '1–3 plans: name, price, period and features separated by ";". Highlight at most one. Only prices the user gave.',
@@ -167,6 +237,23 @@ const EXAMPLES: Record<string, Record<string, unknown>> = {
     LogoSting: { style: 'pop', wordmark: '', tagline: 'Notes that write themselves', burst: true },
     TitleReveal: { eyebrow: 'Introducing', title: 'Acme Notes 2.0', subtitle: 'Meeting notes that write themselves' },
     KineticStatement: { lines: [{ text: 'Meetings end.' }, { text: 'Notes are done.' }], emphasis: 'done', style: 'punch' },
+    KineticType: { text: 'Record it once.\nShip it everywhere.', emphasis: 'everywhere', mode: 'mask-slide', swaps: '' },
+    FeatureOrbit: { heading: 'Everything in one place', features: [{ text: 'Auto tags' }, { text: 'Instant search' }, { text: 'Shared spaces' }] },
+    CodeToUi: { heading: 'From one command to an app', fileName: 'notes.sh', code: 'acme init\nacme sync', speed: 30, title: 'Acme Notes', toggles: [{ text: 'Auto tags' }, { text: 'Shared spaces' }], rows: [{ text: 'Weekly sync' }, { text: 'Launch plan' }], toast: 'Notes saved' },
+    NetworkField: { heading: 'Connects to your tools', subtitle: 'Slack, Notion and more', density: 30 },
+    Text3D: { text: 'Acme Notes', subtitle: 'Notes that organise themselves' },
+    BigNumber: { value: '98%', label: 'would recommend it', glow: false },
+    Chart: { heading: 'Notes created each month', kind: 'bars', unit: 'k', points: [{ label: 'Jan', value: 12 }, { label: 'Feb', value: 21 }, { label: 'Mar', value: 34 }] },
+    CursorDemo: { title: 'New note', typed: 'Weekly sync', button: 'Create', result: 'Note created' },
+    Changelog: { heading: "What's new", entries: [{ version: 'v2.0', text: 'Faster search' }, { version: 'v2.1', text: 'Shared spaces' }] },
+    SocialProof: { rating: 4.8, reviews: 'from 2,400 reviews', badge: '' },
+    Locations: { heading: 'Teams in 40 countries', places: [{ name: 'London', x: 46, y: 26 }, { name: 'Bangalore', x: 70, y: 56 }] },
+    Countdown: { label: 'Launching soon', days: 3, hours: 4, minutes: 12, seconds: 30, note: 'Live on 12 November' },
+    Faq: { heading: 'Good to know', items: [{ q: 'Is it free?', a: 'Yes, for personal use.' }, { q: 'Does it work offline?', a: 'Yes, everything runs locally.' }] },
+    Chat: { heading: 'Just ask', messages: [{ from: 'user', text: 'Summarise the meeting' }, { from: 'bot', text: 'Three decisions and two owners.' }] },
+    Notifications: { heading: 'Stay in the loop', items: [{ title: 'New comment', text: 'A teammate replied' }, { title: 'Export finished', text: 'Your video is ready' }] },
+    Integrations: { center: 'Acme', items: [{ text: 'Slack' }, { text: 'Notion' }, { text: 'GitHub' }] },
+    UiCard: { title: 'Acme Notes', toggles: [{ text: 'Auto tags' }, { text: 'Shared spaces' }], rows: [{ text: 'Weekly sync' }, { text: 'Launch plan' }], toast: 'Notes saved' },
     DeviceShowcase: { device: 'browser', placement: 'side', headline: 'Your whole team, one page', detail: 'Live notes everyone can edit', url: 'acmenotes.com' },
     FeatureCallout: { motion: 'still', label: 'One-click summary', detail: 'Turns an hour of talk into five bullet points.' },
     StatCounter: {
@@ -181,6 +268,15 @@ const EXAMPLES: Record<string, Record<string, unknown>> = {
     LowerThird: { name: 'Maya Chen', title: 'Founder, Acme Notes', side: 'left', logo: true },
     EndCard: { headline: 'Try Acme Notes free', cta: 'Get started', url: 'acmenotes.com', showQr: true, socials: [{ network: 'x', handle: '@acmenotes' }] },
     ScreenshotShowcase: { device: 'phone', placement: 'side', headline: 'Notes on the go', detail: 'Every meeting summary in your pocket.', url: '', scroll: false },
+    HowItWorks: {
+        heading: 'Notes in three steps',
+        steps: [
+            { title: 'Join a call', text: 'Acme Notes listens in the background.' },
+            { title: 'Talk', text: 'It writes the summary as you go.' },
+            { title: 'Share', text: 'Send the notes to the team in one tap.' },
+        ],
+    },
+    UiCollage: { headline: 'Your meetings, organised' },
     FeatureGrid: {
         heading: 'Why teams pick Acme Notes',
         items: [
@@ -228,16 +324,19 @@ const EXAMPLES: Record<string, Record<string, unknown>> = {
 
 const limitOf = (key: string) => TEXT_LIMITS[key] ?? DEFAULT_LIMIT;
 
+/** Switches the draft or the user sets (look and motion), never the model. */
+const NOT_WRITTEN = new Set(['motionBlur', 'clickZoom']);
 /** Fields the model writes. Segments and targets come from the recording, pictures from the user. */
 const modelFields = (scene: string) =>
-    SCENES[scene].fields.filter((f) => f.type !== 'segment' && f.type !== 'rect' && f.type !== 'image' && !(f.type === 'text' && f.user) && !(f.type === 'list' && f.item.every((cell) => cell.type === 'image')));
+    SCENES[scene].fields.filter((f) => !NOT_WRITTEN.has(f.name) && f.type !== 'segment' && f.type !== 'rect' && f.type !== 'image' && !(f.type === 'text' && f.user) && !(f.type === 'list' && f.item.every((cell) => cell.type === 'image')));
 /** The cells of a list row the model writes (not pictures). */
 const textCells = (cells: ListItemField[]) => cells.filter((cell) => cell.type !== 'image');
 
 // ---- Calling the model ----
 
-export async function callModel<T>(system: string, user: string, schema: object, temperature: number, maxTokens: number): Promise<T> {
-    return invoke<T>('ai_edit', { request: { system, user, schema, temperature, max_tokens: maxTokens } });
+/** `images` (base64 JPEGs) are only seen by Claude; the local model answers from the text alone. */
+export async function callModel<T>(system: string, user: string, schema: object, temperature: number, maxTokens: number, images: string[] = []): Promise<T> {
+    return invoke<T>('ai_edit', { request: { system, user, schema, temperature, max_tokens: maxTokens, images } });
 }
 
 const isUnreadable = (error: unknown) => String((error as { message?: string })?.message ?? error).includes("couldn't be read");
@@ -297,6 +396,8 @@ const KEYWORDS: [RegExp, string][] = [
     [/lower third|name tag|name and (title|role)|speaker|presenter/i, 'LowerThird'],
     [/end card|endcard|outro|call to action|\bcta\b|closing|sign ?up|\bqr\b/i, 'EndCard'],
     [/screenshot|phone|mobile app|ios|android|tablet/i, 'ScreenshotShowcase'],
+    [/how (it )?works|step by step|three steps|\bsteps\b/i, 'HowItWorks'],
+    [/collage|montage|screens? (wall|montage)/i, 'UiCollage'],
     [/feature (grid|list|cards)|\bfeatures\b|benefits|why (us|choose)/i, 'FeatureGrid'],
     [/testimonial|quote|review|customer (said|says)|social proof/i, 'Testimonial'],
     [/pricing|\bprices?\b|price plans?|\btiers\b|subscription|\$\d/i, 'Pricing'],
@@ -842,11 +943,9 @@ export async function askScenes(request: string, ctx: SceneAiContext): Promise<{
 
 // ---- Applying ----
 
-/** Puts a scene at an item index; it and the item after it crossfade, as insertScene does. */
+/** Puts a scene at an item index; it and the item after it join by hard cut, as insertScene does. */
 function insertAtIndex(items: TimelineItem[], at: number, scene: SceneClip): TimelineItem[] {
-    const crossfade: Transition = { type: 'crossfade', duration: DEFAULT_CROSSFADE };
-    const next = items[at];
-    return [...items.slice(0, at), { ...scene, transition: at > 0 ? crossfade : undefined }, ...(next ? [{ ...next, transition: crossfade }] : []), ...items.slice(at + 1)];
+    return [...items.slice(0, at), { ...scene, transition: undefined }, ...(items[at] ? [{ ...items[at], transition: undefined }] : []), ...items.slice(at + 1)];
 }
 
 /**

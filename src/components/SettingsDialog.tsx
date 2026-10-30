@@ -16,22 +16,58 @@ import {
     Monitor,
     Moon,
     Palette,
+    Search,
     Sun,
     Trash2,
     X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, errorMessage, type AiModels, type CaptionModel, type CaptionProgress, type GoogleStatus } from '../lib/api';
+import { api, errorMessage, type AiCloud, type AiModels, type AiOpenAi, type CaptionModel, type CaptionProgress, type GoogleStatus } from '../lib/api';
 import { useTheme, type ThemeChoice } from '../lib/theme';
 import { Button, IconButton, Modal, ProgressBar, Segmented, cx } from './ui';
 
 export type SettingsSection = 'general' | 'ai' | 'captions' | 'google';
 
-const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode }[] = [
-    { id: 'general', label: 'General', icon: <Palette className='h-4 w-4' /> },
-    { id: 'ai', label: 'AI editing', icon: <Cpu className='h-4 w-4' /> },
-    { id: 'captions', label: 'Captions', icon: <Captions className='h-4 w-4' /> },
-    { id: 'google', label: 'Google', icon: <KeyRound className='h-4 w-4' /> },
+const SECTIONS: {
+    id: SettingsSection;
+    label: string;
+    group: string;
+    blurb: string;
+    keywords: string;
+    icon: ReactNode;
+}[] = [
+    {
+        id: 'general',
+        label: 'General',
+        group: 'App',
+        blurb: 'Look, recording behaviour and where files go.',
+        keywords: 'theme dark light countdown folder setup permissions',
+        icon: <Palette className='h-4 w-4' />,
+    },
+    {
+        id: 'captions',
+        label: 'Captions',
+        group: 'App',
+        blurb: 'The speech model that writes captions on this Mac.',
+        keywords: 'whisper transcribe subtitles speech model',
+        icon: <Captions className='h-4 w-4' />,
+    },
+    {
+        id: 'ai',
+        label: 'AI editing',
+        group: 'Intelligence',
+        blurb: 'Choose who plans your edits: a model on this Mac, or a cloud model.',
+        keywords: 'claude openai gemini gpt llm api key model local cloud',
+        icon: <Cpu className='h-4 w-4' />,
+    },
+    {
+        id: 'google',
+        label: 'Google',
+        group: 'Accounts',
+        blurb: 'Your own Google client, used to upload to YouTube and Drive.',
+        keywords: 'youtube drive upload oauth client account',
+        icon: <KeyRound className='h-4 w-4' />,
+    },
 ];
 
 const gb = (mb: number) => `${(mb / 1000).toFixed(1)} GB`;
@@ -47,33 +83,60 @@ export function SettingsDialog({
     onRunSetup?: () => void;
 }) {
     const [section, setSection] = useState<SettingsSection>(initialSection);
+    const [query, setQuery] = useState('');
+    const q = query.trim().toLowerCase();
+    const matches = SECTIONS.filter((x) => `${x.label} ${x.keywords}`.toLowerCase().includes(q));
+    const groups = [...new Set(matches.map((x) => x.group))];
+    const current = SECTIONS.find((x) => x.id === section);
 
     return (
-        <Modal onClose={onClose} className='flex h-[560px] max-w-[760px]'>
-            <nav className='flex w-48 shrink-0 flex-col gap-1 border-r border-line bg-panel-2 p-3'>
-                <span className='px-2 pb-3 pt-1 font-serif text-[17px] font-medium tracking-tight'>Settings</span>
-                {SECTIONS.map((s) => (
-                    <button
-                        key={s.id}
-                        onClick={() => setSection(s.id)}
-                        className={cx(
-                            'flex cursor-default items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors',
-                            section === s.id ? 'bg-raised font-medium text-fg' : 'text-muted hover:bg-raised/60 hover:text-fg'
-                        )}
-                    >
-                        {s.icon}
-                        {s.label}
-                    </button>
+        <Modal onClose={onClose} className='flex h-[640px] max-w-[880px]'>
+            <nav aria-label='Settings sections' className='flex w-56 shrink-0 flex-col gap-4 overflow-y-auto border-r border-line bg-panel-2 p-3'>
+                <span className='px-2 pt-1 font-serif text-[17px] font-medium tracking-tight'>Settings</span>
+                <label className='relative block'>
+                    <Search aria-hidden className='pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle' />
+                    <input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder='Search settings'
+                        aria-label='Search settings'
+                        className='h-8 w-full rounded-lg border border-line bg-panel pl-8 pr-2 text-sm outline-none focus:border-accent'
+                    />
+                </label>
+                {groups.map((g) => (
+                    <div key={g} className='flex flex-col gap-0.5'>
+                        <span className='px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wider text-subtle'>{g}</span>
+                        {matches
+                            .filter((x) => x.group === g)
+                            .map((x) => (
+                                <button
+                                    key={x.id}
+                                    onClick={() => setSection(x.id)}
+                                    aria-current={section === x.id ? 'page' : undefined}
+                                    className={cx(
+                                        'flex cursor-default items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors',
+                                        section === x.id ? 'bg-raised font-medium text-fg' : 'text-muted hover:bg-raised/60 hover:text-fg',
+                                    )}
+                                >
+                                    {x.icon}
+                                    {x.label}
+                                </button>
+                            ))}
+                    </div>
                 ))}
+                {matches.length === 0 && <p className='px-2.5 text-xs text-muted'>Nothing matches “{query}”.</p>}
             </nav>
             <div className='flex min-w-0 flex-1 flex-col'>
-                <div className='flex items-center justify-between border-b border-line px-6 py-3.5'>
-                    <h2 className='text-sm font-medium'>{SECTIONS.find((s) => s.id === section)?.label}</h2>
+                <div className='flex items-start justify-between gap-4 border-b border-line px-8 py-5'>
+                    <div className='min-w-0'>
+                        <h2 className='text-base font-semibold'>{current?.label}</h2>
+                        <p className='mt-0.5 text-[13px] text-muted'>{current?.blurb}</p>
+                    </div>
                     <IconButton label='Close settings' size='icon-sm' onClick={onClose}>
                         <X className='h-4 w-4' />
                     </IconButton>
                 </div>
-                <div className='min-h-0 flex-1 overflow-y-auto p-6'>
+                <div className='min-h-0 flex-1 overflow-y-auto px-8 py-6'>
                     {section === 'general' && <General onRunSetup={onRunSetup} />}
                     {section === 'ai' && <AiModelsSection />}
                     {section === 'captions' && <CaptionsSection />}
@@ -81,6 +144,19 @@ export function SettingsDialog({
                 </div>
             </div>
         </Modal>
+    );
+}
+
+/** A titled group inside a page, with an optional one-line explanation. */
+function Group({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
+    return (
+        <section className='mt-8 space-y-3 first:mt-0'>
+            <div>
+                <h3 className='text-sm font-semibold'>{title}</h3>
+                {description && <p className='mt-0.5 text-[13px] text-muted'>{description}</p>}
+            </div>
+            {children}
+        </section>
     );
 }
 
@@ -103,59 +179,267 @@ function General({ onRunSetup }: { onRunSetup?: () => void }) {
     const [countdown, setCountdown] = useState<Countdown>(loadCountdown);
     return (
         <div>
-            <Row title='Appearance' description='Light, dark, or follow macOS.'>
-                <div className='w-[260px]'>
-                    <Segmented<ThemeChoice>
-                        size='sm'
-                        value={choice}
-                        onChange={setChoice}
-                        options={[
-                            {
-                                value: 'system',
-                                label: 'System',
-                                icon: <Monitor className='h-3.5 w-3.5' />,
-                            },
-                            {
-                                value: 'light',
-                                label: 'Light',
-                                icon: <Sun className='h-3.5 w-3.5' />,
-                            },
-                            {
-                                value: 'dark',
-                                label: 'Dark',
-                                icon: <Moon className='h-3.5 w-3.5' />,
-                            },
-                        ]}
-                    />
-                </div>
-            </Row>
-            <Row title='Countdown' description='How long to wait after you press record (⌘⇧R from any app).'>
-                <div className='w-[200px]'>
-                    <Segmented<Countdown>
-                        size='sm'
-                        label='Countdown'
-                        value={countdown}
-                        onChange={(value) => (setCountdown(value), saveCountdown(value))}
-                        options={[
-                            { value: 0, label: 'Off' },
-                            { value: 3, label: '3 s' },
-                            { value: 5, label: '5 s' },
-                        ]}
-                    />
-                </div>
-            </Row>
-            <Row title='Recordings' description='Recordings and exports are saved in ~/Movies/Capturita.'>
-                <Button size='sm' onClick={async () => openPath(await api.recordingsDir())}>
-                    <FolderOpen className='h-3.5 w-3.5' /> Open folder
-                </Button>
-            </Row>
-            {onRunSetup && (
-                <Row title='Setup' description='Permissions (screen, microphone, camera) and the captions model.'>
-                    <Button size='sm' onClick={onRunSetup}>
-                        <ListChecks className='h-3.5 w-3.5' /> Run setup again
+            <Group title='Appearance'>
+                <Row title='Theme' description='Light, dark, or follow macOS.'>
+                    <div className='w-[260px]'>
+                        <Segmented<ThemeChoice>
+                            size='sm'
+                            value={choice}
+                            onChange={setChoice}
+                            options={[
+                                {
+                                    value: 'system',
+                                    label: 'System',
+                                    icon: <Monitor className='h-3.5 w-3.5' />,
+                                },
+                                {
+                                    value: 'light',
+                                    label: 'Light',
+                                    icon: <Sun className='h-3.5 w-3.5' />,
+                                },
+                                {
+                                    value: 'dark',
+                                    label: 'Dark',
+                                    icon: <Moon className='h-3.5 w-3.5' />,
+                                },
+                            ]}
+                        />
+                    </div>
+                </Row>
+            </Group>
+            <Group title='Recording'>
+                <Row title='Countdown' description='How long to wait after you press record (⌘⇧R from any app).'>
+                    <div className='w-[200px]'>
+                        <Segmented<Countdown>
+                            size='sm'
+                            label='Countdown'
+                            value={countdown}
+                            onChange={(value) => (setCountdown(value), saveCountdown(value))}
+                            options={[
+                                { value: 0, label: 'Off' },
+                                { value: 3, label: '3 s' },
+                                { value: 5, label: '5 s' },
+                            ]}
+                        />
+                    </div>
+                </Row>
+                <Row title='Library' description='Recordings and exports are saved in ~/Movies/Capturita.'>
+                    <Button size='sm' onClick={async () => openPath(await api.recordingsDir())}>
+                        <FolderOpen className='h-3.5 w-3.5' /> Open folder
                     </Button>
                 </Row>
+            </Group>
+            {onRunSetup && (
+                <Group title='Setup'>
+                    <Row title='Permissions and models' description='Permissions (screen, microphone, camera) and the captions model.'>
+                        <Button size='sm' onClick={onRunSetup}>
+                            <ListChecks className='h-3.5 w-3.5' /> Run setup again
+                        </Button>
+                    </Row>
+                </Group>
             )}
+        </div>
+    );
+}
+
+/** Claude as the planner: opt-in, because the text it works on is sent to Anthropic. */
+function AiCloudCard() {
+    const [cloud, setCloud] = useState<AiCloud | null>(null);
+    const [key, setKey] = useState('');
+    const [busy, setBusy] = useState(false);
+    const refresh = useCallback(() => {
+        api.aiCloud()
+            .then(setCloud)
+            .catch((error) => toast.error(errorMessage(error)));
+    }, []);
+    useEffect(refresh, [refresh]);
+
+    const act = async (action: () => Promise<void>, done?: string) => {
+        setBusy(true);
+        try {
+            await action();
+            if (done) toast.success(done);
+            setKey('');
+        } catch (error) {
+            toast.error(errorMessage(error));
+        } finally {
+            setBusy(false);
+            refresh();
+        }
+    };
+
+    if (!cloud) return null;
+    return (
+        <div className={cx('space-y-3 rounded-xl border p-4', cloud.enabled ? 'border-accent/60 bg-panel-2' : 'border-line')}>
+            <div className='flex items-start gap-3'>
+                <div className='min-w-0 flex-1 space-y-1'>
+                    <p className='flex items-center gap-2 text-sm font-medium'>
+                        Claude (cloud)
+                        {cloud.enabled && <span className='rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-fg'>In use</span>}
+                    </p>
+                    <p className='text-xs text-muted'>
+                        Plans and writes launch videos much better than a model on this Mac. Needs your own Claude API key (kept in the Keychain). Your README
+                        and page text are sent to Anthropic. If Claude can’t be reached, the local model below is used.
+                    </p>
+                </div>
+                {cloud.hasKey && (
+                    <Button
+                        size='sm'
+                        variant={cloud.enabled ? 'secondary' : 'primary'}
+                        disabled={busy}
+                        onClick={() => act(() => api.saveAiCloud(!cloud.enabled))}
+                    >
+                        {cloud.enabled ? 'Turn off' : 'Turn on'}
+                    </Button>
+                )}
+            </div>
+            <div className='flex gap-2'>
+                <input
+                    type='password'
+                    value={key}
+                    onChange={(e) => setKey(e.target.value)}
+                    placeholder={cloud.hasKey ? 'Replace the saved key' : 'sk-ant-…'}
+                    className='h-9 min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-3 text-sm outline-none focus:border-accent'
+                    aria-label='Claude API key'
+                />
+                <Button size='sm' variant='primary' disabled={busy || !key.trim()} onClick={() => act(() => api.saveAiCloud(true, key), 'Claude is on')}>
+                    Save and turn on
+                </Button>
+                {cloud.hasKey && (
+                    <IconButton label='Remove the saved key' size='icon-sm' onClick={() => act(() => api.removeAiCloudKey())}>
+                        <Trash2 className='h-3.5 w-3.5' />
+                    </IconButton>
+                )}
+            </div>
+        </div>
+    );
+}
+
+const OPENAI_PRESETS = [
+    { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5' },
+    {
+        name: 'Gemini',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        model: 'gemini-2.5-pro',
+    },
+    {
+        name: 'OpenRouter',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        model: 'anthropic/claude-sonnet-4.5',
+    },
+    {
+        name: 'Ollama (local)',
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'llama3.1',
+    },
+];
+
+/** Any OpenAI-compatible cloud as the planner: OpenAI, Gemini, OpenRouter, Ollama. */
+function AiOpenAiCard() {
+    const [cloud, setCloud] = useState<AiOpenAi | null>(null);
+    const [baseUrl, setBaseUrl] = useState('');
+    const [model, setModel] = useState('');
+    const [key, setKey] = useState('');
+    const [busy, setBusy] = useState(false);
+    const refresh = useCallback(() => {
+        api.aiOpenAi()
+            .then((c) => {
+                setCloud(c);
+                setBaseUrl(c.baseUrl);
+                setModel(c.model);
+            })
+            .catch((error) => toast.error(errorMessage(error)));
+    }, []);
+    useEffect(refresh, [refresh]);
+
+    const act = async (action: () => Promise<void>, done?: string) => {
+        setBusy(true);
+        try {
+            await action();
+            if (done) toast.success(done);
+            setKey('');
+        } catch (error) {
+            toast.error(errorMessage(error));
+        } finally {
+            setBusy(false);
+            refresh();
+        }
+    };
+
+    if (!cloud) return null;
+    const input = 'h-9 min-w-0 rounded-lg border border-line bg-panel-2 px-3 text-sm outline-none focus:border-accent';
+    return (
+        <div className={cx('space-y-3 rounded-xl border p-4', cloud.enabled ? 'border-accent/60 bg-panel-2' : 'border-line')}>
+            <div className='flex items-start gap-3'>
+                <div className='min-w-0 flex-1 space-y-1'>
+                    <p className='flex items-center gap-2 text-sm font-medium'>
+                        OpenAI, Gemini and others (cloud)
+                        {cloud.enabled && <span className='rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-fg'>In use</span>}
+                    </p>
+                    <p className='text-xs text-muted'>
+                        Any OpenAI-compatible endpoint. Your key is kept in the Keychain. Your README and page text are sent to that provider. If it can’t be
+                        reached, the local model below is used. Turning this on turns Claude off.
+                    </p>
+                </div>
+                {cloud.hasKey && (
+                    <Button
+                        size='sm'
+                        variant={cloud.enabled ? 'secondary' : 'primary'}
+                        disabled={busy}
+                        onClick={() => act(() => api.saveAiOpenAi(!cloud.enabled, baseUrl, model))}
+                    >
+                        {cloud.enabled ? 'Turn off' : 'Turn on'}
+                    </Button>
+                )}
+            </div>
+            <div className='flex flex-wrap gap-1.5'>
+                {OPENAI_PRESETS.map((preset) => (
+                    <Button
+                        key={preset.name}
+                        size='sm'
+                        variant='secondary'
+                        onClick={() => {
+                            setBaseUrl(preset.baseUrl);
+                            setModel(preset.model);
+                        }}
+                    >
+                        {preset.name}
+                    </Button>
+                ))}
+            </div>
+            <div className='flex gap-2'>
+                <input
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder='Base URL'
+                    className={cx(input, 'flex-[2]')}
+                    aria-label='Base URL'
+                />
+                <input value={model} onChange={(e) => setModel(e.target.value)} placeholder='Model' className={cx(input, 'flex-1')} aria-label='Model name' />
+            </div>
+            <div className='flex gap-2'>
+                <input
+                    type='password'
+                    value={key}
+                    onChange={(e) => setKey(e.target.value)}
+                    placeholder={cloud.hasKey ? 'Replace the saved key' : 'API key'}
+                    className={cx(input, 'flex-1')}
+                    aria-label='API key'
+                />
+                <Button
+                    size='sm'
+                    variant='primary'
+                    disabled={busy || (!key.trim() && !cloud.hasKey)}
+                    onClick={() => act(() => api.saveAiOpenAi(true, baseUrl, model, key), 'Cloud model is on')}
+                >
+                    Save and turn on
+                </Button>
+                {cloud.hasKey && (
+                    <IconButton label='Remove the saved key' size='icon-sm' onClick={() => act(() => api.removeAiOpenAiKey())}>
+                        <Trash2 className='h-3.5 w-3.5' />
+                    </IconButton>
+                )}
+            </div>
         </div>
     );
 }
@@ -197,70 +481,75 @@ function AiModelsSection() {
 
     if (!state) return null;
     return (
-        <div className='space-y-4'>
-            <p className='text-sm text-muted'>
-                AI editing turns a request like “cut the part about pricing” into edits, with a model that runs on this Mac. Pick one and download it once. This
-                Mac has {state.ramGb} GB of memory.
-            </p>
-            {state.models.map((m) => {
-                const active = state.active === m.id;
-                const downloading = state.downloading === m.id;
-                const tooBig = m.minRamGb > state.ramGb;
-                return (
-                    <div key={m.id} className={cx('space-y-3 rounded-xl border p-4', active ? 'border-accent/60 bg-panel-2' : 'border-line')}>
-                        <div className='flex items-start gap-3'>
-                            <div className='min-w-0 flex-1 space-y-1'>
-                                <p className='flex items-center gap-2 text-sm font-medium'>
-                                    {m.name}
-                                    {active && <span className='rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-fg'>In use</span>}
-                                </p>
-                                <p className='text-xs text-muted'>{m.note}</p>
-                                <p className={cx('text-xs', tooBig ? 'text-warning-fg' : 'text-subtle')}>
-                                    {gb(m.sizeMb)} download · needs {m.minRamGb} GB of memory
-                                    {tooBig ? ', more than this Mac has' : ''}
-                                </p>
-                            </div>
-                            <div className='flex shrink-0 items-center gap-1.5'>
-                                {m.downloaded ? (
-                                    <>
-                                        {!active && (
-                                            <Button size='sm' variant='primary' onClick={() => run(() => api.setAiModel(m.id))}>
-                                                Use
-                                            </Button>
-                                        )}
-                                        <IconButton
-                                            label={`Delete ${m.name} (frees ${gb(m.sizeMb)})`}
-                                            size='icon-sm'
-                                            onClick={() =>
-                                                toast(`Delete ${m.name}? Using it again means downloading ${gb(m.sizeMb)}.`, {
-                                                    action: { label: 'Delete', onClick: () => run(() => api.deleteAiModel(m.id)) },
-                                                })
-                                            }
+        <div>
+            <Group title='Cloud models' description='Better plans, but your README and page text are sent to the provider. Only one planner is used at a time.'>
+                <AiCloudCard />
+                <AiOpenAiCard />
+            </Group>
+            <Group title='On this Mac' description={`Private and offline. Pick one and download it once. This Mac has ${state.ramGb} GB of memory.`}>
+                {state.models.map((m) => {
+                    const active = state.active === m.id;
+                    const downloading = state.downloading === m.id;
+                    const tooBig = m.minRamGb > state.ramGb;
+                    return (
+                        <div key={m.id} className={cx('space-y-3 rounded-xl border p-4', active ? 'border-accent/60 bg-panel-2' : 'border-line')}>
+                            <div className='flex items-start gap-3'>
+                                <div className='min-w-0 flex-1 space-y-1'>
+                                    <p className='flex items-center gap-2 text-sm font-medium'>
+                                        {m.name}
+                                        {active && <span className='rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-fg'>In use</span>}
+                                    </p>
+                                    <p className='text-xs text-muted'>{m.note}</p>
+                                    <p className={cx('text-xs', tooBig ? 'text-warning-fg' : 'text-subtle')}>
+                                        {gb(m.sizeMb)} download · needs {m.minRamGb} GB of memory
+                                        {tooBig ? ', more than this Mac has' : ''}
+                                    </p>
+                                </div>
+                                <div className='flex shrink-0 items-center gap-1.5'>
+                                    {m.downloaded ? (
+                                        <>
+                                            {!active && (
+                                                <Button size='sm' variant='primary' onClick={() => run(() => api.setAiModel(m.id))}>
+                                                    Use
+                                                </Button>
+                                            )}
+                                            <IconButton
+                                                label={`Delete ${m.name} (frees ${gb(m.sizeMb)})`}
+                                                size='icon-sm'
+                                                onClick={() =>
+                                                    toast(`Delete ${m.name}? Using it again means downloading ${gb(m.sizeMb)}.`, {
+                                                        action: {
+                                                            label: 'Delete',
+                                                            onClick: () => run(() => api.deleteAiModel(m.id)),
+                                                        },
+                                                    })
+                                                }
+                                            >
+                                                <Trash2 className='h-3.5 w-3.5' />
+                                            </IconButton>
+                                        </>
+                                    ) : downloading ? (
+                                        <Button size='sm' variant='ghost' onClick={() => api.cancelAiDownload()}>
+                                            <X className='h-3.5 w-3.5' /> Cancel
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            size='sm'
+                                            variant={active ? 'primary' : 'secondary'}
+                                            disabled={state.downloading !== null}
+                                            onClick={() => download(m.id)}
                                         >
-                                            <Trash2 className='h-3.5 w-3.5' />
-                                        </IconButton>
-                                    </>
-                                ) : downloading ? (
-                                    <Button size='sm' variant='ghost' onClick={() => api.cancelAiDownload()}>
-                                        <X className='h-3.5 w-3.5' /> Cancel
-                                    </Button>
-                                ) : (
-                                    <Button
-                                        size='sm'
-                                        variant={active ? 'primary' : 'secondary'}
-                                        disabled={state.downloading !== null}
-                                        onClick={() => download(m.id)}
-                                    >
-                                        <Download className='h-3.5 w-3.5' /> Download
-                                    </Button>
-                                )}
+                                            <Download className='h-3.5 w-3.5' /> Download
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
+                            {downloading && <Progress value={progress ?? 0} />}
+                            {!m.downloaded && !downloading && !active && <p className='text-xs text-subtle'>Download it, then choose Use.</p>}
                         </div>
-                        {downloading && <Progress value={progress ?? 0} />}
-                        {!m.downloaded && !downloading && !active && <p className='text-xs text-subtle'>Download it, then choose Use.</p>}
-                    </div>
-                );
-            })}
+                    );
+                })}
+            </Group>
         </div>
     );
 }
@@ -268,7 +557,10 @@ function AiModelsSection() {
 function CaptionsSection() {
     const [models, setModels] = useState<CaptionModel[] | null>(null);
     /** The model being downloaded, and how far along it is. */
-    const [downloading, setDownloading] = useState<{ id: string; progress: number } | null>(null);
+    const [downloading, setDownloading] = useState<{
+        id: string;
+        progress: number;
+    } | null>(null);
 
     const refresh = useCallback(() => {
         api.captionModels()
@@ -330,7 +622,7 @@ function CaptionsSection() {
                                             ? 'bg-accent/15 text-accent'
                                             : model.downloaded
                                               ? 'bg-success-soft text-success-fg'
-                                              : 'bg-raised text-muted'
+                                              : 'bg-raised text-muted',
                                     )}
                                 >
                                     {model.selected || model.downloaded ? <Check className='h-4 w-4' /> : <Captions className='h-4 w-4' />}
@@ -375,7 +667,10 @@ function CaptionsSection() {
                                                 disabled={!!downloading}
                                                 onClick={() =>
                                                     toast(`Delete ${model.label}? Using it again means downloading ${model.sizeMb} MB.`, {
-                                                        action: { label: 'Delete', onClick: () => run(() => api.deleteCaptionModel(model.id)) },
+                                                        action: {
+                                                            label: 'Delete',
+                                                            onClick: () => run(() => api.deleteCaptionModel(model.id)),
+                                                        },
                                                     })
                                                 }
                                             >
@@ -469,7 +764,10 @@ export function GoogleSection() {
                         size='icon-sm'
                         onClick={() =>
                             toast('Remove your Google Client ID and Secret? You’ll need to paste them again to upload.', {
-                                action: { label: 'Remove', onClick: () => act(() => api.googleRemoveClient()) },
+                                action: {
+                                    label: 'Remove',
+                                    onClick: () => act(() => api.googleRemoveClient()),
+                                },
                             })
                         }
                     >

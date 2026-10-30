@@ -31,3 +31,6 @@ export function frameLayout(width: number, height: number): FrameLayout {
         safeY: height * (portrait ? 0.07 : 0.06),
     };
 }
+
+/** Card and list scenes drew small in a wide frame (a third of it empty); this fills it. Tall frames are already tight on width, so they grow less. */
+export const grow = (width: number, height: number) => (width / height < 1.3 ? 1.1 : 1.45);

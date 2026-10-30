@@ -1,16 +1,19 @@
-import { useRef, useState } from 'react';
-import { AlertTriangle, Check, Clapperboard, ImagePlus, Loader2, Music, Pencil, Wand2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Camera, Check, Clapperboard, ImagePlus, Loader2, Music, Pencil, Wand2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { errorMessage, type CursorData, type Project } from '../lib/api';
+import { api, errorMessage, type CursorData, type Project } from '../lib/api';
 import { Button, cx, Segmented, Select, Slider } from '../components/ui';
 import type { Edit } from '../editor/model';
-import { applyDraft, draftVideo, MAX_DRAFT_SCENES } from './aiDraft';
+import { applyDraft, draftVideo, fillBarePictures, MAX_DRAFT_SCENES, reviewDraft } from './aiDraft';
 import { applySceneProposals, askScenes, type Placement, type SceneProposal } from './aiScenes';
-import { importSceneImage, useBrandKits } from './brandKits';
+import { importSceneImage, kitFromSite, setBrandKits, useBrandKits } from './brandKits';
+import { capturePage } from './capturePage';
+import { polishDraft } from './polish';
+import { importSfx, sfxNeeded, withTransitionSounds } from './sfx';
 import { importMusicTrack } from '../editor/MusicPanel';
 import { sceneLabel } from './scenes';
 import type { SceneEnv } from './scenes/assets';
-import { STYLES } from './styles';
+import { shuffleStyle, STYLES, type VideoStyle } from './styles';
 
 const EXAMPLES = [
     'Make a launch intro with our logo and a title',
@@ -43,14 +46,28 @@ export function SceneAiSection({
     const kits = useBrandKits();
     const [prompt, setPrompt] = useState('');
     const [busy, setBusy] = useState<string | null>(null);
-    const [result, setResult] = useState<{ summary: string; proposals: SceneProposal[]; playhead: number; draft?: boolean } | null>(null);
+    const [result, setResult] = useState<{ summary: string; proposals: SceneProposal[]; playhead: number; draft?: boolean; facts?: string } | null>(null);
+    // Claude can look at the draft and rewrite its weakest scenes, when it is on.
+    const [cloudOn, setCloudOn] = useState(false);
+    useEffect(() => {
+        api.aiCloud().then((c) => setCloudOn(c.enabled && c.hasKey)).catch(() => {});
+    }, []);
     const [mode, setMode] = useState<'scenes' | 'video'>(project.kind === 'studio' ? 'video' : 'scenes');
     const [source, setSource] = useState('');
     const [sceneCount, setSceneCount] = useState(8);
-    const [styleId, setStyleId] = useState(STYLES[0].id);
+    const [styleId, setStyleId] = useState('auto');
+    // The look the draft chose from the text, used while Style is Match the text.
+    const [autoLook, setAutoLook] = useState(STYLES[0].id);
+    // Picking Shuffle makes one style that polish and apply both use.
+    const [shuffled, setShuffled] = useState<VideoStyle | null>(null);
+    const pickedStyle = styleId === 'shuffle' && shuffled ? shuffled : (STYLES.find((s) => s.id === (styleId === 'auto' ? autoLook : styleId)) ?? STYLES[0]);
     // The draft's screenshots (copied into the project when picked) and song (copied in on apply, as it replaces the music file).
     const [shots, setShots] = useState<{ path: string; name: string }[]>([]);
     const [song, setSong] = useState<File | null>(null);
+    const [pageUrl, setPageUrl] = useState('');
+    const [tall, setTall] = useState<string | null>(null);
+    // A brand kit made from the captured page (its logo and colours), used by the draft if the video has none.
+    const [pageKit, setPageKit] = useState<string | null>(null);
     const shotInput = useRef<HTMLInputElement>(null);
     const songInput = useRef<HTMLInputElement>(null);
     const addShots = async (files: FileList | null) => {
@@ -63,6 +80,38 @@ export function SceneAiSection({
             toast.error(errorMessage(error));
         } finally {
             if (shotInput.current) shotInput.current.value = '';
+        }
+    };
+    // The product's own page: its screenshots become the shots, and its text the description (if none yet).
+    const capture = async () => {
+        const url = /^https?:\/\//i.test(pageUrl.trim()) ? pageUrl.trim() : `https://${pageUrl.trim()}`;
+        setBusy('Capturing the page');
+        try {
+            const page = await capturePage(project.id, url);
+            const found = [page.hero, ...page.sections];
+            setShots((list) => [...list, ...found.map((path, i) => ({ path, name: i === 0 ? 'Page top' : `Page ${i}` }))]);
+            setTall(page.full);
+            // Picture scenes already on the timeline (added by hand) that still show a placeholder.
+            const filled = fillBarePictures(edit.items, found, page.full);
+            if (filled !== edit.items) onApply({ ...edit, items: filled }, `fill-pictures-${Date.now()}`);
+            if (!source.trim()) setSource([page.title, page.description, page.text].filter(Boolean).join('\n\n'));
+            let note = '';
+            if (!edit.brandKit) {
+                // The page's logo and colours are a bonus: without them the draft uses the default look.
+                try {
+                    const kit = await kitFromSite(url);
+                    setBrandKits([...kits, kit]);
+                    setPageKit(kit.id);
+                    note = ` and a “${kit.name}” brand kit`;
+                } catch (error) {
+                    api.log(`[capture] no brand kit from the page: ${errorMessage(error)}`);
+                }
+            }
+            toast.success(`Captured ${found.length} screenshots${note}`);
+        } catch (error) {
+            toast.error(errorMessage(error));
+        } finally {
+            setBusy(null);
         }
     };
     // A Studio video's draft replaces its timeline; a recording keeps it and gets the draft after it.
@@ -92,18 +141,19 @@ export function SceneAiSection({
         setBusy('Reading the text');
         try {
             const productName = kits.find((kit) => kit.id === edit.brandKit)?.name ?? '';
-            const { facts, proposals } = await draftVideo(
+            const { facts, proposals, look } = await draftVideo(
                 source,
                 sceneCount,
                 { edit, project, cursor, env, size, productName, playhead: playhead(), onStep: setBusy },
                 { shots: shots.length, cinematic: styleId === 'cinematic' }
             );
+            setAutoLook(look);
             const fewer =
                 proposals.length < sceneCount
                     ? ` The text supports ${proposals.length} of the ${sceneCount} asked for; add features, numbers, a quote or pricing for more.`
                     : '';
             const summary = `A ${proposals.length}-scene draft for ${facts.name || 'your product'}.${fewer} Untick any scene to leave it out.`;
-            setResult({ summary, proposals, playhead: 0, draft: true });
+            setResult({ summary, proposals, playhead: 0, draft: true, facts: JSON.stringify(facts) });
             setChosen(new Set(proposals.filter((p) => p.errors.length === 0).map((p) => p.id)));
         } catch (error) {
             if (errorMessage(error) !== 'Cancelled') toast.error(errorMessage(error));
@@ -112,10 +162,31 @@ export function SceneAiSection({
         }
     };
 
+    // Claude looks at a picture of each scene and rewrites the weakest ones.
+    const polish = async () => {
+        if (!result?.draft || busy) return;
+        const picked = result.proposals.filter((p) => chosen.has(p.id));
+        const style = pickedStyle;
+        setBusy('Polishing the draft');
+        try {
+            const productName = kits.find((kit) => kit.id === (edit.brandKit ?? pageKit))?.name ?? '';
+            const media = { screenshots: shots.map((shot) => shot.path), tall, music: null };
+            const polished = await polishDraft(picked, style, media, { edit, project, cursor, env, size, productName, playhead: playhead(), facts: result.facts, onStep: setBusy });
+            const swapped = new Map(picked.flatMap((old, i) => (polished.proposals[i].id !== old.id ? [[old.id, polished.proposals[i]] as const] : [])));
+            setResult({ ...result, proposals: result.proposals.map((p) => swapped.get(p.id) ?? p) });
+            setChosen(new Set([...chosen].map((id) => swapped.get(id)?.id ?? id)));
+            toast.success(swapped.size ? `Rewrote ${swapped.size} scene${swapped.size === 1 ? '' : 's'} that looked weak` : 'Nothing looked weak enough to change');
+        } catch (error) {
+            toast.error(errorMessage(error));
+        } finally {
+            setBusy(null);
+        }
+    };
+
     const apply = async () => {
         if (!result) return;
         const picked = result.proposals.filter((p) => chosen.has(p.id));
-        const style = STYLES.find((s) => s.id === styleId) ?? STYLES[0];
+        const style = pickedStyle;
         let music = null;
         if (result.draft && song) {
             setBusy('Adding the music');
@@ -127,8 +198,18 @@ export function SceneAiSection({
                 setBusy(null);
             }
         }
-        const media = { screenshots: shots.map((shot) => shot.path), music };
-        onApply(result.draft ? applyDraft(edit, picked, style, replace, media) : applySceneProposals(edit, picked, result.playhead), `ai-scenes-${Date.now()}`);
+        const media = { screenshots: shots.map((shot) => shot.path), tall, music };
+        let next = result.draft ? applyDraft(edit, picked, style, replace, media) : applySceneProposals(edit, picked, result.playhead);
+        if (result.draft) {
+            // Movement sounds on the transitions the style added; if they can't be copied, the video just has none.
+            try {
+                const from = replace ? 0 : edit.items.length;
+                next = withTransitionSounds(next, await importSfx(project.id, sfxNeeded(next.items.slice(from))), from);
+            } catch (error) {
+                toast.error(`Transition sounds skipped: ${errorMessage(error)}`);
+            }
+        }
+        onApply(result.draft && !next.brandKit && pageKit ? { ...next, brandKit: pageKit } : next, `ai-scenes-${Date.now()}`);
         toast.success(`${picked.length} scene${picked.length === 1 ? '' : 's'} applied — ⌘Z to undo`);
         setResult(null);
         setPrompt('');
@@ -148,6 +229,24 @@ export function SceneAiSection({
             ) : result ? (
                 <div className='space-y-3'>
                     <p className='text-sm text-fg'>{result.summary}</p>
+                    {result.draft &&
+                        (() => {
+                            const picked = result.proposals.filter((p) => chosen.has(p.id));
+                            return reviewDraft(picked, shots.length + (tall ? 1 : 0)).map((warning) => (
+                                <p key={warning.message} className='flex items-start gap-1.5 text-xs text-warning-fg'>
+                                    <AlertTriangle className='mt-0.5 h-3.5 w-3.5 shrink-0' />
+                                    <span className='flex-1'>{warning.message}</span>
+                                    {warning.leaveOut && (
+                                        <button
+                                            className='shrink-0 cursor-default underline'
+                                            onClick={() => setChosen((s) => new Set([...s].filter((id) => !warning.leaveOut!.some((i) => picked[i].id === id))))}
+                                        >
+                                            Leave out
+                                        </button>
+                                    )}
+                                </p>
+                            ));
+                        })()}
                     {result.proposals.length > 0 && (
                         <div className='max-h-[40vh] space-y-1 overflow-y-auto pr-1'>
                             {result.proposals.map((p) => {
@@ -218,6 +317,11 @@ export function SceneAiSection({
                                       : `Apply ${chosen.size}`}
                             </Button>
                         )}
+                        {result.draft && cloudOn && chosen.size > 0 && (
+                            <Button variant='ghost' onClick={polish} title='Claude looks at a picture of each scene and rewrites the weakest'>
+                                <Wand2 className='h-4 w-4' /> Polish
+                            </Button>
+                        )}
                         <Button variant='ghost' className={result.proposals.length ? '' : 'flex-1'} onClick={() => setResult(null)}>
                             <X className='h-4 w-4' /> {result.proposals.length ? 'Discard' : 'Back'}
                         </Button>
@@ -236,6 +340,19 @@ export function SceneAiSection({
                     />
                     {mode === 'video' ? (
                         <>
+                            <div className='flex gap-2'>
+                                <input
+                                    value={pageUrl}
+                                    onChange={(e) => setPageUrl(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && pageUrl.trim() && capture()}
+                                    placeholder='Product website, e.g. acme.com'
+                                    className='min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-2 py-1 text-sm text-fg outline-none focus:border-accent'
+                                    aria-label='Product website'
+                                />
+                                <Button size='sm' variant='ghost' disabled={!pageUrl.trim()} onClick={capture} title='Takes screenshots of the page and reads its text'>
+                                    <Camera className='h-3.5 w-3.5' /> Capture
+                                </Button>
+                            </div>
                             <textarea
                                 value={source}
                                 onChange={(e) => setSource(e.target.value)}
@@ -316,14 +433,16 @@ export function SceneAiSection({
                                 </div>
                             )}
                             <span className='block text-xs'>Style</span>
-                            <Select value={styleId} onChange={(e) => setStyleId(e.target.value)} aria-label='Video style'>
+                            <Select value={styleId} onChange={(e) => { setStyleId(e.target.value); if (e.target.value === 'shuffle') setShuffled(shuffleStyle()); }} aria-label='Video style'>
+                                <option value='auto'>Match the text</option>
+                                <option value='shuffle'>Shuffle</option>
                                 {STYLES.map((style) => (
                                     <option key={style.id} value={style.id}>
                                         {style.label}
                                     </option>
                                 ))}
                             </Select>
-                            <p className='text-xs text-muted'>{(STYLES.find((st) => st.id === styleId) ?? STYLES[0]).hint}</p>
+                            <p className='text-xs text-muted'>{pickedStyle.hint}</p>
                             <Button className='w-full' onClick={draft} disabled={!source.trim()}>
                                 <Wand2 className='h-4 w-4' /> Make a draft
                             </Button>

@@ -12,3 +12,8 @@ notification, settings, star, trendingUp, userPlus, zap.
 ## music/
 Empty until tracks are added. Use only CC0 / public-domain music (e.g. FreePD.com) and add
 each file's source URL here. Name files `<mood>-<bpm>.mp3` (e.g. `upbeat-120.mp3`).
+
+## sfx/
+Transition sounds (whoosh, swoosh, pop, click, riser, impact) made from scratch with
+`scripts/make-sfx.sh` (synthesised noise and tones through ffmpeg). Original work, no third-party
+material, so no licence to carry; re-run the script to change them.

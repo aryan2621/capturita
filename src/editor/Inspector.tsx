@@ -897,6 +897,23 @@ function CursorPanel({ cursor, onChange }: { cursor: CursorStyle; onChange: Insp
                         checked={cursor.pressEffect}
                         onChange={(pressEffect) => set({ pressEffect }, 'cursor-press')}
                     />
+                    <Toggle
+                        label='Hand near clicks'
+                        hint='A pointing hand around each click'
+                        checked={cursor.clickHand ?? false}
+                        onChange={(clickHand) => set({ clickHand }, 'cursor-hand')}
+                    />
+                    {cursor.clickHand && (
+                        <Slider
+                            label='Hand shows for'
+                            value={cursor.handWindow ?? 1}
+                            min={0.25}
+                            max={3}
+                            step={0.25}
+                            format={(v) => `±${v.toFixed(2).replace(/\.?0+$/, '')} s`}
+                            onChange={(handWindow) => set({ handWindow }, 'cursor-hand-window')}
+                        />
+                    )}
                 </Section>
             )}
 

@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { Project } from '../lib/api';
 import { overlaysAt, positionAt, totalDuration, withHeldEnds, type Edit } from '../editor/model';
 import { projectBrand } from './brandKits';
+import type { Brand } from './scenes/assets';
 import { recordingInfo, sceneLookProps } from './sceneEnv';
 import { SCENE_FPS, SCENE_RENDER_VERSION, SCENES, TIMELINE_COMPOSITION } from './scenes';
 
@@ -29,6 +30,8 @@ interface SceneJob {
     height: number;
     alpha: boolean;
     out: string;
+    /** Render only this frame, as a JPEG (`out` ends in .jpg). */
+    still?: number;
     /**
      * Inclusive frame ranges that have something on screen (transparent timeline only). The
      * renderer runs Chrome on these and writes empty frames for the rest.
@@ -88,6 +91,35 @@ export async function renderScenes(
     for (const overlay of edit.overlays) await add(files.overlays, overlay.id, overlay, true);
     await runJobs(project, jobs, onProgress, signal);
     return files;
+}
+
+/**
+ * One picture of each scene, late in it when everything has settled, for looking at (not for
+ * export). Returns the picture files (absolute paths), one per item, cached like scene files.
+ */
+export async function renderStills(
+    project: Project,
+    items: { scene: string; props: Record<string, unknown>; duration: number }[],
+    brand: Brand,
+    width: number,
+    height: number,
+    onProgress: RenderProgress,
+    signal: AbortSignal,
+): Promise<string[]> {
+    const recording = recordingInfo(project);
+    const jobs: SceneJob[] = [];
+    const outs: string[] = [];
+    for (const item of items) {
+        if (!SCENES[item.scene]) throw new Error(`Unknown motion scene “${item.scene}”`);
+        const frames = sceneFrames(item.duration);
+        const job = { composition: item.scene, props: sceneLookProps(item, brand, recording), frames, fps: SCENE_FPS, width, height, still: Math.min(frames - 1, Math.floor(frames * 0.7)) };
+        const hash = (await sha256(JSON.stringify({ kind: 'still', version: SCENE_RENDER_VERSION, ...job }))).slice(0, 20);
+        const out = `${project.path}/scenes/still-${hash}.jpg`;
+        outs.push(out);
+        if (!jobs.some((j) => j.out === out)) jobs.push({ ...job, alpha: false, out });
+    }
+    await runJobs(project, jobs, onProgress, signal);
+    return outs;
 }
 
 /**

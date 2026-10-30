@@ -6,10 +6,14 @@ import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from '.
 
 export type LowerThirdSide = 'left' | 'right';
 
+/** 'bar' is the card with an accent bar; 'minimal' is plain text over the video; 'pill' is a rounded accent pill. */
+export type LowerThirdStyle = 'bar' | 'minimal' | 'pill';
+
 export interface LowerThirdProps {
     name: string;
     title: string;
     side: LowerThirdSide;
+    style?: LowerThirdStyle;
     logo: boolean;
     /** Transparent background (always, as an overlay). */
     transparent?: boolean;
@@ -18,13 +22,15 @@ export interface LowerThirdProps {
 }
 
 /** A name and title bar in the brand's colours that slides in near the bottom corner and back out. */
-export function LowerThird({ name, title, side, logo, transparent, brand, assets }: LowerThirdProps) {
+export function LowerThird({ name, title, side, style = 'bar', logo, transparent, brand, assets }: LowerThirdProps) {
     const frame = useCurrentFrame();
     const { fps, width, height, durationInFrames } = useVideoConfig();
     const layout = frameLayout(width, height);
     const unit = layout.text;
     const { colors } = brand;
     const right = side === 'right';
+    const pill = style === 'pill';
+    const minimal = style === 'minimal';
     // Text gets what's left of the safe width after the bar, padding and logo.
     const showLogo = logo && !!brand.logo;
     const textRoom = width - layout.safeX * 2 - unit * (0.8 + 0.8 + 6 + (showLogo ? 8 : 0));
@@ -54,24 +60,25 @@ export function LowerThird({ name, title, side, logo, transparent, brand, assets
                     opacity: interpolate(away, [0, 0.6], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
                 }}
             >
-                <div style={{ width: unit * 0.8, background: colors.accent, borderRadius: unit * 0.4, transform: `scaleY(${bar * (1 - exit)})` }} />
+                <div style={{ width: pill ? 0 : unit * 0.8, background: colors.accent, borderRadius: unit * 0.4, transform: `scaleY(${bar * (1 - exit)})` }} />
                 <div
                     style={{
                         display: 'flex',
                         flexDirection: right ? 'row-reverse' : 'row',
                         alignItems: 'center',
                         gap: unit * 2,
-                        background: colors.surface,
+                        background: pill ? colors.accent : minimal ? 'transparent' : colors.surface,
                         padding: `${unit * 1.8}px ${unit * 3}px`,
-                        [right ? 'marginRight' : 'marginLeft']: unit * 0.8,
-                        borderRadius: unit * 1,
-                        boxShadow: `0 ${unit * 0.6}px ${unit * 3}px rgba(0,0,0,0.28)`,
+                        [right ? 'marginRight' : 'marginLeft']: pill ? 0 : unit * 0.8,
+                        borderRadius: pill ? unit * 6 : unit * 1,
+                        boxShadow: minimal ? 'none' : `0 ${unit * 0.6}px ${unit * 3}px rgba(0,0,0,0.28)`,
+                        textShadow: minimal ? `0 ${unit * 0.2}px ${unit * 1}px rgba(0,0,0,0.6)` : undefined,
                     }}
                 >
                     {showLogo && <Img src={assetUrl(assets, brand.logo!)} style={{ height: unit * 6, width: 'auto', objectFit: 'contain', opacity: text }} />}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start', minWidth: 0, maxWidth: textRoom, opacity: text, transform: `translateY(${(1 - text) * unit * 1.5}px)` }}>
-                        <div style={{ color: colors.text, fontFamily: displayFont(brand), fontSize: unit * 4.2, fontWeight: 700, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{name}</div>
-                        {title && <div style={{ color: colors.muted, fontSize: unit * 2.6, fontWeight: 500, lineHeight: 1.25, marginTop: unit * 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{title}</div>}
+                        <div style={{ color: pill ? colors.bg : colors.text, fontFamily: displayFont(brand), fontSize: unit * 4.2, fontWeight: 700, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{name}</div>
+                        {title && <div style={{ color: pill ? `${colors.bg}cc` : colors.muted, fontSize: unit * 2.6, fontWeight: 500, lineHeight: 1.25, marginTop: unit * 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{title}</div>}
                     </div>
                 </div>
             </div>

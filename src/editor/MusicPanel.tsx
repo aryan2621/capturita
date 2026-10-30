@@ -4,7 +4,8 @@ import { toast } from 'sonner';
 import { api, errorMessage, fileUrl, type Project } from '../lib/api';
 import { loadMusic } from './audioSchedule';
 import { beatsOnTimeline, detectBeats, fitScenesToBeats } from './beats';
-import { Button, Slider, Switch, TimeField } from '../components/ui';
+import { Button, MenuButton, Slider, Switch, TimeField } from '../components/ui';
+import { SUGGESTED_MUSIC, songCredit } from './suggestedMusic';
 import { LibraryPicker } from '../studio/library';
 import { DEFAULT_MUSIC_VOLUME, totalDuration, type AudioMix, type MusicTrack, type TimelineItem } from './model';
 
@@ -35,6 +36,19 @@ export async function importMusicTrack(project: Project, file: File, previous: M
         loop: previous?.loop ?? true,
         ...found,
     };
+}
+
+/** A "Suggested…" menu: songs that are only links until one is picked, then it is downloaded. */
+function SuggestedPicker({ disabled, onPick }: { disabled?: boolean; onPick: (index: number) => void }) {
+    return (
+        <div className={disabled ? 'pointer-events-none w-32 opacity-40' : 'w-32'}>
+            <MenuButton
+                label='Suggested…'
+                items={SUGGESTED_MUSIC.map((song, i) => ({ key: String(i), label: song.title, hint: song.mood }))}
+                onPick={(key) => onPick(Number(key))}
+            />
+        </div>
+    );
 }
 
 /** Background music: pick a song, set its volume, where it starts, and whether it loops; find its beats and cut scenes on them. */
@@ -69,6 +83,21 @@ export function MusicPanel({
         }
     };
 
+    const chooseSuggested = async (index: number) => {
+        const song = SUGGESTED_MUSIC[index];
+        setBusy(true);
+        try {
+            const bytes = await api.fetchMusic(song.url);
+            const extension = song.url.split('.').pop()?.toLowerCase() ?? 'mp3';
+            const track = await importMusicTrack(project, new File([bytes], `${song.title}.${extension}`), music);
+            set({ ...track, name: song.title, suggested: { credit: songCredit(song) } }, 'music-file');
+        } catch (error) {
+            toast.error(errorMessage(error));
+        } finally {
+            setBusy(false);
+        }
+    };
+
     return (
         <div className='space-y-3 rounded-lg border border-line bg-panel-2 p-3'>
             <input
@@ -95,6 +124,7 @@ export function MusicPanel({
                         >
                             {music.muted ? <VolumeX className='h-3.5 w-3.5' /> : <Volume2 className='h-3.5 w-3.5' />}
                         </Button>
+                        <SuggestedPicker disabled={busy} onPick={chooseSuggested} />
                         <LibraryPicker kind='music' disabled={busy} onPick={choose} />
                         <Button
                             size='icon'
@@ -120,6 +150,7 @@ export function MusicPanel({
                     </span>
                 ) : (
                     <span className='flex items-center gap-1.5'>
+                        <SuggestedPicker disabled={busy} onPick={chooseSuggested} />
                         <LibraryPicker kind='music' disabled={busy} onPick={choose} />
                         <Button size='sm' variant='subtle' onClick={() => input.current?.click()} disabled={busy}>
                             <Upload className='h-3.5 w-3.5' /> {busy ? 'Adding…' : 'Add music'}
@@ -129,6 +160,11 @@ export function MusicPanel({
             </div>
             {music ? (
                 <>
+                    {music.suggested && (
+                        <p className='text-[11px] text-subtle'>
+                            {music.suggested.credit}. It is deleted from this project once you export a video.
+                        </p>
+                    )}
                     <Slider
                         label='Volume'
                         value={music.volume}

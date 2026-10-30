@@ -1,7 +1,7 @@
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
 import { BrandTexture, clamp, SceneImage, sceneGradient, useExit } from './SceneBase';
-import { frameLayout } from './layout';
+import { frameLayout, grow } from './layout';
 import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export interface TestimonialProps {
@@ -22,8 +22,8 @@ export function Testimonial({ quote, name, role, avatar, rating, transparent, br
     const frame = useCurrentFrame();
     const { fps, width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
-    const u = layout.unit;
-    const t = layout.text;
+    const u = layout.unit * grow(width, height);
+    const t = layout.text * grow(width, height);
     const { colors } = brand;
     const exit = useExit();
     const words = quote.trim().split(/\s+/).filter(Boolean);

@@ -117,6 +117,7 @@ cat > "$STAGE/package.json" <<JSON
   "type": "module",
   "dependencies": {
     "@remotion/renderer": "$REMOTION_VERSION",
+    "puppeteer-core": "25.16.0",
     "remotion": "$REMOTION_VERSION",
     "react": "$REACT_VERSION",
     "react-dom": "$REACT_VERSION"

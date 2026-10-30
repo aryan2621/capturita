@@ -236,7 +236,7 @@ function LogoTile({ logo, brand }: { logo: THREE.Texture; brand: Brand }) {
 /** A phone, a laptop or the logo on a tile, in 3D: it swings in and turns under a light in the brand colour. */
 export function Showcase3D({ subject, image, motion, headline, detail, transparent, brand, assets }: Showcase3DProps) {
     const frame = useCurrentFrame();
-    const { fps, width, height, durationInFrames } = useVideoConfig();
+    const { fps, width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
     const exit = useExit();
     const kind: Showcase3DSubject = ['phone', 'laptop', 'logo'].includes(subject) ? subject : 'phone';
@@ -250,11 +250,9 @@ export function Showcase3D({ subject, image, motion, headline, detail, transpare
 
     // Entrance over about a second, then a slow drift to the end.
     const p = spring({ frame, fps, config: { damping: 16, stiffness: 70 } });
-    const t = frame / fps;
-    const drift = interpolate(frame, [0, durationInFrames], [0, 1], clamp);
-    const yaw = (motion === 'spin' ? -(1 - p) * Math.PI * 1.6 : motion === 'orbit' ? Math.sin(t * 0.9) * 0.45 : -(1 - p) * 0.5) - 0.32 + drift * 0.22;
-    const pitch = motion === 'tilt' ? (1 - p) * 0.9 + 0.12 : 0.1 + Math.sin(t * 0.7) * 0.03;
-    const lift = (1 - p) * -0.8 + Math.sin(t * 1.1) * 0.025;
+    const yaw = (motion === 'spin' ? -(1 - p) * Math.PI * 1.6 : motion === 'orbit' ? 0 : -(1 - p) * 0.5) - 0.32;
+    const pitch = motion === 'tilt' ? (1 - p) * 0.9 + 0.12 : 0.1;
+    const lift = (1 - p) * -0.8;
     const scale = (kind === 'phone' ? 1.35 : kind === 'laptop' ? 1.05 : 1.15) * (0.85 + 0.15 * p);
 
     // The canvas fills the device's area: right half beside text, or above it.

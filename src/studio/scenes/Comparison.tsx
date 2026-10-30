@@ -2,7 +2,7 @@ import { evolvePath } from '@remotion/paths';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
 import { BrandTexture, clamp, sceneGradient, useExit } from './SceneBase';
-import { frameLayout } from './layout';
+import { frameLayout, grow } from './layout';
 import { fitSize } from './text';
 import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
@@ -41,8 +41,8 @@ export function Comparison({ heading, us, them, rows, transparent, brand }: Comp
     const frame = useCurrentFrame();
     const { fps, width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
-    const u = layout.unit;
-    const t = layout.text;
+    const u = layout.unit * grow(width, height);
+    const t = layout.text * grow(width, height);
     const { colors } = brand;
     const exit = useExit();
     const list = (Array.isArray(rows) ? rows : []).filter((r) => r?.feature?.trim()).slice(0, 6);
@@ -51,6 +51,8 @@ export function Comparison({ heading, us, them, rows, transparent, brand }: Comp
     const headH = heading ? t * 10 : 0;
     const rowH = Math.min(t * 9, (height - layout.safeY * 2 - headH - t * 8) / Math.max(1, list.length));
     const headIn = spring({ frame, fps, config: { damping: 200 } });
+    // Once the rows have landed, our column glows up one time.
+    const glow = spring({ frame: frame - 18 - list.length * 5, fps, config: { damping: 14, stiffness: 120 } });
     const headSize = fitSize(heading, innerW, brand.fonts.display, t * 6);
     const color = (mark: Mark, ours: boolean) => (mark === 'yes' ? (ours ? colors.accent : colors.text) : mark === 'partial' ? colors.muted : `${colors.muted}aa`);
 
@@ -60,7 +62,7 @@ export function Comparison({ heading, us, them, rows, transparent, brand }: Comp
             {heading && <div style={{ color: colors.text, fontFamily: displayFont(brand), fontSize: headSize, fontWeight: 800, lineHeight: 1.1, textAlign: 'center', marginBottom: t * 3, opacity: headIn }}>{heading}</div>}
             <div style={{ position: 'relative', width: innerW }}>
                 {/* Our column's highlight, behind the rows. */}
-                <div style={{ position: 'absolute', right: colW, top: -u, bottom: -u, width: colW, borderRadius: u * 2, background: `${colors.accent}22`, border: `1px solid ${colors.accent}66`, opacity: headIn }} />
+                <div style={{ position: 'absolute', right: colW, top: -u, bottom: -u, width: colW, borderRadius: u * 2, background: `${colors.accent}22`, border: `1px solid ${colors.accent}66`, opacity: headIn, boxShadow: `0 0 ${u * 5 * glow}px ${colors.accent}55` }} />
                 <div style={{ display: 'flex', height: t * 7, alignItems: 'center', opacity: headIn }}>
                     <div style={{ flex: 1 }} />
                     <div style={{ width: colW, textAlign: 'center', color: colors.accent, fontSize: t * 3, fontWeight: 800, lineHeight: 1.2 }}>{us}</div>

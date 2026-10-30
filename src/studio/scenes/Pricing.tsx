@@ -1,7 +1,7 @@
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
 import { BrandTexture, clamp, sceneGradient, useExit } from './SceneBase';
-import { frameLayout } from './layout';
+import { frameLayout, grow } from './layout';
 import { fitSize } from './text';
 import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
@@ -26,8 +26,8 @@ export function Pricing({ heading, tiers, transparent, brand }: PricingProps) {
     const frame = useCurrentFrame();
     const { fps, width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
-    const u = layout.unit;
-    const t = layout.text;
+    const u = layout.unit * grow(width, height);
+    const t = layout.text * grow(width, height);
     const { colors } = brand;
     const exit = useExit();
     const list = (Array.isArray(tiers) ? tiers : []).filter((tier) => tier?.name?.trim()).slice(0, 3);

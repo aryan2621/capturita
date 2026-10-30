@@ -15,6 +15,13 @@ export interface ScreenshotShowcaseProps {
     detail: string;
     url: string;
     scroll: boolean;
+    /** A cursor glides to the focus point and clicks. */
+    cursor?: boolean;
+    /** Then the screenshot zooms in on the focus point. */
+    zoom?: boolean;
+    /** The focus point, as a percentage of the screenshot. */
+    focusX?: number;
+    focusY?: number;
     transparent?: boolean;
     brand: Brand;
     assets: SceneAssets;
@@ -24,7 +31,7 @@ export interface ScreenshotShowcaseProps {
 const SCREEN_RATIO: Record<ScreenshotDevice, number> = { phone: 9 / 19.5, tablet: 3 / 4, laptop: 16 / 10, browser: 16 / 10 };
 
 /** A screenshot in a phone, tablet, laptop or browser frame that rises and settles, with a headline beside or above it. */
-export function ScreenshotShowcase({ image, device, placement, headline, detail, url, scroll, transparent, brand, assets }: ScreenshotShowcaseProps) {
+export function ScreenshotShowcase({ image, device, placement, headline, detail, url, scroll, cursor, zoom, focusX, focusY, transparent, brand, assets }: ScreenshotShowcaseProps) {
     const frame = useCurrentFrame();
     const { fps, width, height, durationInFrames } = useVideoConfig();
     const layout = frameLayout(width, height);
@@ -49,7 +56,7 @@ export function ScreenshotShowcase({ image, device, placement, headline, detail,
 
     const rise = spring({ frame: frame - 4, fps, config: { damping: 16, stiffness: 90 } });
     const tilt = interpolate(rise, [0, 1], [22, 0]);
-    const float = Math.sin(frame / 22) * u * 0.4;
+    const float = 0; // no idle bobbing: moving after landing reads as wandering
     const textIn = spring({ frame: frame - 12, fps, config: { damping: 200 } });
     const detailIn = spring({ frame: frame - 20, fps, config: { damping: 200 } });
     const scrollP = scroll ? interpolate(frame, [30, durationInFrames - 20], [0, 1], { ...clamp, easing: (x) => x * x * (3 - 2 * x) }) : 0;
@@ -57,8 +64,17 @@ export function ScreenshotShowcase({ image, device, placement, headline, detail,
     const textW = side ? width * 0.5 - layout.safeX * 1.5 : width - layout.safeX * 2;
     const headSize = fitSize(headline, textW, brand.fonts.display, t * (side ? 7 : 7.5));
 
+    const fx = Math.min(95, Math.max(5, Number(focusX) || 50));
+    const fy = Math.min(95, Math.max(5, Number(focusY) || 40));
+    const ease = (x: number) => x * x * (3 - 2 * x);
+    const glide = interpolate(frame, [24, 56], [0, 1], { ...clamp, easing: ease });
+    const zoomIn = zoom ? interpolate(frame, [62, 96], [1, 1.8], { ...clamp, easing: ease }) : 1;
+    const click = frame >= 56 && frame < 62;
+    const cursorSize = u * 3.4;
+
     const screen = (
         <div style={{ position: 'relative', width: screenW, height: screenH, overflow: 'hidden', borderRadius: device === 'browser' ? `0 0 ${radius}px ${radius}px` : device === 'laptop' ? u * 0.4 : radius - bezel * 0.6, background: colors.surface }}>
+            <div style={{ position: 'absolute', inset: 0, transform: `scale(${zoomIn})`, transformOrigin: `${fx}% ${fy}%` }}>
             {scroll && image ? (
                 <SceneImage
                     src={image}
@@ -68,6 +84,25 @@ export function ScreenshotShowcase({ image, device, placement, headline, detail,
                 />
             ) : (
                 <SceneImage src={image} assets={assets} brand={brand} label='Add a screenshot' style={{ width: '100%', height: '100%' }} />
+            )}
+            </div>
+            {cursor && image && (
+                <svg
+                    width={cursorSize}
+                    height={cursorSize}
+                    viewBox="0 0 24 24"
+                    style={{
+                        position: 'absolute',
+                        left: interpolate(glide, [0, 1], [screenW * 0.92, (fx / 100) * screenW]),
+                        top: interpolate(glide, [0, 1], [screenH * 0.95, (fy / 100) * screenH]),
+                        transform: `scale(${click ? 0.86 : 1})`,
+                        transformOrigin: '2px 2px',
+                        opacity: interpolate(frame, [18, 26], [0, 1], clamp),
+                        filter: 'drop-shadow(0 2px 4px #0006)',
+                    }}
+                >
+                    <path d="M3 2l7.5 18 2.4-7.1L20 10.5z" fill="#fff" stroke="#111" strokeWidth={1.4} strokeLinejoin="round" />
+                </svg>
             )}
         </div>
     );

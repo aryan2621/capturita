@@ -57,7 +57,8 @@ export function CodeTyping({ heading, fileName, code, speed, transparent, brand 
     const fontSize = Math.min(t * 3.4, (winW - u * 8) / (longest * 0.6), bodyH / (lines.length * 1.5));
     const typed = Math.max(0, Math.floor(((frame - 10) / fps) * Math.max(5, Number(speed) || 40)));
     const open = spring({ frame, fps, config: { damping: 200 } });
-    const palette: Record<Token['kind'], string> = { plain: colors.text, keyword: colors.accent, string: '#9ece6a', number: '#ff9e64', comment: colors.muted, fn: '#7dcfff' };
+    // The window is always dark, so its text doesn't follow the brand's (possibly inverted) text colour.
+    const palette: Record<Token['kind'], string> = { plain: '#e6e8f0', keyword: colors.accent, string: '#9ece6a', number: '#ff9e64', comment: '#7a819c', fn: '#7dcfff' };
     const headSize = fitSize(heading, innerW, brand.fonts.display, t * 6);
 
     let left = typed;

@@ -80,7 +80,17 @@ type State =
     | { status: 'done'; path: string; paths?: string[]; url?: string; seconds: number; lockedPrivate?: boolean }
     | { status: 'error'; message: string; path?: string };
 
-export function ExportDialog({ project, edit, cursor, onClose }: { project: Project; edit: Edit; cursor: CursorData | null; onClose: () => void }) {
+export function ExportDialog({
+    project,
+    edit,
+    cursor,
+    onClose,
+}: {
+    project: Project;
+    edit: Edit;
+    cursor: CursorData | null;
+    onClose: () => void;
+}) {
     const [settings, setSettings] = useState<Remembered>(loadSettings);
     const [state, setState] = useState<State>({ status: 'idle' });
     const [google, setGoogle] = useState<GoogleStatus | null>(null);
@@ -403,7 +413,7 @@ export function ExportDialog({ project, edit, cursor, onClose }: { project: Proj
                                             options={[
                                                 { value: 'mp4', label: 'MP4', hint: 'Video with sound' },
                                                 { value: 'gif', label: 'GIF', hint: 'Silent, loops, plays anywhere' },
-                                                { value: 'mov', label: 'Transparent (ProRes)', hint: 'ProRes 4444 with alpha: only the motion scenes and overlays, for Final Cut or Premiere' },
+                                                { value: 'mov', label: 'ProRes', hint: 'ProRes 4444 with alpha: only the motion scenes and overlays, for Final Cut or Premiere' },
                                             ]}
                                         />
                                     </Group>

@@ -1,6 +1,7 @@
+import { useBeatPulse, useBeatSnap } from './beat';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
-import { BrandTexture, useExit } from './SceneBase';
+import { BrandTexture, Depth, useExit } from './SceneBase';
 import { bodyFont, displayFont, type Brand } from './assets';
 
 export type KineticStyle = 'punch' | 'stack' | 'slot' | 'sweep';
@@ -58,6 +59,8 @@ export function KineticStatement({ lines, emphasis, style, transparent, brand }:
     const exit = useExit();
     const exitLift = (1 - exit) * -unit * 2;
 
+    const snap = useBeatSnap();
+    const pulse = useBeatPulse(0.2);
     let index = 0;
     return (
         <AbsoluteFill
@@ -70,19 +73,25 @@ export function KineticStatement({ lines, emphasis, style, transparent, brand }:
                 opacity: exit,
             }}
         >
-            <BrandTexture brand={brand} transparent={transparent} />
+            <Depth z={-0.5}><BrandTexture brand={brand} transparent={transparent} /></Depth>
+            <Depth z={1} style={{ alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: fontSize * 0.08, transform: `translateY(${exitLift}px)` }}>
                 {rows.map((row, line) => (
                     <div key={line} style={{ display: 'flex', flexWrap: portrait ? 'wrap' : 'nowrap', maxWidth: width * 0.9, justifyContent: 'center', columnGap: fontSize * 0.26, rowGap: fontSize * 0.08 }}>
                         {row.split(/\s+/).map((word, w) => {
                             const at = index++;
                             // Stack builds line by line; the others run word by word across all lines.
-                            const start = kind === 'stack' ? 4 + line * 12 + w * 2 : 4 + at * 4;
-                            return <Word key={w} word={word} accent={accentWords.has(bare(word))} kind={kind} frame={frame - start} fps={fps} fontSize={fontSize} brand={brand} />;
+                            const accent = accentWords.has(bare(word));
+                            const usual = kind === 'stack' ? 4 + line * 12 + w * 2 : 4 + at * 4;
+                            // Only accent words lock to the music: they land on a beat and pulse on the ones after.
+                            const start = accent ? snap(usual / fps) * fps : usual;
+                            const word_ = <Word key={w} word={word} accent={accent} kind={kind} frame={frame - start} fps={fps} fontSize={fontSize} brand={brand} />;
+                            return accent ? <span key={w} style={{ display: 'inline-block', transform: `scale(${1 + pulse * 0.04})` }}>{word_}</span> : word_;
                         })}
                     </div>
                 ))}
             </div>
+            </Depth>
         </AbsoluteFill>
     );
 }

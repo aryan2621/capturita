@@ -1,8 +1,9 @@
+import { useBeatSnap } from './beat';
 import qrcode from 'qrcode-generator';
 import { useMemo } from 'react';
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
-import { BrandTexture, useExit } from './SceneBase';
+import { BrandTexture, Depth, useExit } from './SceneBase';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export type SocialNetwork = 'x' | 'github' | 'linkedin' | 'youtube' | 'instagram';
@@ -39,9 +40,11 @@ export function EndCard({ headline, cta, url, showQr, socials, transparent, bran
     const withQr = showQr && address.length > 0;
     const links = (Array.isArray(socials) ? socials : []).filter((s) => s?.handle?.trim()).slice(0, 4);
 
+    const snap = useBeatSnap();
+    const onBeat = (f: number) => snap(f / fps) * fps; // entrance frame moved onto a nearby beat
     const logoIn = spring({ frame, fps, config: { damping: 200 } });
-    const headlineIn = spring({ frame: frame - 6, fps, config: { damping: 200 } });
-    const buttonIn = spring({ frame: frame - 16, fps, config: { damping: 13, stiffness: 160 } });
+    const headlineIn = spring({ frame: frame - onBeat(6), fps, config: { damping: 200 } });
+    const buttonIn = spring({ frame: frame - onBeat(16), fps, config: { damping: 13, stiffness: 160 } });
     // The pointer glides onto the button, presses it, and the button answers with a ripple.
     const pointer = spring({ frame: frame - 28, fps, config: { damping: 200 }, durationInFrames: PRESS - 28 });
     const press = interpolate(frame, [PRESS, PRESS + 3, PRESS + 9], [0, 1, 0], clamp);
@@ -139,7 +142,8 @@ export function EndCard({ headline, cta, url, showQr, socials, transparent, bran
                 opacity: exit,
             }}
         >
-            <BrandTexture brand={brand} transparent={transparent} />
+            <Depth z={-0.5}><BrandTexture brand={brand} transparent={transparent} /></Depth>
+            <Depth z={1}>
             <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', padding: unit * 6 }}>
                 <div style={{ display: 'flex', flexDirection: portrait ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: unit * (portrait ? 7 : 10) }}>
                     {main}
@@ -178,6 +182,7 @@ export function EndCard({ headline, cta, url, showQr, socials, transparent, bran
                     })}
                 </div>
             )}
+            </Depth>
         </AbsoluteFill>
     );
 }

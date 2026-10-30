@@ -1,7 +1,7 @@
 import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
 import { BrandTexture, clamp, sceneGradient, useExit } from './SceneBase';
-import { frameLayout } from './layout';
+import { frameLayout, grow } from './layout';
 import { fitSize } from './text';
 import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
@@ -18,8 +18,8 @@ export function Roadmap({ heading, milestones, transparent, brand }: RoadmapProp
     const frame = useCurrentFrame();
     const { fps, width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
-    const u = layout.unit;
-    const t = layout.text;
+    const u = layout.unit * grow(width, height);
+    const t = layout.text * grow(width, height);
     const { colors } = brand;
     const exit = useExit();
     const list = (Array.isArray(milestones) ? milestones : []).filter((m) => m?.title?.trim()).slice(0, 5);
@@ -50,8 +50,10 @@ export function Roadmap({ heading, milestones, transparent, brand }: RoadmapProp
                     const land = spring({ frame: frame - reached(i), fps, config: { damping: 12, stiffness: 160 } });
                     const textIn = interpolate(frame, [reached(i), reached(i) + 10], [0, 1], clamp);
                     const filled = m.status === 'done' || m.status === 'now';
-                    const pulse = m.status === 'now' ? 1 + 0.6 * ((frame / fps) % 1.2) / 1.2 : 0;
-                    const pulseFade = m.status === 'now' ? 1 - ((frame / fps) % 1.2) / 1.2 : 0;
+                    // One ring when the milestone lands (not an endless pulse: moving forever reads as the scene swinging).
+                    const ring = Math.min(1, Math.max(0, (frame - reached(i)) / fps / 1.2));
+                    const pulse = m.status === 'now' ? 1 + 0.6 * ring : 0;
+                    const pulseFade = m.status === 'now' ? 1 - ring : 0;
                     return (
                         <div
                             key={i}
@@ -73,7 +75,9 @@ export function Roadmap({ heading, milestones, transparent, brand }: RoadmapProp
                                     </svg>
                                 )}
                             </div>
-                            <div style={{ textAlign: vertical ? 'left' : 'center', opacity: textIn, transform: `translateY(${(1 - textIn) * u * 2}px)`, padding: vertical ? 0 : `0 ${u}px`, minWidth: 0 }}>
+                            <div style={{ textAlign: vertical ? 'left' : 'center', opacity: textIn, transform: `translateY(${(1 - textIn) * u * 2}px)`, margin: vertical ? 0 : `0 ${u}px`, padding: `${u * 1.8}px ${u * 2}px`, borderRadius: u * 2, background: `${colors.surface}cc`, border: `${m.status === 'now' ? u * 0.3 : 1}px solid ${m.status === 'now' ? colors.accent : `${colors.muted}33`}`, boxShadow: m.status === 'now' ? `0 ${u * 1.5}px ${u * 5}px ${colors.accent}44` : 'none', minWidth: 0 }}>
+                                {m.status === 'done' && <div style={{ color: colors.accent, fontSize: size.when * 0.9, fontWeight: 700, marginBottom: u * 0.6 }}>✓ Shipped</div>}
+                                {m.status === 'now' && <div style={{ color: colors.accent, fontSize: size.when * 0.9, fontWeight: 700, marginBottom: u * 0.6 }}>● In progress</div>}
                                 {m.when && <div style={{ color: m.status === 'next' ? colors.muted : colors.accent, fontSize: size.when, fontWeight: 700, letterSpacing: size.when * 0.06, textTransform: 'uppercase', lineHeight: 1.2, marginBottom: u * 0.6 }}>{m.when}</div>}
                                 <div style={{ color: m.status === 'next' ? colors.muted : colors.text, fontFamily: displayFont(brand), fontSize: size.title, fontWeight: 750, lineHeight: 1.15 }}>{m.title}</div>
                             </div>

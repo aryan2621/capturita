@@ -1,7 +1,7 @@
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
 import { BrandTexture, clamp, SceneImage, sceneGradient, useExit } from './SceneBase';
-import { frameLayout } from './layout';
+import { frameLayout, grow } from './layout';
 import { fitSize } from './text';
 import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
@@ -18,8 +18,8 @@ export function Team({ heading, people, transparent, brand, assets }: TeamProps)
     const frame = useCurrentFrame();
     const { fps, width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
-    const u = layout.unit;
-    const t = layout.text;
+    const u = layout.unit * grow(width, height);
+    const t = layout.text * grow(width, height);
     const { colors } = brand;
     const exit = useExit();
     const list = (Array.isArray(people) ? people : []).filter((p) => p?.name?.trim()).slice(0, 6);
@@ -47,8 +47,9 @@ export function Team({ heading, people, transparent, brand, assets }: TeamProps)
                     const textIn = interpolate(frame, [14 + i * 5, 24 + i * 5], [0, 1], clamp);
                     const initials = p.name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
                     return (
-                        <div key={i} style={{ width: cellW, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: `0 ${u}px` }}>
-                            <div style={{ width: photo, height: photo, borderRadius: '50%', padding: u * 0.5, background: colors.accent, transform: `scale(${pop})`, opacity: interpolate(pop, [0, 0.4], [0, 1], clamp) }}>
+                        <div key={i} style={{ width: cellW, boxSizing: 'border-box', padding: `0 ${u * 1.2}px` }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: `${u * 3}px ${u * 1.5}px`, borderRadius: u * 2.6, background: `${colors.surface}cc`, border: `1px solid ${colors.muted}33`, boxShadow: `0 ${u * 1.6}px ${u * 5}px #0006`, opacity: interpolate(pop, [0, 0.4], [0, 1], clamp), transform: `translateY(${(1 - pop) * u * 5}px)` }}>
+                            <div style={{ width: photo, height: photo, borderRadius: '50%', padding: u * 0.5, background: `conic-gradient(from ${200 + frame * 0.6}deg, ${colors.accent}, ${colors.muted}, ${colors.accent})`, transform: `scale(${pop})`, opacity: interpolate(pop, [0, 0.4], [0, 1], clamp) }}>
                                 {p.photo ? (
                                     <SceneImage src={p.photo} assets={assets} brand={brand} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
                                 ) : (
@@ -57,8 +58,9 @@ export function Team({ heading, people, transparent, brand, assets }: TeamProps)
                             </div>
                             <div style={{ marginTop: t * 2, opacity: textIn, transform: `translateY(${(1 - textIn) * u * 2}px)` }}>
                                 <div style={{ color: colors.text, fontFamily: displayFont(brand), fontSize: t * 3.2, fontWeight: 750, lineHeight: 1.15 }}>{p.name}</div>
-                                {p.role && <div style={{ color: colors.muted, fontSize: t * 2.5, fontWeight: 500, lineHeight: 1.25, marginTop: u * 0.5 }}>{p.role}</div>}
+                                {p.role && <div style={{ display: 'inline-block', color: colors.accent, background: `${colors.accent}1f`, fontSize: t * 2.1, fontWeight: 650, lineHeight: 1.25, marginTop: u * 1, padding: `${u * 0.5}px ${u * 1.4}px`, borderRadius: 99 }}>{p.role}</div>}
                             </div>
+                          </div>
                         </div>
                     );
                 })}

@@ -32,6 +32,7 @@ import {
     LAYER_BASE,
     LAYER_EASES,
     LAYER_PRESETS,
+    LAYOUT_PRESETS,
     layerFor,
     layerFrom,
     layerPose,
@@ -162,7 +163,7 @@ export function ScenePanel({
                     type: kind,
                     duration: blended?.duration ?? DEFAULT_CROSSFADE,
                     ...(DIRECTED_TRANSITIONS.includes(kind) ? { direction: blended?.direction ?? 'left' } : {}),
-                    ...(kind === 'dip' ? { color: blended?.color ?? '#000000' } : {}),
+                    ...(kind === 'dip' || kind === 'flood' ? { color: blended?.color ?? '#000000' } : {}),
                 },
                 key
             );
@@ -208,7 +209,7 @@ export function ScenePanel({
                         ]}
                     />
                 )}
-                {blended?.type === 'dip' && (
+                {(blended?.type === 'dip' || blended?.type === 'flood') && (
                     <label className='flex items-center justify-between gap-3 text-xs'>
                         <span>Colour</span>
                         <ColorField
@@ -421,13 +422,27 @@ function SceneFields({
                     </div>
                 );
             }
-            case 'choice':
+            case 'choice': {
+                // Older videos saved 'none' for the camera, which now means locked.
+                const shown = f.name === 'camera' && value === 'none' ? 'still' : String(value);
                 return (
                     <div key={f.name} className='space-y-2'>
                         <div className='text-xs'>{f.label}</div>
-                        <Segmented size='sm' value={String(value)} onChange={(next) => setProp(f.name, next)} options={f.options} />
+                        {/* A row of buttons only fits a few short labels; anything longer is a dropdown. */}
+                        {f.options.length <= 3 && f.options.every((o) => (o.label ?? '').length <= 14) ? (
+                            <Segmented size='sm' value={shown} onChange={(next) => setProp(f.name, next)} options={f.options} />
+                        ) : (
+                            <Select value={shown} onChange={(e) => setProp(f.name, e.target.value)}>
+                                {f.options.map((o) => (
+                                    <option key={o.value} value={o.value}>
+                                        {o.label}
+                                    </option>
+                                ))}
+                            </Select>
+                        )}
                     </div>
                 );
+            }
             case 'segment': {
                 const segment = value as Segment;
                 const set = (next: Segment) =>
@@ -882,6 +897,19 @@ function LayersEditor({
                             if (!preset) return;
                             onChange([...layers, { ...LAYER_BASE, ...preset.layer, at: Math.max(0, time) }]);
                             edit.onSelect(layers.length);
+                        }}
+                    />
+                </div>
+                <div className='w-32'>
+                    <MenuButton
+                        label='Layout…'
+                        items={LAYOUT_PRESETS.map((preset, i) => ({ key: String(i), label: preset.label }))}
+                        onPick={(key) => {
+                            const preset = LAYOUT_PRESETS[Number(key)];
+                            if (!preset) return;
+                            onChange(preset.layers.map((layer) => ({ ...LAYER_BASE, ...layer })));
+                            edit.onSelect(null);
+                            toast.success(`${preset.label} layout applied: ⌘Z to undo`);
                         }}
                     />
                 </div>

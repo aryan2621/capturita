@@ -1,3 +1,4 @@
+import type { Zoom } from '../../editor/model';
 import type { ReactNode } from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
@@ -19,6 +20,10 @@ export interface DeviceShowcaseProps {
     brand: Brand;
     recording: RecordingInfo;
     assets: SceneAssets;
+    /** Zoom-ins on the clicks in the segment, seconds from its start (set when the scene is made). */
+    zooms?: Zoom[];
+    /** Turn the zooms off (anything but false keeps them). */
+    clickZoom?: boolean;
 }
 
 /** Traffic lights, drawn (no artwork). */
@@ -88,7 +93,7 @@ function Device({ kind, width, aspect, url, brand, children }: { kind: DeviceKin
  * The recording playing inside a drawn device. The device tilts up and rises in on a spring,
  * then the camera pushes in slowly; an optional headline sits beside or under it.
  */
-export function DeviceShowcase({ device, segment, headline, detail, placement, url, brand, recording, assets }: DeviceShowcaseProps) {
+export function DeviceShowcase({ device, segment, headline, detail, placement, url, brand, recording, assets, zooms, clickZoom }: DeviceShowcaseProps) {
     const frame = useCurrentFrame();
     const { fps, width, height, durationInFrames } = useVideoConfig();
     const layout = frameLayout(width, height);
@@ -153,7 +158,7 @@ export function DeviceShowcase({ device, segment, headline, detail, placement, u
                         }}
                     >
                         <Device kind={device} width={deviceWidth} aspect={aspect} url={url} brand={brand}>
-                            <RecordingVideo recording={recording} assets={assets} segment={segment} />
+                            <RecordingVideo recording={recording} assets={assets} segment={segment} zooms={clickZoom === false ? undefined : zooms} />
                         </Device>
                     </div>
                 </div>

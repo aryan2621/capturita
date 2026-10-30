@@ -1,6 +1,6 @@
 import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
-import { BrandTexture, useExit } from './SceneBase';
+import { BrandTexture, Depth, useExit } from './SceneBase';
 import { frameLayout } from './layout';
 import { bodyFont, displayFont, type Brand, type RecordingInfo, type SceneAssets, type Segment, type TargetRect } from './assets';
 import { RecordingVideo } from './RecordingVideo';
@@ -101,7 +101,8 @@ export function FeatureCallout({ segment, target, label, detail, motion, brand, 
 
     return (
         <AbsoluteFill style={{ background: colors.bg, overflow: 'hidden', lineHeight: 1.2, opacity: exit }}>
-            <BrandTexture brand={brand} />
+            <Depth z={-0.5}><BrandTexture brand={brand} /></Depth>
+            <Depth z={1}>
             <div
                 style={{
                     position: 'absolute',
@@ -169,6 +170,7 @@ export function FeatureCallout({ segment, target, label, detail, motion, brand, 
                 {label.trim() && <div style={{ fontFamily: displayFont(brand), color: colors.text, fontSize: t * 3.8, fontWeight: 700, lineHeight: 1.12, overflowWrap: 'break-word' }}>{label}</div>}
                 {detail.trim() && <div style={{ fontFamily: bodyFont(brand), color: colors.muted, fontSize: t * 2.3, fontWeight: 450, lineHeight: 1.35, marginTop: t * 1.2, overflowWrap: 'break-word' }}>{detail}</div>}
             </div>
+            </Depth>
         </AbsoluteFill>
     );
 }

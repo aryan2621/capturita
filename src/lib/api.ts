@@ -147,6 +147,19 @@ export interface AiModel {
     downloaded: boolean;
 }
 
+export interface AiCloud {
+    enabled: boolean;
+    hasKey: boolean;
+    model: string;
+}
+
+export interface AiOpenAi {
+    enabled: boolean;
+    hasKey: boolean;
+    baseUrl: string;
+    model: string;
+}
+
 export interface AiModels {
     models: AiModel[];
     active: string;
@@ -196,10 +209,12 @@ export const api = {
     createStudioProject: () => invoke<Project>('create_studio_project'),
     deleteRecording: (id: string) => invoke<void>('delete_recording', { id }),
     loadEdit: (id: string) => invoke<unknown | null>('load_edit', { id }),
-    saveEdit: (id: string, edit: unknown) => invoke<void>('save_edit', { id, edit }),
+    saveEdit: (id: string, edit: unknown, duration?: number) => invoke<void>('save_edit', { id, edit, duration }),
     /** Copies a song into the project folder; returns its file name there. */
     importMusic: async (id: string, file: File) =>
         invoke<string>('import_music', new Uint8Array(await file.arrayBuffer()), { headers: { id, name: encodeURIComponent(file.name) } }),
+    /** Downloads a suggested song (nothing is stored until it is imported). */
+    fetchMusic: async (url: string) => new Uint8Array(await invoke<ArrayBuffer>('fetch_music', { url })),
     /** Copies a voiceover or sound effect into the project's audio/ folder; returns its path there. */
     importAudio: async (id: string, kind: 'voice' | 'sfx', file: File) =>
         invoke<string>('import_audio', new Uint8Array(await file.arrayBuffer()), { headers: { id, kind, name: encodeURIComponent(file.name) } }),
@@ -231,6 +246,17 @@ export const api = {
     /** Downloads an AI model once, the chosen one by default (progress: `ai-progress` events, 0–1). */
     downloadAiModel: (id?: string) => invoke<void>('download_ai_model', { id }),
     cancelAiDownload: () => invoke<void>('cancel_ai_download'),
+    /** Cloudflare's Clef decision model (only when its token is in the Keychain; otherwise this rejects). */
+    aiDecide: (state: string, questions: object) => invoke<Record<string, any>>('ai_decide', { state, questions }),
+    /** Claude in the cloud, for better planning (needs the user's API key). */
+    aiCloud: () => invoke<AiCloud>('ai_cloud_status'),
+    /** Turns Claude on or off; a new `key` is tried before it is kept in the Keychain. */
+    saveAiCloud: (enabled: boolean, key?: string) => invoke<void>('ai_cloud_save', { enabled, key }),
+    removeAiCloudKey: () => invoke<void>('ai_cloud_remove_key'),
+    /** Any OpenAI-compatible cloud (OpenAI, Gemini, OpenRouter, Ollama…). */
+    aiOpenAi: () => invoke<AiOpenAi>('ai_openai_status'),
+    saveAiOpenAi: (enabled: boolean, baseUrl: string, model: string, key?: string) => invoke<void>('ai_openai_save', { enabled, baseUrl, model, key }),
+    removeAiOpenAiKey: () => invoke<void>('ai_openai_remove_key'),
     /** The speech model captions use. */
     captionModel: () => invoke<CaptionModel>('caption_model_status'),
     /** Every speech model to choose from (the same as Murmur's). */

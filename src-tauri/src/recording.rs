@@ -352,8 +352,18 @@ pub fn load_edit(app: AppHandle, id: String) -> Result<Option<Value>, String> {
 
 /// Writes edit.json via a temporary file so a crash mid-write can't leave it half written.
 #[tauri::command]
-pub fn save_edit(app: AppHandle, id: String, edit: Value) -> Result<(), String> {
+pub fn save_edit(app: AppHandle, id: String, edit: Value, duration: Option<f64>) -> Result<(), String> {
     let dir = project_dir(&app, &id)?;
+    // A Studio video has no recording to measure, so the editor reports its length for the library.
+    if let Some(seconds) = duration {
+        let file = dir.join("project.json");
+        if let Some(mut project) = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) {
+            if project["kind"] == "studio" {
+                project["duration"] = json!(seconds);
+                std::fs::write(&file, serde_json::to_string_pretty(&project).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+            }
+        }
+    }
     let temporary = dir.join(".edit.json.tmp");
     let text = serde_json::to_string_pretty(&edit).map_err(|e| e.to_string())?;
     std::fs::write(&temporary, text).map_err(|e| e.to_string())?;
@@ -387,6 +397,39 @@ pub fn import_music(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<
     let file = format!("music.{ext}");
     std::fs::write(dir.join(&file), bytes).map_err(|e| e.to_string())?;
     Ok(file)
+}
+
+/// Downloads a suggested song and returns its bytes. Only Wikimedia's file host is allowed, over
+/// https and up to 40 MB: the app's own list is the only caller, and it never stores the file itself.
+#[tauri::command]
+pub async fn fetch_music(url: String) -> Result<tauri::ipc::Response, String> {
+    const MAX: u64 = 40_000_000;
+    if !url.starts_with("https://upload.wikimedia.org/") {
+        return Err("That music link isn't allowed".into());
+    }
+    let response = reqwest::Client::new()
+        .get(&url)
+        .header("User-Agent", "Capturita/0.1 (https://github.com/aryan2621/capturita)")
+        .timeout(std::time::Duration::from_secs(120))
+        .send()
+        .await
+        .map_err(|e| format!("Couldn't download the song: {e}"))?;
+    if !response.status().is_success() {
+        return Err(format!("The song couldn't be downloaded ({})", response.status()));
+    }
+    if response.content_length().is_some_and(|n| n > MAX) {
+        return Err("That song is too large".into());
+    }
+    // Read in pieces so a server that sends no length can't make us hold a huge file.
+    let mut response = response;
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| format!("Couldn't download the song: {e}"))? {
+        bytes.extend_from_slice(&chunk);
+        if bytes.len() as u64 > MAX {
+            return Err("That song is too large".into());
+        }
+    }
+    Ok(tauri::ipc::Response::new(bytes))
 }
 
 /// Copies an image into the project folder as `background-<time>.<ext>` (replacing any earlier

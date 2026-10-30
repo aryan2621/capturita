@@ -1,6 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { CursorData, Project } from '../lib/api';
-import { positionAt, type SceneClip, type TimelineItem } from '../editor/model';
+import { autoZooms, positionAt, type SceneClip, type TimelineItem } from '../editor/model';
 import { SCENES } from './scenes';
 import type { Brand, RecordingInfo, SceneAssets, SceneEnv, Segment, TargetRect } from './scenes/assets';
 
@@ -49,6 +49,13 @@ export function suggestTarget(cursor: CursorData | null, project: Project, segme
     return { x: clamp(x, width), y: clamp(y, height), width, height };
 }
 
+/** The editor's click zooms for the part of the recording a scene shows, in seconds from its start. */
+export function clickZooms(cursor: CursorData | null, segment: Segment) {
+    if (!cursor) return [];
+    const clicks = cursor.clicks.filter(([t]) => t >= segment.start && t <= segment.end).map(([t, x, y, button]) => [t - segment.start, x, y, button] as typeof cursor.clicks[number]);
+    return clicks.length ? autoZooms({ ...cursor, moves: [], clicks }, segment.end - segment.start) : [];
+}
+
 /**
  * Props for a new scene at the playhead: its defaults, with recording segments set to the clip
  * there (from the playhead on) and targets suggested from the nearest click.
@@ -69,5 +76,7 @@ export function initialSceneProps(id: string, items: TimelineItem[], time: numbe
         if (field.type === 'segment') props[field.name] = segment;
         if (field.type === 'rect') props[field.name] = suggestTarget(cursor, project, segment) ?? props[field.name];
     }
+    // A device showing the recording zooms in on the clicks in it, like the editor does.
+    if (id === 'DeviceShowcase') props.zooms = clickZooms(cursor, segment);
     return props;
 }

@@ -77,6 +77,43 @@ export const LAYER_PRESETS: { label: string; layer: Partial<Layer> }[] = [
     { label: 'Image', layer: { kind: 'image', x: 20, y: 15, w: 60, h: 70, enter: 'rise' } },
 ];
 
+/** Whole starting layouts the panel can replace the layers with (undo brings the old ones back). */
+export const LAYOUT_PRESETS: { label: string; layers: Partial<Layer>[] }[] = [
+    {
+        label: 'Hero',
+        layers: [
+            { kind: 'text', text: 'NEW', style: 'label', color: 'accent', x: 40, y: 24, w: 20, h: 6, enter: 'fade' },
+            { kind: 'text', text: 'Your big idea', style: 'headline', x: 10, y: 33, w: 80, h: 22, enter: 'rise', at: 0.2 },
+            { kind: 'element', element: 'underline', color: 'accent', x: 30, y: 57, w: 40, h: 5, enter: 'none', at: 0.6 },
+            { kind: 'text', text: 'One line about it', style: 'body', color: 'muted', x: 15, y: 66, w: 70, h: 10, enter: 'fade', at: 0.8 },
+        ],
+    },
+    {
+        label: 'Quote',
+        layers: [
+            { kind: 'shape', shape: 'line', color: 'accent', x: 44, y: 22, w: 12, h: 1.5, enter: 'wipe' },
+            { kind: 'text', text: 'It changed how our whole team ships.', style: 'headline', x: 12, y: 30, w: 76, h: 30, enter: 'rise', at: 0.2 },
+            { kind: 'text', text: 'Name, Role at Company', style: 'body', color: 'muted', x: 20, y: 68, w: 60, h: 8, enter: 'fade', at: 0.9 },
+        ],
+    },
+    {
+        label: 'Announcement',
+        layers: [
+            { kind: 'shape', shape: 'pill', color: 'accent', x: 36, y: 22, w: 28, h: 9, enter: 'pop' },
+            { kind: 'text', text: 'Now live', style: 'label', color: 'bg', x: 36, y: 22, w: 28, h: 9, enter: 'pop' },
+            { kind: 'text', text: 'Something new is here', style: 'headline', x: 10, y: 36, w: 80, h: 24, enter: 'rise', at: 0.3 },
+            { kind: 'element', element: 'sparkles', color: 'accent', x: 72, y: 20, w: 14, h: 22, enter: 'none', at: 0.8 },
+        ],
+    },
+    {
+        label: 'Big stat',
+        layers: [
+            { kind: 'text', text: '10x', style: 'headline', color: 'accent', x: 15, y: 25, w: 70, h: 32, enter: 'pop' },
+            { kind: 'text', text: 'faster than doing it by hand', style: 'title', x: 15, y: 60, w: 70, h: 12, enter: 'fade', at: 0.5 },
+        ],
+    },
+];
+
 export const LAYER_EASES: Record<LayerEase, (p: number) => number> = {
     smooth: (p) => p * p * (3 - 2 * p),
     linear: (p) => p,

@@ -1,9 +1,10 @@
 import { BarChart3, Clock, Globe, Heart, Layers, Lock, Rocket, Shield, Sparkles, Users, Wand2, Zap, type LucideIcon } from 'lucide-react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
-import { BrandTexture, clamp, sceneGradient, useExit } from './SceneBase';
-import { frameLayout } from './layout';
+import { BrandTexture, Depth, clamp, sceneGradient, useExit } from './SceneBase';
+import { frameLayout, grow } from './layout';
 import { fitSize } from './text';
+import { useBeatSnap } from './beat';
 import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export const FEATURE_ICONS: Record<string, LucideIcon> = {
@@ -34,8 +35,8 @@ export function FeatureGrid({ heading, items, transparent, brand }: FeatureGridP
     const frame = useCurrentFrame();
     const { fps, width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
-    const u = layout.unit;
-    const t = layout.text;
+    const u = layout.unit * grow(width, height);
+    const t = layout.text * grow(width, height);
     const { colors } = brand;
     const exit = useExit();
     const list = (Array.isArray(items) ? items : []).filter((item) => item?.title?.trim()).slice(0, 6);
@@ -48,19 +49,23 @@ export function FeatureGrid({ heading, items, transparent, brand }: FeatureGridP
     const cardW = (innerW - gap * (cols - 1)) / cols;
     const cardH = Math.min((height - layout.safeY * 2 - headH - gap * (rows - 1)) / rows, cardW * 0.9);
     const compact = cardH < t * 18;
+    const snap = useBeatSnap();
     const headIn = spring({ frame, fps, config: { damping: 200 } });
     const headSize = fitSize(heading, innerW, brand.fonts.display, t * 6.5);
 
     return (
         <AbsoluteFill style={{ background: sceneGradient(brand, transparent), fontFamily: bodyFont(brand), lineHeight: 1.2, opacity: exit, alignItems: 'center', justifyContent: 'center', padding: `${layout.safeY}px ${layout.safeX}px` }}>
-            <BrandTexture brand={brand} transparent={transparent} />
+            <Depth z={-0.5}><BrandTexture brand={brand} transparent={transparent} /></Depth>
+            <Depth z={1} style={{ alignItems: 'center', justifyContent: 'center', padding: `${layout.safeY}px ${layout.safeX}px` }}>
             {heading && (
                 <div style={{ color: colors.text, fontFamily: displayFont(brand), fontSize: headSize, fontWeight: 800, lineHeight: 1.1, textAlign: 'center', marginBottom: t * 3, opacity: headIn, transform: `translateY(${(1 - headIn) * u * 3}px)` }}>{heading}</div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, ${cardW}px)`, gap }}>
                 {list.map((item, i) => {
-                    const pop = spring({ frame: frame - 10 - i * 5, fps, config: { damping: 14, stiffness: 150 } });
-                    const iconIn = spring({ frame: frame - 16 - i * 5, fps, config: { damping: 10, stiffness: 180 } });
+                    // Each card lands on the nearest beat within 0.15 s of its usual time.
+                    const start = snap((10 + i * 5) / fps) * fps;
+                    const pop = spring({ frame: frame - start, fps, config: { damping: 14, stiffness: 150 } });
+                    const iconIn = spring({ frame: frame - start - 6, fps, config: { damping: 10, stiffness: 180 } });
                     const Icon = FEATURE_ICONS[item.icon] ?? Sparkles;
                     const iconBox = compact ? t * 5 : t * 7;
                     return (
@@ -92,6 +97,7 @@ export function FeatureGrid({ heading, items, transparent, brand }: FeatureGridP
                     );
                 })}
             </div>
+            </Depth>
         </AbsoluteFill>
     );
 }

@@ -44,6 +44,8 @@ export function AiPanel({
     playhead: () => number;
 }) {
     const [model, setModel] = useState<{ name: string; downloaded: boolean; sizeMb: number } | null>(null);
+    // With Claude in the cloud turned on, no local model is needed.
+    const [cloudOn, setCloudOn] = useState(false);
     const [download, setDownload] = useState<number | null>(null);
     const [prompt, setPrompt] = useState('');
     const [busy, setBusy] = useState<Busy>(null);
@@ -54,6 +56,7 @@ export function AiPanel({
 
     useEffect(() => {
         api.aiModel().then(setModel).catch(() => {});
+        api.aiCloud().then((c) => setCloudOn(c.enabled && c.hasKey)).catch(() => {});
         const un = listen<number>('ai-progress', (e) => setDownload(e.payload));
         const unCaptions = listen<CaptionProgress>('captions-progress', (e) =>
             setBusy((b) => (b ? { label: e.payload.phase === 'download' ? 'Downloading the speech model (one time)' : 'Reading what you said', progress: e.payload.phase === 'load' ? null : e.payload.progress } : b))
@@ -139,7 +142,7 @@ export function AiPanel({
 
     const scenes = <SceneAiSection project={project} edit={edit} cursor={cursor} env={sceneEnv} size={sceneSize} playhead={playhead} onApply={onApply} />;
 
-    if (model && !model.downloaded) {
+    if (model && !model.downloaded && !cloudOn) {
         return (
             <section className='space-y-3'>
                 {header}

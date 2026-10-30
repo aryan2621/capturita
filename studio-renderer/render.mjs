@@ -24,7 +24,7 @@ import fs from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ensureBrowser, renderMedia, selectComposition } from '@remotion/renderer';
+import { ensureBrowser, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appModules = path.resolve(here, '../node_modules');
@@ -222,6 +222,13 @@ async function renderJob(serveUrl, job, onProgress, browserExecutable) {
     const extension = path.extname(job.out);
     const partial = `${job.out.slice(0, -extension.length)}.part${extension}`;
     await fs.mkdir(path.dirname(job.out), { recursive: true });
+    // A single frame as a picture (to look at a scene without rendering all of it).
+    if (Number.isInteger(job.still)) {
+        await renderStill({ composition, serveUrl, inputProps, output: partial, frame: job.still, imageFormat: 'jpeg', jpegQuality: 82, chromiumOptions, ...(browserExecutable ? { browserExecutable } : {}) });
+        await fs.rename(partial, job.out);
+        onProgress(1);
+        return;
+    }
     if (job.alpha && extension === '.mov' && Array.isArray(job.ranges)) {
         await renderRanges(serveUrl, composition, inputProps, job, partial, onProgress, browserExecutable);
         await fs.rename(partial, job.out);
@@ -240,7 +247,91 @@ async function renderJob(serveUrl, job, onProgress, browserExecutable) {
     await fs.rename(partial, job.out);
 }
 
-if (process.argv[2] === '--build-bundle') {
+/** Saves a remote image as `<base>.<its real type>` when it really is one (and small enough); returns the file name or null. */
+async function download(url, base) {
+    try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        const type = (response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+        if (!response.ok || !type.startsWith('image/')) return null;
+        const extension = { 'image/jpeg': 'jpg', 'image/svg+xml': 'svg', 'image/x-icon': 'ico', 'image/vnd.microsoft.icon': 'ico' }[type] ?? type.slice(6).replace(/[^a-z0-9]/g, '') ?? 'png';
+        const bytes = Buffer.from(await response.arrayBuffer());
+        if (bytes.length > 10_000_000) return null;
+        await fs.writeFile(`${base}.${extension}`, bytes);
+        return path.basename(`${base}.${extension}`);
+    } catch {
+        return null;
+    }
+}
+
+const CAPTURE_SECTIONS = 6;
+
+/**
+ * Looks at a product's web page the way a viewer would: a hero shot, up to six more screenshots
+ * scrolling down, one tall page, its logo and share image, brand colour and visible text. Files go
+ * in `outDir`, named from `prefix`; a single {"capture": …} line on stdout lists them.
+ */
+async function capturePage(url, outDir, prefix, executablePath) {
+    if (!/^https?:\/\//i.test(url)) throw new Error('Enter a web address starting with http:// or https://');
+    const { default: puppeteer } = await import('puppeteer-core');
+    await fs.mkdir(outDir, { recursive: true });
+    const chrome = await puppeteer.launch({ executablePath, headless: 'shell' });
+    try {
+        const page = await chrome.newPage();
+        await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 }).catch(async (error) => {
+            // Pages that never go quiet (analytics, chat widgets) are fine once they have loaded.
+            if (!/timeout/i.test(String(error?.message))) throw error;
+        });
+        // Best effort: close a cookie banner so it isn't in every shot.
+        await page.evaluate(() => {
+            const button = [...document.querySelectorAll('button, a[role="button"]')].find((b) => /^(accept( all)?|agree|got it|allow all|ok)\b/i.test((b.textContent ?? '').trim()));
+            button?.click();
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+
+        const files = { hero: `${prefix}hero.png`, sections: [], full: null, logo: null, share: null };
+        await page.screenshot({ path: path.join(outDir, files.hero) });
+        const height = await page.evaluate(() => document.documentElement.scrollHeight);
+        for (let i = 1; i <= CAPTURE_SECTIONS && i * 900 < height; i++) {
+            await page.evaluate((y) => window.scrollTo(0, y), i * 900);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            const name = `${prefix}section-${i}.png`;
+            await page.screenshot({ path: path.join(outDir, name) });
+            files.sections.push(name);
+        }
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        // One tall page for a scrolling shot, capped so a endless feed can't make a huge image.
+        files.full = `${prefix}full.png`;
+        await page.screenshot({ path: path.join(outDir, files.full), clip: { x: 0, y: 0, width: 1440, height: Math.min(height, 6000) }, captureBeyondViewport: true });
+
+        const meta = await page.evaluate(() => {
+            const content = (selector, attribute = 'content') => document.querySelector(selector)?.getAttribute(attribute) ?? '';
+            const absolute = (value) => (value ? new URL(value, document.baseURI).href : '');
+            return {
+                title: content('meta[property="og:title"]') || document.title,
+                description: content('meta[name="description"]') || content('meta[property="og:description"]'),
+                themeColor: content('meta[name="theme-color"]'),
+                share: absolute(content('meta[property="og:image"]')),
+                logo: absolute(content('link[rel="apple-touch-icon"]', 'href') || content('link[rel~="icon"]', 'href')),
+                text: document.body.innerText.replace(/\n{3,}/g, '\n\n').slice(0, 20000),
+            };
+        });
+        if (meta.share) files.share = await download(meta.share, path.join(outDir, `${prefix}share`));
+        if (meta.logo) files.logo = await download(meta.logo, path.join(outDir, `${prefix}logo`));
+        process.stdout.write(`${JSON.stringify({ capture: { ...files, title: meta.title, description: meta.description, themeColor: meta.themeColor, text: meta.text } })}\n`);
+    } finally {
+        await chrome.close();
+    }
+}
+
+if (process.argv[2] === '--capture') {
+    const executable = await browser();
+    await capturePage(process.argv[3], path.resolve(argument('--out')), argument('--prefix') ?? '', executable).catch((error) => {
+        console.error(`Couldn't capture that page: ${error?.message ?? error}`);
+        process.exit(1);
+    });
+} else if (process.argv[2] === '--build-bundle') {
     const out = path.resolve(process.argv[3]);
     await fs.rm(out, { recursive: true, force: true });
     await bundleScenes(undefined, out);
