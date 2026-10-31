@@ -56,6 +56,7 @@ pub fn export_open(app: AppHandle, export: State<'_, Export>, name: String, ext:
 /// on APFS the copy is a clone, so it takes no time or extra space.
 #[tauri::command]
 pub fn export_rendered(app: AppHandle, name: String, from: String) -> Result<String, String> {
+    crate::license::require_pro()?;
     let root = std::fs::canonicalize(recordings_root(&app)?).map_err(|e| e.to_string())?;
     let from = std::fs::canonicalize(&from).map_err(|e| e.to_string())?;
     if !from.starts_with(&root) || from.extension().and_then(|e| e.to_str()) != Some("mov") || !from.is_file() {

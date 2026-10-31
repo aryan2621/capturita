@@ -23,10 +23,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, errorMessage, type AiCloud, type AiModels, type AiOpenAi, type CaptionModel, type CaptionProgress, type GoogleStatus } from '../lib/api';
+import { useLicense } from '../lib/license';
 import { useTheme, type ThemeChoice } from '../lib/theme';
+import { ProFeatureGate } from './ProFeatureGate';
 import { Button, IconButton, Modal, ProgressBar, Segmented, cx } from './ui';
 
-export type SettingsSection = 'general' | 'ai' | 'captions' | 'google';
+export type SettingsSection = 'general' | 'ai' | 'captions' | 'google' | 'license';
 
 const SECTIONS: {
     id: SettingsSection;
@@ -66,6 +68,14 @@ const SECTIONS: {
         group: 'Accounts',
         blurb: 'Your own Google client, used to upload to YouTube and Drive.',
         keywords: 'youtube drive upload oauth client account',
+        icon: <KeyRound className='h-4 w-4' />,
+    },
+    {
+        id: 'license',
+        label: 'License',
+        group: 'Product',
+        blurb: 'Manage your Capturita Pro license.',
+        keywords: 'pro paid license key activate status updates',
         icon: <KeyRound className='h-4 w-4' />,
     },
 ];
@@ -138,12 +148,107 @@ export function SettingsDialog({
                 </div>
                 <div className='min-h-0 flex-1 overflow-y-auto px-8 py-6'>
                     {section === 'general' && <General onRunSetup={onRunSetup} />}
-                    {section === 'ai' && <AiModelsSection />}
-                    {section === 'captions' && <CaptionsSection />}
+                    {section === 'ai' && (
+                        <ProFeatureGate feature='AI editing'>
+                            <AiModelsSection />
+                        </ProFeatureGate>
+                    )}
+                    {section === 'captions' && (
+                        <ProFeatureGate feature='Captions'>
+                            <CaptionsSection />
+                        </ProFeatureGate>
+                    )}
                     {section === 'google' && <GoogleSection />}
+                    {section === 'license' && <LicenseSection />}
                 </div>
             </div>
         </Modal>
+    );
+}
+
+function LicenseSection() {
+    const { license, refresh } = useLicense();
+    const [key, setKey] = useState('');
+    const [busy, setBusy] = useState(false);
+
+    const activate = async () => {
+        setBusy(true);
+        try {
+            const result = await api.activateLicense(key.trim());
+            setKey('');
+            await refresh();
+            toast.success(result.notice || 'Capturita Pro is active.');
+        } catch (error) {
+            toast.error(errorMessage(error));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const remove = async () => {
+        setBusy(true);
+        try {
+            await api.removeLicense();
+            await refresh();
+            toast.success('License removed from this Mac.');
+        } catch (error) {
+            toast.error(errorMessage(error));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    if (!license.supported) {
+        return (
+            <div className='rounded-xl border border-line bg-panel-2 p-4'>
+                <p className='text-sm font-medium'>Source build — Pro features unlocked</p>
+                <p className='mt-1 text-xs text-muted'>License activation is only used by official Capturita builds. The source remains MIT-licensed.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className='space-y-5'>
+            <div className='rounded-xl border border-line bg-panel-2 p-4'>
+                <div className='flex items-start gap-3'>
+                    <span className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', license.pro ? 'bg-success-soft text-success-fg' : 'bg-raised text-muted')}>
+                        {license.pro ? <Check className='h-4 w-4' /> : <KeyRound className='h-4 w-4' />}
+                    </span>
+                    <div className='min-w-0 flex-1'>
+                        <p className='text-sm font-semibold'>{license.pro ? 'Capturita Pro is active' : 'Capturita Free'}</p>
+                        {license.email && <p className='mt-0.5 truncate text-xs text-muted'>{license.email}</p>}
+                        {license.updatesUntil && <p className='mt-1 text-xs text-muted'>Updates through {new Date(license.updatesUntil * 1000).toLocaleDateString()}.</p>}
+                    </div>
+                    {license.pro && (
+                        <Button size='sm' variant='secondary' disabled={busy} onClick={remove}>
+                            <LogOut className='h-3.5 w-3.5' /> Remove
+                        </Button>
+                    )}
+                </div>
+                {license.error && <p role='alert' className='mt-3 text-xs text-danger'>{license.error}</p>}
+                {license.notice && <p className='mt-3 text-xs text-muted'>{license.notice}</p>}
+            </div>
+
+            {!license.pro && (
+                <div className='space-y-3'>
+                    <p className='text-sm text-muted'>Paste the license key from your Capturita Pro purchase email. The key is stored in this Mac’s Keychain.</p>
+                    <textarea
+                        value={key}
+                        onChange={(event) => setKey(event.target.value)}
+                        aria-label='Capturita Pro license key'
+                        placeholder='Paste your license key'
+                        rows={3}
+                        spellCheck={false}
+                        className='w-full resize-y rounded-lg border border-line bg-panel-2 px-3 py-2 font-mono text-xs outline-none focus:border-accent'
+                    />
+                    <div className='flex justify-end'>
+                        <Button variant='primary' size='sm' disabled={busy || !key.trim()} onClick={activate}>
+                            {busy && <Loader2 className='h-3.5 w-3.5 animate-spin' />} Activate license
+                        </Button>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }
 

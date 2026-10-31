@@ -4,6 +4,7 @@ mod captions;
 mod export;
 mod google;
 mod helper;
+mod license;
 mod recording;
 mod sounds;
 mod studio;
@@ -68,6 +69,9 @@ pub fn run() {
             recording::recordings_dir,
             recording::restart_app,
             recording::log_debug,
+            license::license_state,
+            license::activate_license,
+            license::remove_license,
             ai::ai_model_status,
             ai::ai_models,
             ai::set_ai_model,

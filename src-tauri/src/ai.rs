@@ -653,6 +653,7 @@ pub fn ai_openai_remove_key(app: AppHandle) -> Result<(), String> {
 /// object keyed by question id; the keychain holds the Workers AI token and account id.
 #[tauri::command]
 pub async fn ai_decide(state: String, questions: Value) -> Result<Value, String> {
+    crate::license::require_pro()?;
     let token = keychain_key("cloudflare-api-token").ok_or("No Cloudflare token saved")?;
     let account = keychain_key("cloudflare-account-id").ok_or("No Cloudflare account id saved")?;
     let response = reqwest::Client::new()
@@ -677,6 +678,7 @@ pub async fn ai_decide(state: String, questions: Value) -> Result<Value, String>
 /// into a grammar), so it's always valid JSON in the expected shape.
 #[tauri::command]
 pub async fn ai_edit(app: AppHandle, ai: State<'_, Ai>, request: EditRequest) -> Result<Value, String> {
+    crate::license::require_pro()?;
     // Tells the UI who planned this, so a silent fallback to the local model is never a surprise.
     let announce = |by: &str, detail: &str| {
         let _ = app.emit("ai-planner", json!({ "by": by, "detail": detail }));

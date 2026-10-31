@@ -436,6 +436,7 @@ pub fn select_caption_model(app: AppHandle, id: String) -> Result<(), String> {
 /// Progress arrives as `captions-progress` events: download → load → transcribe.
 #[tauri::command]
 pub async fn transcribe(app: AppHandle, captions: State<'_, Captions>, request: Request<'_>) -> Result<Vec<Word>, String> {
+    crate::license::require_pro()?;
     let InvokeBody::Raw(bytes) = request.body() else {
         return Err("Expected audio samples".into());
     };

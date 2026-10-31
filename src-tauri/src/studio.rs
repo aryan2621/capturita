@@ -116,6 +116,7 @@ fn work_dir(app: &AppHandle, renderer: &Renderer) -> Result<PathBuf, String> {
 /// local http so scenes can show the recording and the brand logo.
 #[tauri::command]
 pub async fn studio_render(app: AppHandle, jobs: Vec<SceneJob>, project: String) -> Result<(), String> {
+    crate::license::require_pro()?;
     let root = recordings_root(&app)?;
     for job in &jobs {
         if !Path::new(&job.out).starts_with(&root) {
@@ -203,6 +204,7 @@ pub async fn studio_render(app: AppHandle, jobs: Vec<SceneJob>, project: String)
 /// `capture` report: file names are relative to images/.
 #[tauri::command]
 pub async fn studio_capture_url(app: AppHandle, url: String, project: String) -> Result<Value, String> {
+    crate::license::require_pro()?;
     let url = reqwest::Url::parse(url.trim()).map_err(|_| "That isn't a web address".to_string())?;
     if !matches!(url.scheme(), "http" | "https") {
         return Err("Enter a web address starting with http:// or https://".into());

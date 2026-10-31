@@ -296,6 +296,7 @@ pub fn list_recordings(app: AppHandle) -> Result<Vec<Value>, String> {
 /// track is an empty placeholder (`file: ""`) that sets the default 1080p size.
 #[tauri::command]
 pub fn create_studio_project(app: AppHandle) -> Result<Value, String> {
+    crate::license::require_pro()?;
     let id = chrono::Local::now().format("Studio %Y-%m-%d at %H.%M.%S").to_string();
     let dir = recordings_root(&app)?.join(&id);
     std::fs::create_dir(&dir).map_err(|e| e.to_string())?;
@@ -354,6 +355,16 @@ pub fn load_edit(app: AppHandle, id: String) -> Result<Option<Value>, String> {
 #[tauri::command]
 pub fn save_edit(app: AppHandle, id: String, edit: Value, duration: Option<f64>) -> Result<(), String> {
     let dir = project_dir(&app, &id)?;
+    // Pro content (animated titles, captions, Studio) is enforced here too, so a patched UI can't save it.
+    let studio = std::fs::read_to_string(dir.join("project.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .is_some_and(|p| p["kind"] == "studio");
+    let has_pro_data = edit["texts"].as_array().is_some_and(|a| !a.is_empty())
+        || edit["captions"]["items"].as_array().is_some_and(|a| !a.is_empty());
+    if studio || has_pro_data {
+        crate::license::require_pro()?;
+    }
     // A Studio video has no recording to measure, so the editor reports its length for the library.
     if let Some(seconds) = duration {
         let file = dir.join("project.json");

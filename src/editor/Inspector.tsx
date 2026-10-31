@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, ColorField, FontPicker, PositionPad, Segmented, Slider, Switch, ToggleButton, cx } from '../components/ui';
+import { ProFeatureGate } from '../components/ProFeatureGate';
 import { api, errorMessage, fileUrl } from '../lib/api';
 import { backgroundCss } from './render';
 import { MusicPanel } from './MusicPanel';
@@ -315,34 +316,38 @@ export function Inspector(props: InspectorProps) {
                         )}
                         {tab === 'audio' && <AudioPanel {...props} />}
                         {tab === 'captions' && (
-                            <CaptionsPanel
-                                project={props.project}
-                                projectName={props.projectName}
-                                captions={edit.captions}
-                                clips={edit.items}
-                                selectedId={selectedCaptionId}
-                                onChange={props.onCaptionsChange}
-                                onSelect={props.onSelectCaption}
-                                onSeek={props.onSeekSource}
-                                voiceovers={edit.audio.voiceovers}
-                                onSeekOutput={props.onSeekOutput}
-                            />
+                            <ProFeatureGate feature='Captions'>
+                                <CaptionsPanel
+                                    project={props.project}
+                                    projectName={props.projectName}
+                                    captions={edit.captions}
+                                    clips={edit.items}
+                                    selectedId={selectedCaptionId}
+                                    onChange={props.onCaptionsChange}
+                                    onSelect={props.onSelectCaption}
+                                    onSeek={props.onSeekSource}
+                                    voiceovers={edit.audio.voiceovers}
+                                    onSeekOutput={props.onSeekOutput}
+                                />
+                            </ProFeatureGate>
                         )}
                         {tab === 'annotate' && (
                             <div className='space-y-8'>
                                 {!studio && (
                                     <>
-                                        <Section icon={<Type className='h-3.5 w-3.5' />} title='Text'>
-                                            <p className='text-xs text-muted'>
-                                                {edit.texts.length === 0
-                                                    ? 'No text yet.'
-                                                    : `${edit.texts.length} text${edit.texts.length === 1 ? '' : 's'} on the timeline.`}{' '}
-                                                Select one on the timeline to edit it, and drag it on the preview to move it.
-                                            </p>
-                                            <Button className='w-full' onClick={props.onAddText}>
-                                                <Plus className='h-4 w-4' /> Add text at the playhead
-                                            </Button>
-                                        </Section>
+                                        <ProFeatureGate feature='Animated titles'>
+                                            <Section icon={<Type className='h-3.5 w-3.5' />} title='Text'>
+                                                <p className='text-xs text-muted'>
+                                                    {edit.texts.length === 0
+                                                        ? 'No text yet.'
+                                                        : `${edit.texts.length} text${edit.texts.length === 1 ? '' : 's'} on the timeline.`}{' '}
+                                                    Select one on the timeline to edit it, and drag it on the preview to move it.
+                                                </p>
+                                                <Button className='w-full' onClick={props.onAddText}>
+                                                    <Plus className='h-4 w-4' /> Add text at the playhead
+                                                </Button>
+                                            </Section>
+                                        </ProFeatureGate>
                                         <HidePanel
                                             hides={edit.hides}
                                             selected={null}
@@ -362,16 +367,18 @@ export function Inspector(props: InspectorProps) {
                             </div>
                         )}
                         {tab === 'ai' && (
-                            <AiPanel
-                                project={props.project}
-                                edit={edit}
-                                cursor={props.cursor}
-                                onApply={props.onReplaceEdit}
-                                onSeek={props.onSeekSource}
-                                sceneEnv={props.sceneEnv}
-                                sceneSize={props.sceneSize}
-                                playhead={props.playhead}
-                            />
+                            <ProFeatureGate feature='AI editing'>
+                                <AiPanel
+                                    project={props.project}
+                                    edit={edit}
+                                    cursor={props.cursor}
+                                    onApply={props.onReplaceEdit}
+                                    onSeek={props.onSeekSource}
+                                    sceneEnv={props.sceneEnv}
+                                    sceneSize={props.sceneSize}
+                                    playhead={props.playhead}
+                                />
+                            </ProFeatureGate>
                         )}
                     </>
                 )}
@@ -416,7 +423,7 @@ function Swatches({ colors, value, onChange, label }: { colors: string[]; value:
                     onClick={() => onChange(color)}
                     className={cx(
                         'h-6 w-6 rounded-full border border-line ring-offset-2 ring-offset-panel',
-                        value.toLowerCase() === color.toLowerCase() && 'ring-2 ring-accent'
+                        value.toLowerCase() === color.toLowerCase() && 'ring-2 ring-accent',
                     )}
                     style={{ background: color }}
                     title={`${label} ${color}`}
@@ -478,7 +485,7 @@ function LookPanel({ edit, onChange, projectId, project }: InspectorProps) {
                     name: file.name,
                     blur: background.type === 'image' ? background.blur : 0,
                 },
-                'background-image'
+                'background-image',
             );
         } catch (error) {
             toast.error(errorMessage(error));
@@ -504,7 +511,7 @@ function LookPanel({ edit, onChange, projectId, project }: InspectorProps) {
                                     type: 'color',
                                     color: background.type === 'gradient' ? background.from : SOLID_COLORS[0],
                                 },
-                                'background-type'
+                                'background-type',
                             );
                         else input.current?.click();
                     }}
@@ -971,7 +978,7 @@ function CameraPanel({ edit, onChange }: { edit: Edit; onChange: InspectorProps[
                                     onClick={() => set({ corner }, 'camera-corner')}
                                     className={cx(
                                         'relative h-12 rounded-lg border bg-panel-2',
-                                        camera.corner === corner ? 'border-accent' : 'border-line hover:border-muted'
+                                        camera.corner === corner ? 'border-accent' : 'border-line hover:border-muted',
                                     )}
                                     title={corner.replace('-', ' ')}
                                     aria-label={`Camera ${corner.replace('-', ' ')}`}
@@ -981,7 +988,7 @@ function CameraPanel({ edit, onChange }: { edit: Edit; onChange: InspectorProps[
                                             'absolute h-3 w-3 rounded-full',
                                             camera.corner === corner ? 'bg-accent' : 'bg-muted',
                                             corner.startsWith('top') ? 'top-1.5' : 'bottom-1.5',
-                                            corner.endsWith('left') ? 'left-1.5' : 'right-1.5'
+                                            corner.endsWith('left') ? 'left-1.5' : 'right-1.5',
                                         )}
                                     />
                                 </button>
@@ -1143,7 +1150,7 @@ function TextSettings({ text, onChange }: { text: TextOverlay; onChange: (text: 
                             onClick={() => set({ animation: option.value }, 'text-animation')}
                             className={cx(
                                 'h-7 rounded-md text-xs transition-colors',
-                                text.animation === option.value ? 'bg-accent text-accent-fg' : 'text-muted hover:bg-line hover:text-fg'
+                                text.animation === option.value ? 'bg-accent text-accent-fg' : 'text-muted hover:bg-line hover:text-fg',
                             )}
                             title={option.hint}
                         >
@@ -1167,7 +1174,7 @@ function TextSettings({ text, onChange }: { text: TextOverlay; onChange: (text: 
                                     aria-label={`Move text to ${label.toLowerCase()}`}
                                 />
                             );
-                        })
+                        }),
                     )}
                 </div>
                 <div className='flex-1 space-y-2'>

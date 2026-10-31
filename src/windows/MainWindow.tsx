@@ -16,7 +16,8 @@ import { loadBrandKits, setBrandKits } from '../studio/brandKits';
 import { NewStudioDialog } from '../studio/NewStudioDialog';
 import { templateBackground, templateItems, templateKit, type StudioTemplate } from '../studio/templates';
 import { Button, IconButton, Segmented } from '../components/ui';
-import { SettingsDialog } from '../components/SettingsDialog';
+import { SettingsDialog, type SettingsSection } from '../components/SettingsDialog';
+import { useLicense } from '../lib/license';
 
 const VIEW_KEY = 'capturita.library.view';
 
@@ -29,6 +30,7 @@ function loadView(): LibraryView {
 }
 
 export function MainWindow() {
+    const { license } = useLicense();
     const [permissions, setPermissions] = useState<Permissions | null>(null);
     const [recordings, setRecordings] = useState<Project[]>([]);
     const [editing, setEditing] = useState<Project | null>(null);
@@ -38,6 +40,7 @@ export function MainWindow() {
         if (setup) setResumeStep(null);
     }, [setup]);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
     const [recorderOpen, setRecorderOpen] = useState(false);
     const [view, setView] = useState<LibraryView>(loadView);
     const [query, setQuery] = useState('');
@@ -59,11 +62,31 @@ export function MainWindow() {
             .catch((error) => toast.error(errorMessage(error)));
     }, []);
 
+    useEffect(() => {
+        const openLicense = () => {
+            setSettingsSection('license');
+            setSettingsOpen(true);
+        };
+        window.addEventListener('capturita-open-license', openLicense);
+        return () => window.removeEventListener('capturita-open-license', openLicense);
+    }, []);
+
     const [studioOpen, setStudioOpen] = useState(false);
+    const startStudio = () => {
+        if (license.supported && !license.pro) {
+            window.dispatchEvent(new CustomEvent('capturita-open-license'));
+            return;
+        }
+        setStudioOpen(true);
+    };
 
     /** Creates the project; a template also adds its kit and saves its scenes first, so the editor opens on them. */
     const newStudioVideo = async (template: StudioTemplate | null) => {
         setStudioOpen(false);
+        if (license.supported && !license.pro) {
+            window.dispatchEvent(new CustomEvent('capturita-open-license'));
+            return;
+        }
         try {
             const project = await api.createStudioProject();
             if (template) {
@@ -148,6 +171,7 @@ export function MainWindow() {
                         refreshRecordings();
                     }}
                 />
+                {settingsOpen && <SettingsDialog initialSection={settingsSection} onClose={() => setSettingsOpen(false)} />}
                 {recorder}
             </>
         );
@@ -168,7 +192,11 @@ export function MainWindow() {
                     </span>
                     <span className='font-serif text-[17px] font-medium tracking-tight'>Capturita</span>
                     <div className='ml-auto flex items-center gap-2'>
-                        <Button size='sm' onClick={() => setStudioOpen(true)} title='A motion-graphics video without a recording: teasers, “coming soon”, launch cards'>
+                        <Button
+                            size='sm'
+                            onClick={startStudio}
+                            title={license.supported && !license.pro ? 'Studio is part of Capturita Pro. Activate a license in Settings.' : 'A motion-graphics video without a recording: teasers, “coming soon”, launch cards'}
+                        >
                             <Sparkles className='h-4 w-4' /> New Studio video
                         </Button>
                         <Button variant='primary' size='sm' onClick={() => setRecorderOpen(true)} title='New recording (or press ⌘⇧R anywhere)'>
@@ -177,7 +205,13 @@ export function MainWindow() {
                         <IconButton label='Open the recordings folder' onClick={async () => openPath(await api.recordingsDir())}>
                             <FolderOpen className='h-4 w-4' />
                         </IconButton>
-                        <IconButton label='Settings' onClick={() => setSettingsOpen(true)}>
+                        <IconButton
+                            label='Settings'
+                            onClick={() => {
+                                setSettingsSection('general');
+                                setSettingsOpen(true);
+                            }}
+                        >
                             <Settings className='h-4 w-4' />
                         </IconButton>
                     </div>
@@ -188,7 +222,7 @@ export function MainWindow() {
                     {recordings.length === 0 ? (
                         <section className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto'>
                             <LibraryHeader recordings={recordings} />
-                            <EmptyLibrary onNew={() => setRecorderOpen(true)} onNewStudio={() => setStudioOpen(true)} />
+                            <EmptyLibrary onNew={() => setRecorderOpen(true)} onNewStudio={startStudio} />
                         </section>
                     ) : (
                         <section className='flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1'>
@@ -236,6 +270,7 @@ export function MainWindow() {
                 {studioOpen && <NewStudioDialog onClose={() => setStudioOpen(false)} onContinue={newStudioVideo} />}
                 {settingsOpen && (
                     <SettingsDialog
+                        initialSection={settingsSection}
                         onClose={() => setSettingsOpen(false)}
                         onRunSetup={() => {
                             setSettingsOpen(false);

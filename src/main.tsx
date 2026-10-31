@@ -5,6 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { Toaster, toast } from 'sonner';
 import { MainWindow } from './windows/MainWindow';
 import { TooltipLayer } from './components/TooltipLayer';
+import { LicenseProvider } from './lib/license';
 import { initTheme, useTheme } from './lib/theme';
 import './index.css';
 
@@ -28,8 +29,10 @@ function ThemedToaster() {
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <React.StrictMode>
-        <MainWindow />
-        <ThemedToaster />
-        <TooltipLayer />
+        <LicenseProvider>
+            <MainWindow />
+            <ThemedToaster />
+            <TooltipLayer />
+        </LicenseProvider>
     </React.StrictMode>
 );

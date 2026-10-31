@@ -177,6 +177,16 @@ export interface UploadRequest {
     thumbnail?: string;
 }
 
+export interface LicenseState {
+    supported: boolean;
+    pro: boolean;
+    email: string | null;
+    plan: string | null;
+    updatesUntil: number | null;
+    error: string | null;
+    notice: string | null;
+}
+
 const helper = <T>(cmd: string, args?: Record<string, unknown>) => invoke<T>('recorder_request', { cmd, args });
 
 export interface CaptionModel {
@@ -190,6 +200,9 @@ export interface CaptionModel {
 }
 
 export const api = {
+    licenseState: () => invoke<LicenseState>('license_state'),
+    activateLicense: (key: string) => invoke<LicenseState>('activate_license', { key }),
+    removeLicense: () => invoke<void>('remove_license'),
     permissions: () => helper<Permissions>('permissions'),
     requestPermission: (kind: PermissionKind) => helper<Permissions>('requestPermission', { kind }),
     listSources: () => helper<SourceList>('listSources'),

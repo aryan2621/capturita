@@ -30,6 +30,7 @@ import { api, errorMessage, fileUrl, formatDuration, isStudio, type CursorData, 
 import { Button, IconButton, Popover, RangeInput, Segmented, cx } from '../components/ui';
 import { CropOverlay } from '../editor/CropOverlay';
 import { ExportDialog } from '../editor/ExportDialog';
+import { useLicense } from '../lib/license';
 import { ShortcutsSheet } from '../editor/ShortcutsSheet';
 import { Inspector } from '../editor/Inspector';
 import { TextHandle } from '../editor/TextHandle';
@@ -171,6 +172,7 @@ const MAX_PIXEL_RATIO = 2;
 
 export function EditorView({ project, onClose }: { project: Project; onClose: () => void }) {
     const studio = isStudio(project);
+    const { license } = useLicense();
     // The timeline is never empty (positionAt needs an item), even before edit.json loads.
     const history = useHistory<Edit>(studio ? { ...defaultEdit(project), items: studioStarter() } : defaultEdit(project));
     const edit = history.value;
@@ -778,6 +780,11 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     };
     /** Adds a 3-second text starting at the playhead (inside the current clip). */
     const addText = () => {
+        if (license.supported && !license.pro) {
+            toast.info('Animated titles are part of Capturita Pro. Activate a license in Settings.');
+            window.dispatchEvent(new CustomEvent('capturita-open-license'));
+            return;
+        }
         const { clip, source, recording } = positionAt(edit.items, playback.now());
         if (!recording) {
             toast.info('Move the playhead onto the recording to add text.');
@@ -918,6 +925,10 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
 
     // Keyboard shortcuts (ignored while typing in a field).
     const openExport = () => {
+        if (studio && license.supported && !license.pro) {
+            window.dispatchEvent(new CustomEvent('capturita-open-license'));
+            return;
+        }
         playback.pause();
         setExporting(true);
     };
@@ -1032,7 +1043,13 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                     <IconButton label='Keyboard shortcuts (?)' onClick={() => setShowShortcuts(true)}>
                         <Keyboard className='h-4 w-4' />
                     </IconButton>
-                    <Button variant='primary' className='ml-2' onClick={openExport} disabled={!loaded} title='Export or upload (⌘E)'>
+                    <Button
+                        variant='primary'
+                        className='ml-2'
+                        onClick={openExport}
+                        disabled={!loaded}
+                        title={studio && license.supported && !license.pro ? 'Studio exports are part of Capturita Pro. Activate a license in Settings.' : 'Export or upload (⌘E)'}
+                    >
                         <Download className='h-4 w-4' /> Export
                     </Button>
                 </div>
