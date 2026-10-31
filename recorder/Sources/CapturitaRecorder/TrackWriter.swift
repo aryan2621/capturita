@@ -134,6 +134,13 @@ final class TrackWriter {
                 AVVideoCodecKey: AVVideoCodecType.h264,
                 AVVideoWidthKey: width,
                 AVVideoHeightKey: height,
+                // Tag the file explicitly. Left to the first frame's attachments, a frame without them
+                // leaves the file untagged and players guess the matrix, which tints it pink.
+                AVVideoColorPropertiesKey: [
+                    AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+                    AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+                    AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
+                ],
                 AVVideoCompressionPropertiesKey: [
                     AVVideoAverageBitRateKey: max(4_000_000, width * height * 4),
                     AVVideoExpectedSourceFrameRateKey: fps,

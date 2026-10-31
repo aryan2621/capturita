@@ -956,17 +956,16 @@ export function positionAt(items: TimelineItem[], outputTime: number): Position 
 }
 
 /**
- * The items with `holdEnd` set on scenes a transition takes off screen, so they don't also fade out,
+ * The items with `holdEnd` set on every scene, so none fades out to the wallpaper behind it,
  * and `clock` (seconds into the video the scene starts) so their light and camera drift carry across joins.
  */
 export function withHeldEnds(items: TimelineItem[]): TimelineItem[] {
     const starts = itemStarts(items);
     return items.map((item, i) => {
         if (item.kind !== 'scene') return item;
-        const next = items[i + 1];
-        // A cut to another scene holds too: fading out would dip to the wallpaper behind the scenes.
-        const held = next && ((next.transition && next.transition.type !== 'cut') || next.kind === 'scene');
-        return { ...item, props: { ...item.props, clock: starts[i], ...(held ? { holdEnd: true } : {}) } };
+        // Never fade a scene out: behind the scenes is the wallpaper, so the fade dipped to it (a pink
+        // flash) at the end of the video and at every cut to a recording. The next item's cut or transition ends it.
+        return { ...item, props: { ...item.props, clock: starts[i], holdEnd: true } };
     });
 }
 
