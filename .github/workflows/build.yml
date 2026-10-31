@@ -76,7 +76,12 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      # Installers go to the public downloads repo shared by all apps (PAT with contents:write on it,
+      # stored as RELEASES_TOKEN). Tags are per app so the repo can host more.
       - uses: softprops/action-gh-release@v2
         with:
+          repository: aryan2621/downloads
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: capturita-${{ github.ref_name }}
+          name: Capturita ${{ github.ref_name }}
           files: artifacts/**/*
-          generate_release_notes: true
