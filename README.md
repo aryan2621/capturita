@@ -6,8 +6,8 @@
 
 - **Record** a screen, a window or an area, with your mic, system audio and a camera bubble. **⌘⇧R** from anywhere.
 - **Edit:** trim, split and cut, speed up, smooth spring auto-zoom on your clicks that follows your cursor, a smoothed cursor with click effects, backgrounds (gradients, colours or your own image), rounded corners and shadow.
-- **Captions** from your voice, the Mac's audio or both (any of 7 speech models), **titles** with animations, and **hide private info** (blur emails, passwords, keys).
-- **AI editing:** type *"cut the part about pricing"* or *"speed up where nothing happens"* and review the edits it suggests.
+- **Edit for free:** trim, split and cut, hide private info, and export or share your videos.
+- **Capturita Pro:** on-device captions, AI editing, animated titles, and Studio motion graphics.
 - **Share:** export an MP4 (up to 4K, 60 fps) or a GIF with one-click presets, copy it to paste anywhere, or upload straight to YouTube or Google Drive.
 
 Captions and AI editing run on your Mac. Your recordings are never uploaded unless you choose to.
@@ -15,6 +15,13 @@ Captions and AI editing run on your Mac. Your recordings are never uploaded unle
 **[⬇ Download for macOS](https://github.com/aryan2621/capturita/releases/latest/download/Capturita_0.1.0_aarch64.dmg)**
 · macOS 15+, Apple silicon · [all downloads](https://github.com/aryan2621/capturita/releases/latest)
 · **macOS only:** recording uses Apple's ScreenCaptureKit, so there's no Windows version yet.
+
+## Free and Pro
+
+Recording and core editing remain free. Capturita Pro is a one-time ₹999 purchase and includes one
+year of updates. Pro activation applies to official Capturita builds; this repository remains
+MIT-licensed, and source builds are not restricted. See the [landing site source](landing/) for the
+storefront and license service configuration.
 
 📖 **[User guide](docs/user.md)** — recording, every editing tool, shortcuts, export and upload
 ☁️ **[Google setup](docs/google-setup.md)** — upload to YouTube and Drive with your own Google account
