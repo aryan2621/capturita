@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Camera, Check, Clapperboard, ImagePlus, Loader2, Music, Pencil, Wand2, X } from 'lucide-react';
+import { AlertTriangle, Camera, Check, Clapperboard, ImagePlus, Music, Pencil, Wand2, X } from 'lucide-react';
 import { toast } from '../lib/toast';
 import { api, errorMessage, type CursorData, type Project } from '../lib/api';
-import { Button, cx, Segmented, Select, Slider } from '../components/ui';
+import { Button, cx, Segmented, Select, Slider, Spinner, TextArea, TextInput } from '../components/ui';
 import type { Edit } from '../editor/model';
 import { applyDraft, draftVideo, fillBarePictures, MAX_DRAFT_SCENES, reviewDraft } from './aiDraft';
 import { applySceneProposals, askScenes, type Placement, type SceneProposal } from './aiScenes';
@@ -223,8 +223,8 @@ export function SceneAiSection({
                 <Clapperboard className='h-3.5 w-3.5' /> Scenes
             </div>
             {busy ? (
-                <div className='flex items-center gap-2 rounded-lg bg-panel-2 p-3 text-xs text-fg'>
-                    <Loader2 className='h-3.5 w-3.5 animate-spin' /> {busy}…
+                <div className='flex items-center gap-2 rounded-xl bg-fg/5 p-3 text-xs text-fg' role='status'>
+                    <Spinner size={14} /> {busy}…
                 </div>
             ) : result ? (
                 <div className='space-y-3'>
@@ -341,24 +341,24 @@ export function SceneAiSection({
                     {mode === 'video' ? (
                         <>
                             <div className='flex gap-2'>
-                                <input
+                                <TextInput
+                                    size='sm'
                                     value={pageUrl}
                                     onChange={(e) => setPageUrl(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && pageUrl.trim() && capture()}
                                     placeholder='Product website, e.g. acme.com'
-                                    className='min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-2 py-1 text-sm text-fg outline-none focus:border-accent'
+                                    className='min-w-0 flex-1'
                                     aria-label='Product website'
                                 />
                                 <Button size='sm' variant='ghost' disabled={!pageUrl.trim()} onClick={capture} title='Takes screenshots of the page and reads its text'>
                                     <Camera className='h-3.5 w-3.5' /> Capture
                                 </Button>
                             </div>
-                            <textarea
+                            <TextArea
                                 value={source}
                                 onChange={(e) => setSource(e.target.value)}
                                 rows={7}
                                 placeholder='Paste your README, landing page text or a description: what it is, who it’s for, features, numbers, pricing, a customer quote, the website.'
-                                className='w-full resize-y rounded-lg border border-line bg-panel-2 p-2 text-sm text-fg outline-none focus:border-accent'
                                 aria-label='README or product description'
                             />
                             <Slider
@@ -450,7 +450,7 @@ export function SceneAiSection({
                         </>
                     ) : (
                         <>
-                            <textarea
+                            <TextArea
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
                                 onKeyDown={(e) => {
@@ -461,7 +461,7 @@ export function SceneAiSection({
                                 }}
                                 rows={2}
                                 placeholder='Describe scenes, e.g. “a launch intro with our logo”'
-                                className='w-full resize-none rounded-lg border border-line bg-panel-2 p-2 text-sm text-fg outline-none focus:border-accent'
+                                className='resize-none'
                                 aria-label='What scenes should the AI make?'
                             />
                             <Button className='w-full' onClick={() => ask()} disabled={!prompt.trim()}>
@@ -472,7 +472,7 @@ export function SceneAiSection({
                                     <button
                                         key={example}
                                         onClick={() => ask(example)}
-                                        className='rounded-full bg-panel-2 px-2.5 py-1 text-xs text-muted hover:bg-line hover:text-fg'
+                                        className='rounded-full bg-fg/5 px-2.5 py-1 text-xs text-muted hover:bg-fg/10 hover:text-fg'
                                     >
                                         {example}
                                     </button>

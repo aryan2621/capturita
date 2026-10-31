@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { toast } from '../lib/toast';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, ChevronUp, Copy, Crosshair, Diamond, ImagePlus, Link, Plus, Wand2, X } from 'lucide-react';
-import { Button, ColorField, MenuButton, Segmented, Select, Slider, Switch, TimeField } from '../components/ui';
+import { Button, ColorField, MenuButton, Segmented, Select, Slider, Switch, TextArea, TextInput, TimeField } from '../components/ui';
 import {
     canCrossfade,
     DEFAULT_CROSSFADE,
@@ -61,7 +61,6 @@ export interface LayerEdit {
 
 const seconds = (value: number) => `${value.toFixed(1)} s`;
 const clock = (value: number) => `${Math.floor(value / 60)}:${(value % 60).toFixed(1).padStart(4, '0')}`;
-const inputClass = 'h-8 w-full rounded-lg border border-line bg-panel-2 px-2 text-sm text-fg outline-none focus:border-accent';
 
 /** Adds a clip to the voiceover or sound-effect lane. */
 export type AddSound = (lane: 'voiceovers' | 'effects', clip: AudioClip) => void;
@@ -553,15 +552,15 @@ function SceneFields({
                     <label key={f.name} className='block space-y-1'>
                         <span className='text-xs'>{f.label}</span>
                         {f.type === 'text' && f.multiline ? (
-                            <textarea
+                            <TextArea
                                 value={String(value ?? '')}
                                 onChange={(e) => setProp(f.name, e.target.value)}
                                 rows={5}
                                 spellCheck={false}
-                                className={`${inputClass} h-auto py-1.5 font-mono text-[11px] leading-snug`}
+                                className='font-mono text-[11px] leading-snug'
                             />
                         ) : (
-                            <input value={String(value ?? '')} onChange={(e) => setProp(f.name, e.target.value)} className={inputClass} />
+                            <TextInput size='sm' value={String(value ?? '')} onChange={(e) => setProp(f.name, e.target.value)} />
                         )}
                     </label>
                 );
@@ -649,7 +648,8 @@ function ImageInput({
 /** A number box that lets the text be mid-edit ("", "-", "1.") without snapping back. */
 function NumberInput({ value, step, placeholder, onChange }: { value: number; step?: number; placeholder?: string; onChange: (value: number) => void }) {
     return (
-        <input
+        <TextInput
+            size='sm'
             type='number'
             step={step ?? 'any'}
             defaultValue={value}
@@ -663,7 +663,6 @@ function NumberInput({ value, step, placeholder, onChange }: { value: number; st
             onKeyDown={(e) => {
                 if (e.key === 'Enter') e.currentTarget.blur();
             }}
-            className={inputClass}
         />
     );
 }
@@ -673,7 +672,7 @@ function NumberInput({ value, step, placeholder, onChange }: { value: number; st
 function Group({ title, open = true, children }: { title: string; open?: boolean; children: ReactNode }) {
     return (
         <details open={open} className='group border-t border-line pt-4'>
-            <summary className='flex cursor-default list-none items-center justify-between text-xs font-medium uppercase tracking-wide text-muted hover:text-fg [&::-webkit-details-marker]:hidden'>
+            <summary className='flex cursor-default list-none items-center justify-between text-sm font-semibold text-fg [&::-webkit-details-marker]:hidden'>
                 {title}
                 <ChevronDown className='h-3.5 w-3.5 transition-transform group-open:rotate-180' aria-hidden />
             </summary>
@@ -724,7 +723,7 @@ function ListControl({ field, value, onChange }: { field: ListItemField; value: 
             </Select>
         );
     }
-    return <input value={String(value ?? '')} placeholder={field.label} onChange={(e) => onChange(e.target.value)} className={`${inputClass} w-full`} />;
+    return <TextInput size='sm' value={String(value ?? '')} placeholder={field.label} onChange={(e) => onChange(e.target.value)} />;
 }
 
 /** Settings of an overlay: its scene's fields, and when it shows (output time). */
@@ -929,7 +928,7 @@ function LayersEditor({
                                 e.target === e.currentTarget &&
                                 (e.preventDefault(), edit.onSelect(i === index ? null : i))
                             }
-                            className={`flex cursor-pointer items-center gap-1 rounded-lg border px-2 py-1 text-xs ${i === index ? 'border-accent bg-accent/10' : 'border-line hover:bg-panel-2'}`}
+                            className={`flex cursor-pointer items-center gap-1 rounded-lg border px-2 py-1 text-xs ${i === index ? 'border-accent ring-1 ring-accent' : 'border-line hover:bg-fg/5'}`}
                         >
                             <span className='w-14 shrink-0 truncate capitalize text-muted'>{l.kind}</span>
                             <span className='min-w-0 flex-1 truncate'>
@@ -989,14 +988,13 @@ function LayersEditor({
                 {!layers.length && <p className='text-xs text-muted'>No layers yet. Add one above.</p>}
             </div>
             {layer && (
-                <div className='space-y-2 rounded-lg border border-line p-2'>
+                <div className='space-y-2 rounded-xl border border-line p-2'>
                     {labelled('kind')}
                     {layer.kind === 'text' && (
-                        <textarea
+                        <TextArea
                             value={layer.text}
                             onChange={(e) => set({ ...layer, text: e.target.value })}
                             rows={2}
-                            className={`${inputClass} h-auto py-1.5`}
                             placeholder='Text (Enter for a new line)'
                         />
                     )}
