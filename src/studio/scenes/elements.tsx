@@ -29,12 +29,6 @@ const stroke = (p: number, color: string, width: number) => ({ fill: 'none', str
 /** Soft light around whatever it wraps. */
 const Glow = ({ color, r, children }: { color: string; r: number; children: ReactNode }) => <g style={{ filter: `drop-shadow(0 0 ${r}px ${fade(color, 0.8)})` }}>{children}</g>;
 
-/** An expanding ring that fades: the flash when a drawing finishes. */
-const Pulse = ({ local, from, cx, cy, r0, r1, color, width }: { local: number; from: number; cx: number; cy: number; r0: number; r1: number; color: string; width: number }) => {
-    const t = out(local, from, 16);
-    return t <= 0 || t >= 1 ? null : <circle cx={cx} cy={cy} r={r0 + (r1 - r0) * t} fill="none" stroke={color} strokeWidth={width * (1 - t * 0.6)} opacity={1 - t} />;
-};
-
 // Strokes stretch to the box by their points, so a line keeps one width at any size.
 const fitTo = (w: number, h: number) => (d: string, vw: number, vh: number) => {
     let i = 0;
@@ -58,7 +52,6 @@ function Check(c: Ctx) {
                     <path d="M30 52 L44 66 L71 37" {...stroke(draw(local, 8, 10), color, 8)} />
                 </g>
             </Glow>
-            <Pulse local={local} from={14} cx={50} cy={50} r0={44} r1={72} color={color} width={3} />
         </Svg>
     );
 }
@@ -73,7 +66,6 @@ function Arrow(c: Ctx) {
                 <path d={fit('M4 50 C 30 10, 60 6, 92 24', 100, 60)} {...stroke(draw(local, 0, 14), color, line)} />
                 <path d={fit('M78 12 L93 24 L76 32', 100, 60)} {...stroke(draw(local, 12, 6), color, line)} />
             </Glow>
-            <Pulse local={local} from={14} cx={w * 0.93} cy={h * 0.4} r0={line} r1={line * 5} color={color} width={line * 0.4} />
         </Svg>
     );
 }
@@ -131,7 +123,7 @@ function Sparkles(c: Ctx) {
     );
 }
 
-/** Rays and a ring flung outward, long and short alternating, thinning as they go. */
+/** Rays flung outward, long and short alternating, thinning as they go. */
 function Burst({ color, colors, local }: Ctx) {
     const p = out(local, 0, 18);
     return (
@@ -145,7 +137,6 @@ function Burst({ color, colors, local }: Ctx) {
                     return <line key={i} x1={50 + Math.cos(a) * r0} y1={50 + Math.sin(a) * r0} x2={50 + Math.cos(a) * r1} y2={50 + Math.sin(a) * r1} stroke={long ? color : colors.text} strokeWidth={(long ? 6 : 3) * (1 - p) + 1} strokeLinecap="round" opacity={1 - p} />;
                 })}
             </Glow>
-            <Pulse local={local} from={0} cx={50} cy={50} r0={8} r1={48} color={color} width={4} />
         </Svg>
     );
 }

@@ -2,7 +2,7 @@ import { AbsoluteFill, useVideoConfig } from 'remotion';
 import './fonts';
 import { BrandTexture, Depth, SceneImage, sceneGradient, useExit } from './SceneBase';
 import { frameLayout } from './layout';
-import { Copy, Glow, Ring, Sweep, useTiming } from './deviceParts';
+import { Copy, Glow, Sweep, useTiming } from './deviceParts';
 import { bodyFont, type Brand, type SceneAssets } from './assets';
 
 export interface UiCollageProps {
@@ -71,7 +71,6 @@ export function UiCollage({ headline, images, transparent, brand, assets }: UiCo
                 {headline && <div style={{ height: headH, display: 'flex', justifyContent: 'center' }}><Copy brand={brand} headline={headline} detail='' width={stageW} size={t * 5.5} align='center' at={0} /></div>}
                 <div style={{ position: 'relative', width: stageW, height: stageH, perspective: width * 1.2 }}>
                     <Glow x={hero.x * stageW} y={hero.y * stageH} r={cardW * 1.1} color={`${colors.accent}44`} opacity={pop(heroAt)} />
-                    <Ring x={hero.x * stageW} y={hero.y * stageH} r0={cardW * 0.3} r1={cardW * 1.1} t={ramp(heroAt + 3, heroAt + 28)} color={colors.accent} width={u * 0.4} />
                     {cards.map((image, i) => {
                         const place = positions[i];
                         const at = rank.indexOf(place) * STAGGER;

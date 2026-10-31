@@ -46,7 +46,7 @@ export function SocialProof({ rating, reviews, badge, transparent, brand }: Soci
         <Stage s={s} transparent={transparent} gap={u * 3}>
             <div style={{ position: 'relative', display: 'flex', gap: size * 0.12 }}>
                 {[0, 1, 2, 3, 4].map((i) => <Star key={i} s={s} i={i} fill={Math.max(0, Math.min(1, value - i))} size={size} />)}
-                <div style={{ position: 'absolute', left: '50%', top: '50%' }}><Ping s={s} at={starAt(4)} size={size * 3} dur={1} /></div>
+                <div style={{ position: 'absolute', left: '50%', top: '50%' }}><Ping s={s} name="SocialProof" at={starAt(4)} size={size * 3} dur={1} /></div>
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: u * 1.2, opacity: Math.min(1, number * 1.5), transform: `translateY(${(1 - number) * u * 3}px)` }}>
                 <span style={{ fontFamily: s.display, fontSize: u * 13, fontWeight: 800, lineHeight: 1, color: c.text, fontVariantNumeric: 'tabular-nums', letterSpacing: -u * 0.3, textShadow: `0 0 ${u * 5}px ${al(c.accent, 0.35)}` }}>{counted.toFixed(1)}</span>

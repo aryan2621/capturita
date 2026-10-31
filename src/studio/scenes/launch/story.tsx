@@ -1,7 +1,7 @@
 // Typography, social proof and call-to-action scenes: layered, spring-driven, with the headline integrated in each composition.
 import { SceneImage } from '../SceneBase';
 import { Check, Col, Cursor, Headline, Kicker, Pill, Rule, Stage, Sub, Win, card, easeOut, listOf, mono, seeded, typed, useKit, type LaunchProps } from './kit';
-import { Ping, Slot, enter, glide } from './product';
+import { Hit, Slot, enter, glide } from './product';
 import { Aura, Lockup, TAU, al, clamp01, glow, shortSide } from './shapes';
 
 /** Time since `t0` as a 0→1 flash that decays: the glow after a "hit". */
@@ -170,7 +170,6 @@ export function GithubStars(p: LaunchProps) {
                         <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ filter: `drop-shadow(0 0 ${k.u * (1 + flare * 4)}px #f4c655)`, transform: `rotate(${(1 - count) * -40}deg) scale(${(0.6 + 0.4 * count) * (1 + flare * 0.2)})` }}>
                             <path d="M12 2l2.9 6.3 6.8.8-5 4.7 1.3 6.8L12 17.3 6 20.6l1.3-6.8-5-4.7 6.8-.8z" fill="#f4c655" />
                         </svg>
-                        <Ping k={k} t0={HIT} r={20} />
                         {burst > 0 && burst < 1 && Array.from({ length: 8 }, (_, i) => {
                             const a = (i / 8) * TAU + 0.3;
                             const d = k.u * (6 + 10 * easeOut(burst));
@@ -249,7 +248,7 @@ export function UrlTyped(p: LaunchProps) {
                         </div>
                         <div style={{ position: 'absolute', inset: 0, top: k.u * 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: k.u * 3, background: `radial-gradient(circle at 50% 30%, ${al(k.c.accent, 0.2)}, transparent 60%)`, opacity: Math.min(1, page * 1.6), transform: `translateY(${(1 - page) * k.u * 3}px)` }}>
                             <Headline k={k} size={6}>{p.headline}</Headline>
-                            <div style={{ position: 'relative', padding: `${k.u * 1.4}px ${k.u * 3.4}px`, borderRadius: k.u * 1.4, background: k.c.accent, color: '#fff', fontWeight: 750, fontSize: k.tx * 2.6, boxShadow: `0 ${k.u}px ${k.u * 4}px ${al(k.c.accent, 0.5)}` }}>Get started<Ping k={k} t0={LOAD + 0.8} r={10} /></div>
+                            <div style={{ position: 'relative', padding: `${k.u * 1.4}px ${k.u * 3.4}px`, borderRadius: k.u * 1.4, background: k.c.accent, color: '#fff', fontWeight: 750, fontSize: k.tx * 2.6, boxShadow: `0 ${k.u}px ${k.u * 4}px ${al(k.c.accent, 0.5)}` }}>Get started</div>
                         </div>
                     </Win>
                 </div>
@@ -300,7 +299,6 @@ export function LaunchDateBadge(p: LaunchProps) {
         <Stage p={p}>
             <Slot k={k}>
                 <div style={{ position: 'relative', width: size, height: size, display: 'grid', placeItems: 'center', opacity: Math.min(1, land * 2), transform: `scale(${0.4 + 0.6 * land}) rotate(${(1 - land) * -40}deg)` }}>
-                    <Ping k={k} t0={0.3} r={34} />
                     <svg width={size} height={size} viewBox="0 0 100 100" style={{ position: 'absolute', transform: `rotate(${k.s * 12}deg)` }}>
                         <defs><path id="ldRing" d="M50 50 m-43 0 a43 43 0 1 1 86 0 a43 43 0 1 1 -86 0" /></defs>
                         <circle cx="50" cy="50" r="48.5" fill="none" stroke={al(k.c.accent, 0.4)} strokeWidth="0.4" strokeDasharray="1.5 2.5" />
@@ -331,8 +329,7 @@ export function ButtonPress(p: LaunchProps) {
                 {k.s < PRESS && [0, 1].map((i) => <div key={i} style={{ position: 'absolute', inset: 0, borderRadius: k.u * 2.4, border: `${k.u * 0.4}px solid ${k.c.accent}`, opacity: 0.5 - ((k.s * 0.8 + i * 0.5) % 1) * 0.5, transform: `scale(${1 + ((k.s * 0.8 + i * 0.5) % 1) * 0.35})` }} />)}
                 <div style={{ position: 'relative', padding: `${k.u * 2.6}px ${k.u * 7}px`, borderRadius: k.u * 2.4, background: `linear-gradient(${k.c.accent}, ${al(k.c.accent, 0.82)})`, color: '#fff', fontWeight: 800, fontSize: k.tx * 4, whiteSpace: 'nowrap', boxShadow: `inset 0 1px 0 ${al(k.c.text, 0.3)}, 0 ${k.u * 1.4}px ${k.u * (5 + flash * 6)}px ${al(k.c.accent, 0.55 + flash * 0.25)}`, transform: `scale(${scale})` }}>
                     {p.date || 'Get started'}
-                    <Ping k={k} t0={PRESS} r={22} />
-                    <Ping k={k} t0={PRESS + 0.12} r={30} />
+                    <Hit k={k} scene="ButtonPress" t0={PRESS} r={22} />
                 </div>
                 <Cursor k={k} x={cx} y={cy} press={k.ramp(PRESS, PRESS + 0.3)} />
             </div>
@@ -357,7 +354,6 @@ export function QrEndCard(p: LaunchProps) {
                             <div key={`${x}${y}`} style={{ position: 'absolute', [x ? 'right' : 'left']: -k.u * (1 + (1 - a) * 3), [y ? 'bottom' : 'top']: -k.u * (1 + (1 - a) * 3), width: k.u * 4, height: k.u * 4, borderStyle: 'solid', borderColor: k.c.accent, borderWidth: 0, [x ? 'borderRightWidth' : 'borderLeftWidth']: k.u * 0.7, [y ? 'borderBottomWidth' : 'borderTopWidth']: k.u * 0.7, borderRadius: k.u * 1.2 }} />
                         ))}
                         {scan > 0 && scan < 1 && <div style={{ position: 'absolute', left: k.u, right: k.u, top: `${scan * 100}%`, height: k.u * 0.5, borderRadius: k.u, background: k.c.accent, boxShadow: `0 0 ${k.u * 3}px ${k.c.accent}` }} />}
-                        <Ping k={k} t0={SCAN1} r={26} />
                     </div>
                     {p.date && <Pill k={k} active style={enter(k, 0.9)}>{p.date}</Pill>}
                 </div>

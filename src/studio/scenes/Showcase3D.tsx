@@ -6,7 +6,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import './fonts';
 import { BrandTexture, Depth, sceneGradient, useExit } from './SceneBase';
 import { frameLayout } from './layout';
-import { Copy, Glow, Ring, easeOut, useTiming } from './deviceParts';
+import { Copy, Glow, easeOut, useTiming } from './deviceParts';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export type Showcase3DSubject = 'phone' | 'laptop' | 'logo';
@@ -297,7 +297,6 @@ export function Showcase3D({ subject, image, motion, headline, detail, transpare
             <Depth z={-0.5}>
                 <BrandTexture brand={brand} transparent={transparent} />
                 <Glow x={haloX} y={haloY} r={Math.min(canvasW, canvasH) * 0.75} color={`${colors.accent}55`} opacity={Math.min(1, p) * (0.6 + 0.4 * (1 - ramp(LAND, LAND + 20)))} scale={0.8 + 0.2 * p} />
-                <Ring x={haloX} y={haloY} r0={Math.min(canvasW, canvasH) * 0.2} r1={Math.min(canvasW, canvasH) * 0.7} t={ramp(LAND, LAND + 26, easeOut)} color={colors.accent} width={layout.unit * 0.4} />
             </Depth>
             <div style={{ position: 'absolute', right: 0, top: 0, width: canvasW, height: canvasH }}>
                 <ThreeCanvas width={canvasW} height={canvasH} camera={{ fov: 30, position: [0, 0, 5.2] }} gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}>

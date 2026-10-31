@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { Easing, interpolate } from 'remotion';
 import { clamp, SceneImage } from './SceneBase';
 import { al } from './launch/shapes';
-import { Heading, Ping, Stage, easeOut, headRoom, useScene, type Scene } from './proofParts';
+import { Heading, Stage, easeOut, headRoom, useScene, type Scene } from './proofParts';
 import type { Brand, SceneAssets } from './assets';
 
 export interface BeforeAfterProps {
@@ -68,7 +68,6 @@ export function BeforeAfter({ heading, before, after, beforeLabel, afterLabel, d
                     <div style={{ position: 'absolute', ...(vertical ? { left: 0, right: 0, top: along, height: u * 0.5, transform: `translateY(-50%) scaleX(${lineIn})` } : { top: 0, bottom: 0, left: along, width: u * 0.5, transform: `translateX(-50%) scaleY(${lineIn})` }), background: '#fff', boxShadow: `0 0 ${u * 3}px ${c.accent}, 0 0 ${u * 1}px #fff` }} />
                 </div>
                 <div style={{ position: 'absolute', ...handleAt, width: u * 6.4, height: u * 6.4, margin: -u * 3.2, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', color: c.bg, fontSize: u * 2.6, fontWeight: 800, boxShadow: `0 ${u * 0.6}px ${u * 2}px ${al('#000000', 0.4)}, 0 0 ${u * 4}px ${al(c.accent, 0.7)}`, transform: `scale(${lineIn}) rotate(${vertical ? 90 : 0}deg)` }}>‹ ›</div>
-                <div style={{ position: 'absolute', ...handleAt }}><Ping s={s} at={SWEEP_TO} size={u * 14} /></div>
             </div>
         </Stage>
     );

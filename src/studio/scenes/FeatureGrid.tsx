@@ -5,7 +5,7 @@ import { BrandTexture, Depth, sceneGradient, useExit } from './SceneBase';
 import { frameLayout, grow } from './layout';
 import { fitSize } from './text';
 import { useBeatSnap } from './beat';
-import { Glow, Ring, Sweep, SNAP, useTiming } from './deviceParts';
+import { Glow, Sweep, SNAP, useTiming } from './deviceParts';
 import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export const FEATURE_ICONS: Record<string, LucideIcon> = {
@@ -98,7 +98,6 @@ export function FeatureGrid({ heading, items, transparent, brand }: FeatureGridP
                                 }}
                             >
                                 <div style={{ position: 'relative', width: iconBox, height: iconBox, flexShrink: 0 }}>
-                                    <Ring x={iconBox / 2} y={iconBox / 2} r0={iconBox * 0.5} r1={iconBox * 1.4} t={ramp(start + 3, start + 20)} color={colors.accent} width={u * 0.4} />
                                     <div style={{ width: iconBox, height: iconBox, borderRadius: u * 1.6, background: `linear-gradient(145deg, ${colors.accent}, ${colors.accent}bb)`, color: colors.bg, boxShadow: `0 0 ${u * 2.4 * iconIn}px ${colors.accent}88, 0 1px 0 #ffffff55 inset`, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: `scale(${iconIn}) rotate(${(1 - iconIn) * -25}deg)` }}>
                                         <Icon size={iconBox * 0.55} strokeWidth={2.2} />
                                     </div>

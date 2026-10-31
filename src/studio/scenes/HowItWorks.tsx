@@ -4,7 +4,7 @@ import './fonts';
 import { BrandTexture, Depth, sceneGradient, useExit } from './SceneBase';
 import { frameLayout, grow } from './layout';
 import { fitSize } from './text';
-import { Glow, Ring, Sweep, easeOut, useTiming } from './deviceParts';
+import { Glow, Sweep, easeOut, useTiming } from './deviceParts';
 import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export interface HowItWorksProps {
@@ -73,7 +73,6 @@ export function HowItWorks({ heading, steps, transparent, brand }: HowItWorksPro
         } as const;
         const number = (
             <div style={{ position: 'relative', width: badge, height: badge, flexShrink: 0, zIndex: 1 }}>
-                <Ring x={badge / 2} y={badge / 2} r0={badge * 0.5} r1={badge * (last ? 2.2 : 1.6)} t={ramp(at + 2, at + 22)} color={colors.accent} width={u * 0.5} />
                 <div style={{ width: badge, height: badge, borderRadius: badge, background: `linear-gradient(145deg, ${colors.accent}, ${colors.accent}bb)`, color: colors.bg, boxShadow: `0 0 ${u * 3 * pop1}px ${colors.accent}88, 0 1px 0 #ffffff55 inset`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: displayFont(brand), fontSize: badge * 0.5, fontWeight: 800, lineHeight: 1, transform: `scale(${pop1})` }}>{i + 1}</div>
             </div>
         );

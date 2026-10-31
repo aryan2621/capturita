@@ -1,11 +1,12 @@
-// The look the classic scenes (big number, chart, title, kinetic type...) share with the launch scenes: its stage, glow and hit ring, plus a few helpers they all need.
+// The look the classic scenes (big number, chart, title, kinetic type...) share with the launch scenes: its stage, glow and hit accent, plus a few helpers they all need.
 import type { CSSProperties } from 'react';
 import type { Brand } from './assets';
-import { easeOut, seeded, useKit, type Kit, type LaunchProps } from './launch/kit';
-import { TAU, al, lerp, polar } from './launch/shapes';
+import { useKit, type Kit, type LaunchProps } from './launch/kit';
+import { al } from './launch/shapes';
+import { HitFx, variantFor } from './hitFx';
 
 export { Kicker, Rule, Stage, card, easeOut } from './launch/kit';
-export { Aura, Canvas, Shock, TAU, al, clamp01, glow, lerp, polar, shortSide } from './launch/shapes';
+export { Aura, Canvas, TAU, al, clamp01, glow, lerp, polar, shortSide } from './launch/shapes';
 export type { Kit };
 
 /** The launch kit (time, springs, sizes) for a classic scene, which only has a brand and a transparent flag. */
@@ -28,18 +29,9 @@ export const inkGradient = (k: Kit): CSSProperties => ({
     WebkitTextFillColor: 'transparent',
 });
 
-/** Sparks thrown out of (x, y) at `t0` seconds; goes inside a Canvas. Seeded, so every render matches. */
-export function Sparks({ k, x, y, t0, r0, r1, count = 10, seed = 0 }: { k: Kit; x: number; y: number; t0: number; r0: number; r1: number; count?: number; seed?: number }) {
-    const t = k.ramp(t0, t0 + 0.8);
-    if (t <= 0 || t >= 1) return null;
-    return (
-        <>
-            {Array.from({ length: count }, (_, i) => {
-                const [sx, sy] = polar(x, y, lerp(r0, r1 * (0.7 + 0.5 * seeded(seed + i + 9)), easeOut(t)), (i / count) * TAU + seeded(seed + i) * 0.5);
-                return <circle key={i} cx={sx} cy={sy} r={k.u * (0.25 + 0.35 * seeded(seed + i + 3)) * (1 - t)} fill={i % 3 ? k.c.accent : k.c.text} opacity={1 - t} />;
-            })}
-        </>
-    );
+/** The accent for a scene's key moment at (x, y) px, `size` px reach, over `dur` seconds from `t0`: the look is fixed per scene `name` (or nothing). Goes beside the Canvas, in the Stage. */
+export function Hit({ k, name, x, y, t0, size, dur = 0.7, seed }: { k: Kit; name: string; x: number; y: number; t0: number; size: number; dur?: number; seed?: number }) {
+    return <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}><HitFx variant={variantFor(name)} t={k.ramp(t0, t0 + dur)} x={x} y={y} size={size} color={k.c.accent} seed={seed} /></div>;
 }
 
 /** One light streak crossing a surface once as the card lands. */

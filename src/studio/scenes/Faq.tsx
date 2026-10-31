@@ -32,7 +32,7 @@ function Card({ s, item, rise, open, last, width }: { s: Scene; item: Item; rise
                     <div style={{ marginTop: u * 1.2, paddingLeft: u * 6, fontSize: u * 2.7, color: c.muted, lineHeight: 1.3 }}>{item.a}</div>
                 </div>
             </div>
-            {last && <Ping s={s} at={FAQ_BEAT} size={width} h={u * 9} radius={`${u * 2}px`} />}
+            {last && <Ping s={s} name="Faq" at={FAQ_BEAT} size={width} h={u * 9} />}
         </div>
     );
 }

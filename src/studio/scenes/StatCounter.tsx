@@ -101,14 +101,12 @@ function Counter({ k, stat, start, size, width, u, divider }: { k: Kit; stat: St
     const count = easeOutQuart(k.ramp(start, land));
     const appear = k.pop(start - 0.05, 13);
     const hit = hitFlash(k, land, 6);
-    const ring = k.ramp(land, land + 0.7);
     const current = format === 'compact' || !Number.isInteger(final) ? final * count : Math.round(final * count);
     const text = (value: number) => `${stat?.prefix ?? ''}${formatStat(value, format, final)}${stat?.suffix ?? ''}`;
     const valueStyle = { fontFamily: k.display, fontSize: size, fontWeight: 800, lineHeight: 1.05, letterSpacing: -size * 0.02, fontVariantNumeric: 'tabular-nums' as const, gridArea: '1 / 1', textAlign: 'center' as const, whiteSpace: 'nowrap' as const };
     return (
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: Math.min(1, appear * 2), transform: `translateY(${(1 - appear) * u * 3}px) scale(${(0.9 + 0.1 * appear) * (1 + hit * 0.04 + pulse * 0.025)})` }}>
             {divider && <div style={{ position: 'absolute', left: -u * 3, top: '10%', bottom: '10%', width: 1, background: `linear-gradient(transparent, ${al(k.c.muted, 0.4)}, transparent)` }} />}
-            {ring > 0 && ring < 1 && <div style={{ position: 'absolute', left: '50%', top: size / 2, width: size * 1.2, height: size * 1.2, marginLeft: -size * 0.6, marginTop: -size * 0.6, borderRadius: '50%', border: `${u * 0.3}px solid ${k.c.accent}`, opacity: 0.6 * (1 - ring), transform: `scale(${0.6 + easeOutQuart(ring) * 1.2})` }} />}
             {/* The final value, hidden, holds the width so the count doesn't shift as digits change. */}
             <div style={{ display: 'grid', filter: `drop-shadow(0 ${u * 0.5}px ${u * 1.5}px ${al(k.c.bg, 0.7)}) drop-shadow(0 0 ${u * (1.5 + hit * 3)}px ${al(k.c.accent, 0.3 + hit * 0.4)})` }}>
                 <span style={{ ...valueStyle, visibility: 'hidden' }}>{text(final)}</span>

@@ -1,7 +1,8 @@
 // Product reveals and UI-demo scenes. Each one is layered (accent aura, depth, spring entrances) with the headline lockup part of the composition.
 import type { CSSProperties, ReactNode } from 'react';
+import { HitFx, variantFor } from '../hitFx';
 import { Check, Cursor, Pill, Screen, Stage, Win, card, easeOut, listOf, typed, useKit, type Kit, type LaunchProps } from './kit';
-import { Aura, Canvas, Lockup, Shock, TAU, al, clamp01, lerp, shortSide } from './shapes';
+import { Aura, Canvas, Lockup, TAU, al, clamp01, lerp, shortSide } from './shapes';
 
 // ---- motion helpers shared with story.tsx ----
 
@@ -20,11 +21,11 @@ export const glide = (k: Kit, t0: number, t1: number, [x0, y0]: Pt, [x1, y1]: Pt
     return [lerp(x0, x1, e), lerp(y0, y1, e) - Math.sin(t * Math.PI) * arc];
 };
 
-/** The "hit" ring, centred in the nearest positioned parent. */
-export const Ping = ({ k, t0, r = 8 }: { k: Kit; t0: number; r?: number }) => (
-    <svg width={0} height={0} style={{ position: 'absolute', left: '50%', top: '50%', overflow: 'visible', pointerEvents: 'none' }}>
-        <Shock k={k} x={0} y={0} r0={k.u * r * 0.3} r1={k.u * r} t0={t0} t1={t0 + 0.7} />
-    </svg>
+/** The scene's hit accent (a per-scene look, see hitFx), centred in the nearest positioned parent. */
+export const Hit = ({ k, scene, t0, r = 8 }: { k: Kit; scene: string; t0: number; r?: number }) => (
+    <div style={{ position: 'absolute', left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none' }}>
+        <HitFx variant={variantFor(scene)} t={k.ramp(t0, t0 + 0.7)} x={0} y={0} size={k.u * r * 2} color={k.c.accent} />
+    </div>
 );
 
 /** Where a visual sits beside a Lockup: left/right half in wide frames, top/bottom in tall ones, with an accent aura behind it. */
@@ -78,7 +79,6 @@ export function DeviceRise(p: LaunchProps) {
                         </div>
                         <div style={{ height: k.u * 1.5, margin: `0 -${k.u * 3}px`, borderRadius: `0 0 ${k.u * 3}px ${k.u * 3}px`, background: 'linear-gradient(#aeb8d5, #6b7391)', boxShadow: `0 ${k.u * 2}px ${k.u * 4}px #0009` }} />
                     </div>
-                    <Ping k={k} t0={0.45} r={w / k.u / 2} />
                 </div>
             </Slot>
             <Lockup k={k} p={p} t0={0.5} />
@@ -159,7 +159,6 @@ export function OrbitGallery(p: LaunchProps) {
             <Aura k={k} x={cx} y={cy} r={shortSide(k) * 0.8} a={0.22} scale={k.pop(0, 14)} />
             <Canvas k={k}>
                 <ellipse cx={cx} cy={cy} rx={rx * k.pop(0, 14)} ry={ry * k.pop(0, 14)} fill="none" stroke={al(k.c.accent, 0.35)} strokeWidth={k.u * 0.2} strokeDasharray={`${k.u * 1.4} ${k.u * 1.2}`} />
-                <Shock k={k} x={cx} y={cy} r0={k.u * 4} r1={rx * 0.9} t0={2.2} t1={3.2} />
             </Canvas>
             {chips.filter((c) => c.depth < 0.5).map((c) => c.el)}
             <Lockup k={k} p={p} t0={0.4} place={k.stacked ? 'top' : 'center'} maxW={k.width * 0.3} size={k.stacked ? 6.4 : 5.2} />
@@ -352,7 +351,7 @@ export function FormFillSuccess(p: LaunchProps) {
             </div>
             {sent > 0 && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: k.u * 1.5, opacity: Math.min(1, sent * 1.6), transform: `scale(${0.8 + 0.2 * sent})` }}>
-                    <Ping k={k} t0={PRESS + 0.2} r={22} />
+                    <Hit k={k} scene="FormFillSuccess" t0={PRESS + 0.2} r={22} />
                     <Check k={k} size={12} progress={k.ramp(PRESS + 0.3, PRESS + 0.7)} />
                     <div style={{ fontSize: k.tx * 3.2, fontWeight: 750 }}>You're in</div>
                 </div>
@@ -406,7 +405,6 @@ export function DropFileUpload(p: LaunchProps) {
                 </div>
                 {up > 0 && (
                     <div style={{ ...card(k, { position: 'absolute', left: '20%', right: '20%', display: 'flex', alignItems: 'center', gap: k.u * 1.6, padding: k.u * 1.8, borderRadius: k.u * 1.2 }), opacity: Math.min(1, up * 1.6), transform: `scale(${0.85 + 0.15 * up})` }}>
-                        <Ping k={k} t0={DROP} r={20} />
                         <div style={{ width: k.u * 5, height: k.u * 5, borderRadius: k.u, background: al(k.c.accent, progress >= 1 ? 1 : 0.4), display: 'grid', placeItems: 'center', fontSize: k.tx * 2.4 }}>{progress >= 1 ? '✓' : '▤'}</div>
                         <div style={{ flex: 1 }}>
                             <div style={{ fontSize: k.tx * 2.3, fontWeight: 650 }}>{file}</div>

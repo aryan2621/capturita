@@ -1,7 +1,8 @@
 // Hooks (the first 3 seconds) and problem scenes.
 import { Check, Col, Headline, Kicker, Pill, Rule, Stage, Sub, easeOut, listOf, mono, seeded, typed, useKit, type Kit, type LaunchProps } from './kit';
-import { Canvas, al, shortSide } from './shapes';
-import { Atmosphere, Burst, DANGER, Motes, Sweep, glass, rise } from './fx';
+import { al, shortSide } from './shapes';
+import { HitFx, variantFor } from '../hitFx';
+import { Atmosphere, DANGER, Motes, Sweep, glass, rise } from './fx';
 
 /** Pop-in with a hard scale slam: starts oversized and settles with overshoot. */
 const slam = (k: Kit, delay: number, from = 1.35) => {
@@ -68,11 +69,10 @@ export function ShockStat(p: LaunchProps) {
     const count = easeOut(k.ramp(0.1, hit));
     const punch = k.pop(hit, 9);
     const scale = k.s < hit ? 0.9 + 0.1 * count : 1 + 0.12 * (1 - punch);
-    const M = shortSide(k);
     return (
         <Stage p={p}>
             <Atmosphere k={k} a={0.22 + 0.2 * count} />
-            <Canvas k={k}><Burst k={k} x={k.width / 2} y={k.height * 0.46} t0={hit} r0={M * 0.1} r1={M * 0.7} /></Canvas>
+            <HitFx variant={variantFor('ShockStat')} t={k.ramp(hit, hit + 0.6)} x={k.width / 2} y={k.height * 0.46} size={k.u * 40} color={k.c.accent} />
             <Col k={k}>
                 <Kicker k={k} style={rise(k, 0.05)}>{p.eyebrow}</Kicker>
                 <div style={{ fontFamily: k.display, fontSize: k.tx * (k.portrait ? 22 : 26), fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -k.u, color: k.c.text, textShadow: `0 0 ${k.u * (3 + 7 * (1 - punch) * (k.s >= hit ? 1 : 0))}px ${al(k.c.accent, 0.9)}, 0 ${k.u}px ${k.u * 4}px ${al(k.c.bg, 0.7)}`, transform: `scale(${scale})`, opacity: Math.min(1, k.s * 8) }}>
@@ -254,11 +254,9 @@ export function ChaosCollapse(p: LaunchProps) {
     const chips = listOf(p.items, [], 8);
     const hit = 1.4;
     const collapse = easeOut(k.ramp(0.6, hit));
-    const M = shortSide(k);
     return (
         <Stage p={p}>
             <Atmosphere k={k} a={0.18 + 0.12 * collapse} />
-            <Canvas k={k}><Burst k={k} x={k.width / 2} y={k.height / 2} t0={hit} r0={M * 0.12} r1={M * 0.7} /></Canvas>
             <div style={{ position: 'relative', width: '78%', height: '64%' }}>
                 {chips.map((chip, i) => {
                     const z = seeded(i + 21); // depth: far chips are smaller, dimmer and drift slower
@@ -316,12 +314,11 @@ export function CostTicker(p: LaunchProps) {
     const value = Math.round(p.metric * run ** 1.6);
     const punch = k.pop(hit, 9);
     const strain = Math.sin(k.s * 9 + run * 20) * (0.4 + 2 * run);
-    const M = shortSide(k);
     return (
         <Stage p={p}>
             <Atmosphere k={k} colour={DANGER} a={0.12 + 0.18 * run} y={0.5} />
             <Motes k={k} n={16} colour={DANGER} seed={2} speed={1.5} />
-            <Canvas k={k}><Burst k={k} x={k.width / 2} y={k.height * 0.47} t0={hit} r0={M * 0.1} r1={M * 0.65} colour={DANGER} /></Canvas>
+            <HitFx variant={variantFor('CostTicker')} t={k.ramp(hit, hit + 0.6)} x={k.width / 2} y={k.height * 0.47} size={k.u * 36} color={DANGER} />
             <Col k={k}>
                 <Kicker k={k} style={{ color: DANGER, ...rise(k, 0.05) }}>{p.eyebrow}</Kicker>
                 <div style={{ fontFamily: k.display, fontSize: k.tx * (k.portrait ? 19 : 24), fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums', color: DANGER, textShadow: `0 0 ${k.u * (3 + run * 5 + (k.s >= hit ? 5 * (1 - punch) : 0))}px ${al(DANGER, 0.7)}`, transform: `translate(${strain * k.u * 0.12}px, ${strain * k.u * 0.08}px) scale(${(k.s < hit ? 0.92 + 0.08 * run : 1 + 0.1 * (1 - punch))})`, opacity: Math.min(1, k.s * 8) }}>
@@ -343,12 +340,10 @@ export function ErrorToCalm(p: LaunchProps) {
     const hit = 1.5; // the errors are swept away and the calm card lands
     const away = easeOut(k.ramp(hit - 0.4, hit));
     const calm = k.pop(hit - 0.1, 11);
-    const M = shortSide(k);
     return (
         <Stage p={p}>
             <div style={{ position: 'absolute', inset: 0, opacity: 1 - away }}><Atmosphere k={k} colour={DANGER} a={0.2} /></div>
             <div style={{ position: 'absolute', inset: 0, opacity: away }}><Atmosphere k={k} a={0.28} /></div>
-            <Canvas k={k}><Burst k={k} x={k.width / 2} y={k.height / 2} t0={hit} r0={M * 0.12} r1={M * 0.7} /></Canvas>
             <div style={{ position: 'relative', width: k.stacked ? '84%' : '60%', height: k.u * 46 }}>
                 {errors.map((error, i) => {
                     const a = k.pop(i * 0.12, 11);

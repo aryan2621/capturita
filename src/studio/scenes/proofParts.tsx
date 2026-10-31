@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import './fonts';
 import { al } from './launch/shapes';
+import { HitFx, variantFor } from './hitFx';
 import { BrandTexture, clamp, Depth, sceneGradient, useExit } from './SceneBase';
 import { frameLayout, grow } from './layout';
 import { fitSize } from './text';
@@ -92,11 +93,13 @@ export function surface(s: Scene, { hot = false, radius = 2.4, alpha = 0.86 } = 
     };
 }
 
-/** An expanding ring that fades, centred on its positioned parent: the flash on a scene's key moment. */
-export function Ping({ s, at, size, h = size, radius = '50%', dur = 0.9 }: { s: Scene; at: number; size: number; h?: number; radius?: string; dur?: number }) {
-    const p = s.ramp(at, at + dur);
-    if (p <= 0 || p >= 1) return null;
-    return <div style={{ position: 'absolute', left: '50%', top: '50%', width: size, height: h, marginLeft: -size / 2, marginTop: -h / 2, borderRadius: radius, border: `${s.u * 0.35 * (1 - p * 0.6)}px solid ${s.c.accent}`, opacity: 0.8 * (1 - p), transform: `scale(${0.6 + 0.8 * easeOut(p)})`, pointerEvents: 'none' }} />;
+/** The accent on a scene's key moment, centred on its positioned parent in a `size` × `h` box: the look is fixed per scene `name` (or nothing). */
+export function Ping({ s, name, at, size, h = size, dur = 0.9 }: { s: Scene; name: string; at: number; size: number; h?: number; dur?: number }) {
+    return (
+        <div style={{ position: 'absolute', left: '50%', top: '50%', width: size, height: h, marginLeft: -size / 2, marginTop: -h / 2, pointerEvents: 'none' }}>
+            <HitFx variant={variantFor(name)} t={s.ramp(at, at + dur)} x={size / 2} y={h / 2} size={Math.max(size, h) * 0.6} color={s.c.accent} />
+        </div>
+    );
 }
 
 /** A diagonal light sweep across its parent (which needs position: relative and overflow: hidden). */

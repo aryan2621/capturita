@@ -1,7 +1,7 @@
 // Shared depth and "hit" effects for the hook, data and tech scenes (hooks.tsx, data.tsx, tech.tsx).
 import type { CSSProperties } from 'react';
-import { Canvas, TAU, al, lerp, polar, shortSide } from './shapes';
-import { card, easeOut, seeded, type Kit } from './kit';
+import { al, shortSide } from './shapes';
+import { card, seeded, type Kit } from './kit';
 
 /** Semantic status colours (the brand has none for "bad" and "done"). */
 export const DANGER = '#ff6b73';
@@ -21,41 +21,22 @@ export const glass = (k: Kit, style?: CSSProperties): CSSProperties =>
         ...style,
     });
 
-/** Rings and sparks flying out from a point: the moment the key beat lands. Draw inside a Canvas. */
-export function Burst({ k, x, y, t0, r0 = 0, r1, colour = k.c.accent, sparks = 14 }: { k: Kit; x: number; y: number; t0: number; r0?: number; r1: number; colour?: string; sparks?: number }) {
-    const t = k.ramp(t0, t0 + 0.8);
-    if (t <= 0 || t >= 1) return null;
-    const reach = (i: number) => lerp(r0, r1, easeOut(t)) * (0.7 + seeded(i + 3) * 0.5);
-    return (
-        <g stroke={colour} fill="none" strokeLinecap="round">
-            <circle cx={x} cy={y} r={lerp(r0, r1, easeOut(t))} strokeWidth={k.u * 0.4 * (1 - t * 0.7)} opacity={0.75 * (1 - t)} />
-            <circle cx={x} cy={y} r={lerp(r0, r1 * 0.6, easeOut(t))} strokeWidth={k.u * 0.25} opacity={0.4 * (1 - t)} />
-            {Array.from({ length: sparks }, (_, i) => {
-                const a = (i / sparks) * TAU + seeded(i + 9) * 0.5;
-                const [x1, y1] = polar(x, y, reach(i), a);
-                const [x2, y2] = polar(x, y, reach(i) - (r1 - r0) * 0.16 * (1 - t), a);
-                return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth={k.u * 0.4} opacity={1 - t} />;
-            })}
-        </g>
-    );
-}
-
 /**
- * Soft coloured lights behind the content, slowly drifting, plus an optional burst at `hit` seconds.
+ * Soft coloured lights behind the content, slowly drifting, swelling briefly at `hit` seconds.
  * `x`/`y` are fractions of the frame.
  */
 export function Atmosphere({ k, hit, x = 0.5, y = 0.5, a = 0.26, colour = k.c.accent }: { k: Kit; hit?: number; x?: number; y?: number; a?: number; colour?: string }) {
     const M = shortSide(k);
+    const swell = hit === undefined ? 1 : 1 + 0.6 * Math.sin(Math.PI * k.ramp(hit, hit + 0.8));
     const born = k.pop(0, 12);
     const light = (cx: number, cy: number, r: number, alpha: number) => (
-        <div style={{ position: 'absolute', left: cx - r, top: cy - r, width: r * 2, height: r * 2, borderRadius: '50%', background: `radial-gradient(circle, ${al(colour, alpha)}, transparent 68%)`, transform: `scale(${born})`, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', left: cx - r, top: cy - r, width: r * 2, height: r * 2, borderRadius: '50%', background: `radial-gradient(circle, ${al(colour, alpha * swell)}, transparent 68%)`, transform: `scale(${born})`, pointerEvents: 'none' }} />
     );
     const drift = (phase: number) => Math.sin(k.s * 0.5 + phase) * M * 0.035;
     return (
         <>
             {light(k.width * x + drift(0), k.height * y + drift(2), M * 0.78, a)}
             {light(k.width * (1 - x * 0.3) - drift(1), k.height * 0.14 + drift(3), M * 0.42, a * 0.5)}
-            {hit !== undefined && <Canvas k={k}><Burst k={k} x={k.width * x} y={k.height * y} t0={hit} r0={M * 0.06} r1={M * 0.62} colour={colour} /></Canvas>}
         </>
     );
 }

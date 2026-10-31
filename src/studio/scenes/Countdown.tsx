@@ -1,5 +1,5 @@
 import { grow } from './layout';
-import { Aura, Shock, Canvas, Stage, al, card, easeOut, glow, hitFlash, inkGradient, useHero, type Kit } from './hero';
+import { Aura, Stage, al, card, easeOut, glow, hitFlash, inkGradient, useHero, type Kit } from './hero';
 import type { Brand } from './assets';
 
 export interface CountdownProps {
@@ -55,9 +55,6 @@ export function Countdown({ label, days, hours, minutes, seconds, note, transpar
     return (
         <Stage p={p}>
             <Aura k={k} x={k.width / 2} y={k.height / 2} r={Math.min(k.width, k.height) * 0.75} a={0.2 + landed * 0.15 + tick * 0.1} scale={labelIn} />
-            <Canvas k={k}>
-                <Shock k={k} x={k.width / 2} y={k.height / 2} r0={boxW} r1={Math.max(k.width, k.height) * 0.5} t0={COUNTDOWN_BEAT} />
-            </Canvas>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: u * 4 }}>
                 <div style={{ fontFamily: k.display, fontSize: u * 5, fontWeight: 800, letterSpacing: -u * 0.1, color: k.c.text, opacity: Math.min(1, labelIn * 1.5), transform: `translateY(${(1 - labelIn) * u * 2.5}px)`, textAlign: 'center' }}>{label}</div>
                 <div style={{ display: 'flex', gap: u * 2.6 }}>

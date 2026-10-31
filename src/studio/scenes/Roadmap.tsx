@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { al } from './launch/shapes';
-import { Heading, Ping, Stage, Tick, headRoom, surface, take, useScene, type Scene } from './proofParts';
+import { Heading, Stage, Tick, headRoom, surface, take, useScene, type Scene } from './proofParts';
 import type { Brand, SceneAssets } from './assets';
 
 type Status = 'done' | 'now' | 'next';
@@ -34,7 +34,6 @@ function Stop({ s, m, reachedAt, vertical, dot, step, i }: StopProps) {
                 {now && <div style={{ position: 'absolute', inset: -dot * 0.5, borderRadius: '50%', background: `radial-gradient(closest-side, ${al(c.accent, 0.55)}, transparent)`, opacity: land }} />}
                 <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', boxSizing: 'border-box', border: `${u * 0.5}px solid ${pending ? al(c.accent, 0.55) : c.accent}`, background: pending ? c.bg : c.accent, boxShadow: pending ? undefined : `0 0 ${u * 2.5}px ${al(c.accent, 0.7)}` }} />
                 {m.status === 'done' && <div style={{ position: 'absolute', inset: '18%' }}><Tick size={dot * 0.64} color={c.bg} progress={land} width={3.4} /></div>}
-                {now && <Ping s={s} at={reachedAt} size={dot * 1.6} dur={1.1} />}
             </div>
             <div style={{ ...surface(s, { hot: now, alpha: pending ? 0.5 : 0.86 }), textAlign: vertical ? 'left' : 'center', opacity: Math.min(1, text * 1.6), transform: `translateY(${(1 - text) * u * 3}px)`, margin: vertical ? 0 : `0 ${u}px`, padding: `${u * 1.8}px ${u * 2}px` }}>
                 {STATUS_LABEL[m.status] && <div style={{ color: c.accent, fontSize: when * 0.9, fontWeight: 700, marginBottom: u * 0.6 }}>{STATUS_LABEL[m.status]}</div>}

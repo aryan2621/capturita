@@ -1,5 +1,5 @@
 import { useBeatSnap } from './beat';
-import { Aura, Canvas, Rule, Shock, Sparks, Stage, al, easeOutQuart, hitFlash, inkGradient, shortSide, useHero } from './hero';
+import { Aura, Canvas, Hit, Rule, Stage, al, easeOutQuart, hitFlash, inkGradient, shortSide, useHero } from './hero';
 import { fitSize } from './text';
 import type { Brand } from './assets';
 
@@ -49,10 +49,8 @@ export function BigNumber({ value, label, glow: lit, transparent, brand }: BigNu
             <Aura k={k} x={cx} y={cy} r={M * 0.75} a={(lit ? 0.38 : 0.2) + hit * 0.25} scale={enter} />
             <Canvas k={k}>
                 {[0.46, 0.62].map((r, i) => <circle key={i} cx={cx} cy={cy} r={M * r * k.pop(0.05 + i * 0.1, 14)} fill="none" stroke={al(k.c.muted, 0.22 - i * 0.07)} strokeWidth={k.u * 0.18} strokeDasharray={i ? `${k.u} ${k.u * 1.4}` : undefined} />)}
-                <Shock k={k} x={cx} y={cy} r0={M * 0.3} r1={M * 0.75} t0={HIT} />
-                <Shock k={k} x={cx} y={cy} r0={M * 0.3} r1={M * 0.95} t0={HIT + 0.1} width={0.2} a={0.4} />
-                <Sparks k={k} x={cx} y={cy} t0={HIT} r0={M * 0.3} r1={M * 0.6} />
             </Canvas>
+            <Hit k={k} name="BigNumber" x={cx} y={cy} t0={HIT} size={M * 0.6} />
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: fontSize * 0.1, transform: `translateY(${(1 - enter) * k.u * 3}px) scale(${(0.88 + 0.12 * enter) * (1 + hit * 0.05)})`, opacity: Math.min(1, enter * 2) }}>
                 <div style={{ filter: halo }}>
                     <div style={{ ...inkGradient(k), fontFamily: k.display, fontSize, fontWeight: 800, lineHeight: 1.05, letterSpacing: -fontSize * 0.03, fontVariantNumeric: 'tabular-nums', whiteSpace: 'pre' }}>{`${pre}${shown}${post}`}</div>

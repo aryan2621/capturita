@@ -1,7 +1,7 @@
 // Data and metric scenes: numbers that move, charts that draw.
 import { Col, Headline, Kicker, Rule, Stage, Sub, easeOut, listOf, numberIn, useKit, type Kit, type LaunchProps } from './kit';
-import { Canvas, al, shortSide } from './shapes';
-import { Atmosphere, Burst, glass, rise } from './fx';
+import { al } from './shapes';
+import { Atmosphere, glass, rise } from './fx';
 
 /** "Sign" and unit around a number in the item's detail, e.g. "$4.2M" → ['$', 'M']. */
 const affixes = (text = '') => [/^[^\d-]*/.exec(text)?.[0] ?? '', /[^\d.,]*$/.exec(text)?.[0] ?? ''] as const;
@@ -207,11 +207,9 @@ export function MetricsGrid(p: LaunchProps) {
     const k = useKit(p);
     const stats = listOf(p.items, [], 4);
     const hit = 1.4; // the last figure has counted up
-    const M = shortSide(k);
     return (
         <Stage p={p}>
             <Atmosphere k={k} a={0.22} />
-            <Canvas k={k}><Burst k={k} x={k.width / 2} y={k.height * 0.52} t0={hit} r0={M * 0.12} r1={M * 0.6} sparks={10} /></Canvas>
             <Col k={k} gap={4}>
                 <Kicker k={k} style={rise(k, 0.05)}>{p.eyebrow}</Kicker>
                 <Headline k={k} size={5.4} style={rise(k, 0.1)}>{p.headline}</Headline>

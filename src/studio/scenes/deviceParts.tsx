@@ -63,7 +63,7 @@ export function Glow({ x, y, r, color, opacity = 1, scale = 1 }: { x: number; y:
     return <div style={{ ...abs, left: x - r, top: y - r, width: r * 2, height: r * 2, borderRadius: '50%', background: `radial-gradient(circle, ${color}, transparent 68%)`, opacity, transform: `scale(${scale})` }} />;
 }
 
-/** An expanding ring that fades: the flash on a hit or click. `t` runs 0 → 1 (nothing is drawn outside that). */
+/** An expanding ring that fades: the ripple of a cursor click (key moments use HitFx). `t` runs 0 → 1 (nothing is drawn outside that). */
 export function Ring({ x, y, r0, r1, t, color, width }: { x: number; y: number; r0: number; r1: number; t: number; color: string; width: number }) {
     if (t <= 0 || t >= 1) return null;
     const r = r0 + (r1 - r0) * easeOut(t);
@@ -205,8 +205,8 @@ export function DeviceFrame({ kind, sw, sh, u, brand, url = '', children }: { ki
     );
 }
 
-/** A device (or window) that tips up and lands on a spring at LAND, with an accent glow and a ring flashing behind it. `outerH` is its height, `tiltY` extra yaw while it arrives. */
-export function Landing({ brand, u, outerH, tiltY = 0, children }: { brand: Brand; u: number; outerH: number; tiltY?: number; children: ReactNode }) {
+/** A device (or window) that tips up and lands on a spring at LAND, with an accent glow behind it. `outerH` is its height, `tiltY` extra yaw while it arrives. */
+export function Landing({ brand, outerH, tiltY = 0, children }: { brand: Brand; u: number; outerH: number; tiltY?: number; children: ReactNode }) {
     const { pop, ramp } = useTiming();
     const { width, height } = useVideoConfig();
     const enter = pop(0);
@@ -215,7 +215,6 @@ export function Landing({ brand, u, outerH, tiltY = 0, children }: { brand: Bran
         <div style={{ position: 'relative', perspective: width * 1.4 }}>
             <div style={{ position: 'absolute', left: '50%', top: '50%' }}>
                 <Glow x={0} y={0} r={outerH * 1.5} color={`${brand.colors.accent}55`} opacity={enter * (0.55 + 0.45 * (1 - flash))} scale={0.8 + 0.2 * enter} />
-                <Ring x={0} y={0} r0={outerH * 0.4} r1={outerH * 1.3} t={ramp(LAND, LAND + 26, easeOut)} color={brand.colors.accent} width={u * 0.4} />
             </div>
             <div style={{ transform: `translateY(${(1 - enter) * height * 0.2}px) rotateX(${(1 - enter) * 26}deg) rotateY(${(1 - enter) * tiltY}deg) scale(${0.9 + 0.1 * enter})`, transformOrigin: '50% 100%', opacity: Math.min(1, enter * 3) }}>{children}</div>
         </div>

@@ -1,6 +1,6 @@
 import { Easing, interpolate } from 'remotion';
 import { clamp } from './SceneBase';
-import { Aura, Shock, Sparks, Stage, al, card, easeOutQuart, glow, hitFlash, inkGradient, shortSide, useHero, Sheen, type Kit } from './hero';
+import { Aura, Hit, Stage, al, card, easeOutQuart, glow, hitFlash, inkGradient, shortSide, useHero, Sheen, type Kit } from './hero';
 import { ElementView } from './elements';
 import { fitSize } from './text';
 import { SceneImage } from './SceneBase';
@@ -278,9 +278,8 @@ function Ring({ k, target, fill, number }: { k: Kit; target: number; fill: numbe
                     <circle cx={c} cy={c} r={R} fill="none" stroke="url(#pr-arc)" strokeWidth={D * 0.07} strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - (target / 100) * fill} transform={`rotate(-90 ${c} ${c})`} />
                     {fill > 0.01 && <circle cx={head[0]} cy={head[1]} r={D * 0.045} fill={k.c.text} />}
                 </g>
-                <Shock k={k} x={c} y={c} r0={R} r1={R * 1.5} t0={PROGRESS_BEAT} />
-                <Sparks k={k} x={head[0]} y={head[1]} t0={PROGRESS_BEAT} r0={D * 0.04} r1={D * 0.18} />
             </svg>
+            <Hit k={k} name="ProgressRing" x={head[0]} y={head[1]} t0={PROGRESS_BEAT} size={D * 0.2} />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{number(D * 0.17)}</div>
         </div>
     );
@@ -296,10 +295,7 @@ function Bar({ k, target, fill, number }: { k: Kit; target: number; fill: number
             <div style={{ position: 'relative', height: h, borderRadius: h, background: al(k.c.muted, 0.18) }}>
                 <div style={{ width: x, height: '100%', borderRadius: h, background: `linear-gradient(90deg, ${al(k.c.accent, 0.45)}, ${k.c.accent})`, ...glow(k, k.c.accent, 1.8) }} />
                 {fill > 0.01 && <div style={{ position: 'absolute', left: x, top: '50%', width: h * 1.5, height: h * 1.5, marginLeft: -h * 0.75, marginTop: -h * 0.75, borderRadius: '50%', background: k.c.text, boxShadow: `0 0 ${h}px ${k.c.accent}` }} />}
-                <svg width={w} height={h} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
-                    <Shock k={k} x={(target / 100) * w} y={h / 2} r0={h} r1={h * 5} t0={PROGRESS_BEAT} />
-                    <Sparks k={k} x={(target / 100) * w} y={h / 2} t0={PROGRESS_BEAT} r0={h * 0.5} r1={h * 3} />
-                </svg>
+                <Hit k={k} name="ProgressBar" x={x} y={h / 2} t0={PROGRESS_BEAT} size={h * 4} />
             </div>
         </div>
     );

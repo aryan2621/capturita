@@ -1,5 +1,5 @@
 import { al } from './launch/shapes';
-import { Badge, Ping, Stage, easeOut, staggerAt, surface, take, useScene } from './proofParts';
+import { Badge, Stage, easeOut, staggerAt, surface, take, useScene } from './proofParts';
 import type { Brand } from './assets';
 
 export interface IntegrationsProps {
@@ -53,7 +53,6 @@ export function Integrations({ center, items, transparent, brand }: Integrations
                 <div style={{ position: 'absolute', transform: `translate(-50%, -50%) scale(${Math.max(0, hub)})` }}>
                     <div style={{ position: 'absolute', inset: -u * 6, borderRadius: '50%', background: `radial-gradient(closest-side, ${al(c.accent, 0.5)}, transparent)` }} />
                     <div style={{ position: 'relative', padding: `${u * 2.4}px ${u * 4.4}px`, borderRadius: u * 2.4, background: `linear-gradient(145deg, ${al(c.text, 0.35)}, ${c.accent} 45%)`, color: c.bg, fontFamily: s.display, fontWeight: 800, fontSize: u * 4.6, whiteSpace: 'nowrap', boxShadow: `0 ${u}px ${u * 3}px ${al('#000000', 0.4)}, 0 0 ${u * 5}px ${al(c.accent, 0.6)}` }}>{center}</div>
-                    <Ping s={s} at={INTEGRATIONS_BEAT} size={u * 22} dur={1.1} />
                 </div>
             </div>
         </Stage>

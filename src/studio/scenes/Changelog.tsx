@@ -24,7 +24,7 @@ function Row({ s, entry, at, newest }: { s: Scene; entry: Entry; at: number; new
             <span style={{ padding: `${u * 0.5}px ${u * 1.4}px`, borderRadius: u * 5, background: `linear-gradient(150deg, ${al(c.text, 0.3)}, ${c.accent} 60%)`, color: c.bg, fontWeight: 800, fontSize: u * 2.2, fontVariantNumeric: 'tabular-nums', boxShadow: newest ? `0 0 ${u * 2}px ${al(c.accent, 0.6)}` : undefined }}>{entry.version}</span>
             <span style={{ flex: 1, color: c.text, fontSize: u * 3 }}>{entry.text}</span>
             <span style={{ transform: `scale(${0.7 + 0.3 * Math.max(0, tick)})` }}><Tick size={u * 3.4} color={c.accent} progress={Math.min(1, tick)} /></span>
-            {newest && <Ping s={s} at={at + 0.1} size={u * 40} h={u * 8} radius={`${u * 2}px`} />}
+            {newest && <Ping s={s} name="Changelog" at={at + 0.1} size={u * 40} h={u * 8} />}
         </div>
     );
 }

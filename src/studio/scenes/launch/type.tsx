@@ -1,9 +1,10 @@
 // Typography, social-proof and closer scenes (see catalog-type.ts). Each has one hit (flash/ring/sparks) and a composed, held end frame.
 import type { CSSProperties, ReactNode } from 'react';
-import { Img, spring } from 'remotion';
+import { Img, spring, useVideoConfig } from 'remotion';
+import { HitFx, variantFor } from '../hitFx';
 import { assetUrl } from '../assets';
 import { Check, Col, Headline, Kicker, Pill, Screen, Stage, Sub, Win, card, easeOut, listOf, seeded, typed, useKit, type Kit, type LaunchProps } from './kit';
-import { Aura, Canvas, Lockup, Shock, TAU, al, clamp01, glow, lerp, polar, shortSide } from './shapes';
+import { Aura, Canvas, Lockup, TAU, al, clamp01, glow, lerp, polar, shortSide } from './shapes';
 
 // ---- shared helpers ----
 
@@ -21,18 +22,13 @@ const slab = (k: Kit, size: number): CSSProperties => ({ fontFamily: k.display, 
 const stack: CSSProperties = { display: 'grid', placeItems: 'center' };
 const layer: CSSProperties = { gridArea: '1 / 1' };
 
-/** Accent ring plus dots flung outward: the "hit". Sits at (x, y) of the nearest positioned parent. */
-function Impact({ k, t0, r, n = 10, seed = 0, x = '50%', y = '50%' }: { k: Kit; t0: number; r: number; n?: number; seed?: number; x?: string; y?: string }) {
-    const t = k.ramp(t0, t0 + 0.8);
-    if (t <= 0 || t >= 1) return null;
+/** The "hit": the scene's own accent at (x, y) of the nearest positioned parent. */
+function Impact({ k, t0, r, seed = 0, x = '50%', y = '50%' }: { k: Kit; t0: number; r: number; seed?: number; x?: string; y?: string }) {
+    const id = useVideoConfig().id;
     return (
-        <svg width={1} height={1} style={{ position: 'absolute', left: x, top: y, overflow: 'visible', pointerEvents: 'none' }}>
-            <Shock k={k} x={0} y={0} r0={k.u * r * 0.4} r1={k.u * r} t0={t0} />
-            {Array.from({ length: n }, (_, i) => {
-                const [dx, dy] = polar(0, 0, k.u * r * (0.5 + seeded(seed + i + 9) * 0.6) * easeOut(t), (i / n) * TAU + seeded(seed + i) * 0.5);
-                return <circle key={i} cx={dx} cy={dy} r={k.u * 0.55 * (1 - t)} fill={i % 2 ? k.c.text : k.c.accent} opacity={1 - t} />;
-            })}
-        </svg>
+        <div style={{ position: 'absolute', left: x, top: y, width: 0, height: 0, pointerEvents: 'none' }}>
+            <HitFx variant={variantFor(id)} t={k.ramp(t0, t0 + 0.7)} x={0} y={0} size={k.u * r * 1.4} color={k.c.accent} seed={seed + 1} />
+        </div>
     );
 }
 
@@ -83,7 +79,6 @@ export function FlyingWordsTunnel(p: LaunchProps) {
                     const f = (k.s * 0.9 + i / 5) % 1;
                     return <circle key={i} cx={k.width / 2} cy={k.height / 2} r={M * (0.08 + f ** 1.6 * 0.95)} fill="none" stroke={al(k.c.accent, 0.3 * (1 - f) * (1 - k.ramp(hit, hit + 0.3)))} strokeWidth={k.u * 0.2} />;
                 })}
-                <Shock k={k} x={k.width / 2} y={k.height / 2} r0={M * 0.1} r1={M * 0.85} t0={hit} />
             </Canvas>
             {words.map((_, i) => {
                 const t = (k.s - 0.15 - i * gap) / TUNNEL_FLIGHT;
@@ -203,7 +198,7 @@ export function OutlineFill(p: LaunchProps) {
                 </div>
                 <Sub k={k} style={{ opacity: k.ramp(hit, hit + 0.4), transform: `translateY(${(1 - k.ramp(hit, hit + 0.4)) * k.u * 2}px)` }}>{p.subtitle}</Sub>
             </Col>
-            <Impact k={k} t0={hit} r={30} n={12} seed={2} />
+            <Impact k={k} t0={hit} r={30} seed={2} />
         </Stage>
     );
 }
@@ -257,7 +252,6 @@ function PostCard({ k, text, detail, i, count }: { k: Kit; text: string; detail?
                 <span style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: k.u * 0.8, color: liked ? k.c.text : k.c.muted, fontWeight: liked ? 650 : 400 }}>
                     <span style={{ display: 'flex', transform: `scale(${1 + 0.7 * Math.sin(clamp01((k.s - likeAt) / 0.4) * Math.PI)})` }}><Icon d={ICONS.heart} size={k.u * 2.8} color={liked ? k.c.accent : k.c.muted} fill={liked ? k.c.accent : 'none'} /></span>
                     {likes.toLocaleString('en-US')}
-                    <Impact k={k} t0={likeAt} r={5} n={7} seed={i * 11} x={`${k.u * 1.4}px`} />
                 </span>
                 <span style={{ marginLeft: 'auto', display: 'flex' }}><Icon d={ICONS.share} size={k.u * 2.6} color={k.c.muted} /></span>
             </div>
@@ -315,7 +309,7 @@ export function FollowerRush(p: LaunchProps) {
                 <Headline k={k} size={4.4} style={{ opacity: k.ramp(0.3, 0.7) }}>{p.headline}</Headline>
                 <Sub k={k} style={{ opacity: k.ramp(hit, hit + 0.4) }}>{p.subtitle}</Sub>
             </Col>
-            <Impact k={k} t0={hit} r={34} n={14} seed={7} y="46%" />
+            <Impact k={k} t0={hit} r={34} seed={7} y="46%" />
         </Stage>
     );
 }
@@ -353,7 +347,6 @@ export function StarRatingSummary(p: LaunchProps) {
                         return <Star key={i} k={k} size={size} fill={clamp01(rating - i) * clamp01(pop)} pop={pop} />;
                     })}
                     <svg width={k.u * 3.6} height={k.u * 3.6} viewBox="0 0 24 24" style={{ position: 'absolute', right: -k.u * 1.4, top: -k.u * 1.8, opacity: twinkle, transform: `scale(${twinkle}) rotate(${twinkle * 90}deg)`, filter: `drop-shadow(0 0 ${k.u}px ${k.c.accent})` }}><path d={SPARKLE} fill={k.c.text} /></svg>
-                    <Impact k={k} t0={hit} r={32} n={12} seed={3} />
                 </div>
                 <div style={{ ...slab(k, k.tx * 16), textTransform: 'none', lineHeight: 1, fontVariantNumeric: 'tabular-nums', ...gradText(k), ...glow(k, al(k.c.accent, 0.35), 3), opacity: k.ramp(0.1, 0.3), transform: `scale(${1 + 0.06 * Math.exp(-Math.max(0, k.s - hit) * 5) * Math.sin(Math.max(0, k.s - hit) * 22)})` }}>
                     {(easeOut(k.ramp(0.2, hit)) * rating).toFixed(1)}<span style={{ color: k.c.muted, backgroundImage: 'none', fontSize: '0.4em', fontWeight: 700 }}> / 5</span>
@@ -403,7 +396,7 @@ export function InputMorph(p: LaunchProps) {
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: clamp01((mc - 0.5) / 0.4), transform: `scale(${0.5 + 0.5 * m})` }}>
                         <LogoMark p={p} k={k} size={logoSize} initial={(p.headline.trim()[0] ?? '•').toUpperCase()} />
                     </div>
-                    <Impact k={k} t0={hit} r={26} n={12} seed={9} />
+                    <Impact k={k} t0={hit} r={26} seed={9} />
                 </div>
                 <Sub k={k} style={{ opacity: k.ramp(hit, hit + 0.4), transform: `translateY(${(1 - k.ramp(hit, hit + 0.4)) * k.u * 2}px)` }}>{p.subtitle}</Sub>
             </Col>
@@ -453,7 +446,7 @@ export function OfferStickerSlap(p: LaunchProps) {
                         </svg>
                         <div style={{ position: 'absolute', inset: 0, clipPath: BURST_CLIP, backgroundImage: `linear-gradient(105deg, transparent 38%, ${al('#ffffff', 0.6)} 50%, transparent 62%)`, backgroundSize: '300% 100%', backgroundPosition: `${k.ramp(hit + 0.3, hit + 0.9, 100, 0)}% 0` }} />
                         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontFamily: k.display, fontWeight: 900, color: k.c.bg, fontSize, lineHeight: 1, textTransform: 'uppercase', padding: size * 0.2, textShadow: `0 1px 0 ${al('#ffffff', 0.35)}` }}>{p.headline}</div>
-                        <Impact k={k} t0={hit} r={26} n={12} seed={1} />
+                        <Impact k={k} t0={hit} r={26} seed={1} />
                     </div>
                 </div>
                 <Sub k={k} style={{ opacity: k.ramp(hit + 0.4, hit + 0.8), transform: `translateY(${(1 - k.ramp(hit + 0.4, hit + 0.8)) * k.u * 2}px)` }}>{p.subtitle}</Sub>

@@ -60,7 +60,7 @@ function Plan({ s, tier, i, hitAt, row, width, anyHot }: PlanProps) {
                     </div>
                 )}
             </div>
-            {hot && <Ping s={s} at={hitAt} size={width} h={row ? width * 1.1 : s.u * 14} radius={`${s.u * 2.6}px`} />}
+            {hot && <Ping s={s} name="Pricing" at={hitAt} size={width} h={row ? width * 1.1 : s.u * 14} />}
         </div>
     );
 }

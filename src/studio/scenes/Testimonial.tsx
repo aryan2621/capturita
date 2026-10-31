@@ -1,6 +1,6 @@
 import { SceneImage } from './SceneBase';
 import { al } from './launch/shapes';
-import { Ping, STAR_PATH, Sheen, Stage, surface, useScene, type Scene } from './proofParts';
+import { STAR_PATH, Sheen, Stage, surface, useScene, type Scene } from './proofParts';
 import type { Brand, SceneAssets } from './assets';
 
 export interface TestimonialProps {
@@ -32,7 +32,6 @@ function Stars({ s, stars }: { s: Scene; stars: number }) {
                     </svg>
                 );
             })}
-            {stars > 0 && <div style={{ position: 'absolute', left: '50%', top: '50%' }}><Ping s={s} at={starAt(stars - 1)} size={s.t * 14} /></div>}
         </div>
     );
 }

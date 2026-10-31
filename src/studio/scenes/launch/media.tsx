@@ -35,7 +35,6 @@ export function UiColdOpen(p: LaunchProps) {
                     <div style={{ fontSize: k.tx * 3.4, fontWeight: 760 }}>{p.headline}</div>
                 </div>
             </At>
-            <Hit k={k} x={z.x + w * 0.1} y={z.y - h * 0.03} r={k.u * 7} t0={HIT} />
         </Stage>
     );
 }
@@ -122,7 +121,6 @@ export function OldVsNew(p: LaunchProps) {
                     <RaceCard k={k} item={newWay} good progress={newProgress} w={w} h={h} win={win} />
                 </div>
             </At>
-            <Hit k={k} x={nx} y={ny} r={h * 0.5} t0={HIT} />
             <Lockup k={k} p={p} t0={HIT - 0.1} place="bottom" size={5.2} />
         </Stage>
     );
@@ -228,7 +226,6 @@ export function TiltToFlat(p: LaunchProps) {
                 </div>
             </At>
             <Brackets k={k} x={z.x} y={z.y} w={w} h={h} gap={k.u * (1.5 + 6 * (1 - lock))} o={clamp01(lock)} />
-            <Hit k={k} x={z.x} y={z.y} r={w * 0.3} t0={HIT} />
             <Lockup k={k} p={p} t0={HIT - 0.1} />
         </Stage>
     );
@@ -371,7 +368,6 @@ export function PenCirclesNumber(p: LaunchProps) {
                     </svg>
                 </div>
             </At>
-            <Hit k={k} x={z.x} y={z.y} r={H * 0.7} t0={HIT} />
             <Lockup k={k} p={p} t0={HIT - 0.1} />
         </Stage>
     );
@@ -502,7 +498,6 @@ export function PhoneToLaptopHandoff(p: LaunchProps) {
                 })}
             </Canvas>
             <At x={now.x} y={now.y} style={{ zIndex: 10, opacity: k.pop(0.4), transform: `scale(${1 + 0.18 * now.arc})` }}><ItemChip k={k} item={thing} checked={landed} /></At>
-            <Hit k={k} x={to[0]} y={to[1]} r={Lw * 0.2} t0={HIT} />
             <Lockup k={k} p={p} t0={HIT - 0.6} />
         </Stage>
     );

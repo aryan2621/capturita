@@ -1,6 +1,8 @@
 // Shared parts for the build and insight launch scenes: the scene frame (panel + lockup + hit flash), list rows, wires and chart grid.
 import type { CSSProperties, ReactNode } from 'react';
-import { Aura, Canvas, Lockup, Shock, al, clamp01, lerp } from './shapes';
+import { useVideoConfig } from 'remotion';
+import { HitFx, variantFor } from '../hitFx';
+import { Aura, Lockup, al, clamp01, lerp } from './shapes';
 import { Stage, card, listOf, type Kit, type LaunchProps } from './kit';
 
 export const tabular = { fontVariantNumeric: 'tabular-nums' } as const;
@@ -27,7 +29,7 @@ export interface Zone {
 
 /**
  * The frame every scene shares: depth behind the panel (accent aura, two ghost cards), the panel itself with a
- * spring entrance, idle drift and a light sweep on the hit, a shock ring at `hit`, and the headline lockup.
+ * spring entrance, idle drift and a light sweep on the hit, the scene's hit accent at `hit`, and the headline lockup.
  * `solo` centres a wide panel under just the eyebrow; `lock` overrides the fields the lockup shows.
  */
 export function Scene({ p, k, hit, t0 = 0.8, solo = false, lock, children }: { p: LaunchProps; k: Kit; hit: number; t0?: number; solo?: boolean; lock?: Partial<LaunchProps>; children: (z: Zone) => ReactNode }) {
@@ -42,10 +44,7 @@ export function Scene({ p, k, hit, t0 = 0.8, solo = false, lock, children }: { p
     return (
         <Stage p={p}>
             <Aura k={k} x={cx} y={cy} r={Math.max(z.w, z.h) * 0.7} a={0.2 + punch * 0.18} scale={born} />
-            <Canvas k={k}>
-                <Shock k={k} x={cx} y={cy} r0={z.h * 0.25} r1={z.w * 0.8} t0={hit} t1={hit + 0.9} />
-                <Shock k={k} x={cx} y={cy} r0={z.h * 0.25} r1={z.w * 0.95} t0={hit + 0.12} t1={hit + 1.1} width={0.2} a={0.4} />
-            </Canvas>
+            <HitFx variant={variantFor(useVideoConfig().id)} t={k.ramp(hit, hit + 0.6)} x={cx} y={cy} size={z.w * 0.6} color={k.c.accent} />
             <div style={{ position: 'absolute', left: cx - z.w / 2, top: cy - z.h / 2, width: z.w, height: z.h, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ position: 'relative', width: '100%', opacity: Math.min(1, born * 2), transform: `translateY(${(1 - born) * k.u * 4 + Math.sin(k.s * 1.1) * k.u * 0.35}px) scale(${0.93 + 0.07 * born + punch * 0.012})` }}>
                     {[-1, 1].map((side) => <div key={side} style={ghost(side)} />)}

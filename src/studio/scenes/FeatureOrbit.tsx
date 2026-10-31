@@ -2,7 +2,7 @@ import { AbsoluteFill, useVideoConfig } from 'remotion';
 import './fonts';
 import { BrandTexture, Depth, sceneGradient, useExit } from './SceneBase';
 import { fitSize } from './text';
-import { Glow, Ring, easeOut, useTiming } from './deviceParts';
+import { Glow, easeOut, useTiming } from './deviceParts';
 import { bodyFont, displayFont, type Brand } from './assets';
 
 export interface FeatureOrbitProps {
@@ -70,7 +70,6 @@ export function FeatureOrbit({ heading, features, transparent, brand }: FeatureO
                     ))}
                 </svg>
                 <div style={{ position: 'absolute', left: cx - unit * 2.2, top: cy - unit * 2.2, width: unit * 4.4, height: unit * 4.4, borderRadius: '50%', background: `radial-gradient(circle at 35% 30%, ${colors.text}, ${colors.accent} 55%)`, boxShadow: `0 0 ${unit * 5}px ${colors.accent}`, transform: `scale(${pop(0)})` }} />
-                <Ring x={cx} y={cy} r0={unit * 2} r1={radius * 1.5 + unit * 4} t={ramp(4, 30)} color={colors.accent} width={unit * 0.5} />
             </Depth>
             <Depth z={1}>
                 <div style={{ position: 'absolute', left: width * 0.08, right: width * 0.08, top: height * (portrait ? 0.14 : 0.13), textAlign: 'center', fontFamily: displayFont(brand), fontSize: headSize, fontWeight: 800, lineHeight: 1.1, letterSpacing: -headSize * 0.02, color: colors.text, opacity: headIn, transform: `translateY(${(1 - headIn) * unit * 3}px)` }}>

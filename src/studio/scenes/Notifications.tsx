@@ -1,5 +1,5 @@
 import { al } from './launch/shapes';
-import { Badge, Heading, Ping, Stage, staggerAt, surface, take, useScene } from './proofParts';
+import { Badge, Heading, Stage, staggerAt, surface, take, useScene } from './proofParts';
 import type { Brand } from './assets';
 
 export interface NotificationsProps {
@@ -38,7 +38,6 @@ export function Notifications({ heading, items, transparent, brand }: Notificati
                                 <div style={{ fontSize: u * 2.3, color: c.muted, marginTop: u * 0.5 }}>{n.text}</div>
                             </div>
                             <div style={{ alignSelf: 'flex-start', marginTop: u * 1.3, fontSize: u * 1.7, fontWeight: 600, color: al(c.muted, 0.8) }}>now</div>
-                            {newest && <Ping s={s} at={at(i) + 0.05} size={width * 0.9} h={cardH * 0.9} radius={`${u * 3}px`} />}
                         </div>
                     );
                 })}

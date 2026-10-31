@@ -1,7 +1,9 @@
 // Shared chrome for the product-media scenes (media.tsx): one device frame, window, ghost UI, placement and light effect each.
 import type { CSSProperties, ReactNode } from 'react';
 import { Screen, Win, seeded, type Kit, type LaunchProps } from './kit';
-import { Canvas, Shock, lerp } from './shapes';
+import { useVideoConfig } from 'remotion';
+import { HitFx, variantFor } from '../hitFx';
+import { lerp } from './shapes';
 
 export const inOut = (x: number) => {
     const t = Math.max(0, Math.min(1, x));
@@ -44,11 +46,11 @@ export const depthShadow = (k: Kit, lift = 1) => `0 ${k.u * 1.2 * lift}px ${k.u 
 export const Ground = ({ k, o = 1 }: { k: Kit; o?: number }) => (
     <div style={{ position: 'absolute', left: '6%', right: '6%', bottom: -k.u * 1.4, height: k.u * 3, borderRadius: '50%', background: 'radial-gradient(#000c, transparent 70%)', opacity: o, pointerEvents: 'none' }} />
 );
-/** The "hit": accent rings bursting from a point. */
-export const Hit = ({ k, x, y, r, t0, rings = 2 }: { k: Kit; x: number; y: number; r: number; t0: number; rings?: number }) => (
-    <Canvas k={k}>
-        {Array.from({ length: rings }, (_, i) => <Shock key={i} k={k} x={x} y={y} r0={r * 0.35} r1={r * (1.2 + i * 0.35)} t0={t0 + i * 0.12} t1={t0 + 0.9 + i * 0.12} width={0.5 - i * 0.15} a={0.75 - i * 0.25} />)}
-    </Canvas>
+/** The "hit": the scene's own accent (glow, sweep, sparks, flash or nothing) at a point, sized by `r`. */
+export const Hit = ({ k, x, y, r, t0 }: { k: Kit; x: number; y: number; r: number; t0: number }) => (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        <HitFx variant={variantFor(useVideoConfig().id)} t={k.ramp(t0, t0 + 0.6)} x={x} y={y} size={r} color={k.c.accent} seed={Math.round(x + y)} />
+    </div>
 );
 
 // ---- devices and windows --------------------------------------------------------------------

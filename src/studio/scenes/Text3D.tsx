@@ -1,4 +1,4 @@
-import { Aura, Canvas, Rule, Shock, Stage, al, hitFlash, shortSide, useHero } from './hero';
+import { Aura, Rule, Stage, al, hitFlash, shortSide, useHero } from './hero';
 import { fitSize } from './text';
 import type { Brand } from './assets';
 
@@ -42,9 +42,6 @@ export function Text3D({ text, subtitle, transparent, brand }: Text3DProps) {
     return (
         <Stage p={p}>
             <Aura k={k} x={cx} y={cy} r={M * 0.8} a={0.24 + hit * 0.2} scale={swing} />
-            <Canvas k={k}>
-                <Shock k={k} x={cx} y={cy} r0={fontSize} r1={M * 0.85} t0={TEXT_3D_BEAT} />
-            </Canvas>
             <div style={{ position: 'absolute', left: cx - fontSize * 3, top: cy + textH * 0.62 + depth, width: fontSize * 6, height: fontSize * 0.5, borderRadius: '50%', background: `radial-gradient(closest-side, ${al(k.c.bg, 0.6)}, transparent)`, opacity: swing, transform: `scaleX(${0.6 + 0.4 * swing})` }} />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', perspective: Math.max(k.width, k.height) * 1.1, paddingBottom: subtitle ? fontSize * 0.5 : 0 }}>
                 <div style={{ position: 'relative', transformStyle: 'preserve-3d', transform: `rotateX(${pitch}rad) rotateY(${yaw}rad) scale(${0.88 + 0.12 * swing})`, opacity: Math.min(1, k.s * 12) }}>

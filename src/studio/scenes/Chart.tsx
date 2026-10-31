@@ -1,4 +1,4 @@
-import { Aura, Shock, Stage, al, card, clamp01, easeOutQuart, glow, hitFlash, useHero, type Kit } from './hero';
+import { Aura, Stage, al, card, clamp01, easeOutQuart, glow, hitFlash, useHero, type Kit } from './hero';
 import { type Brand } from './assets';
 
 export interface ChartPoint {
@@ -73,7 +73,6 @@ export function ChartPlot({ k, kind, points, width, height, from, to, format }: 
     const dots = points.map<[number, number]>((p, i) => [x(i), y(p.value)]);
     const lineD = n > 1 ? curve(dots) : '';
     const lastX = x(n - 1);
-    const lastY = y(points[n - 1].value);
 
     return (
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
@@ -120,7 +119,6 @@ export function ChartPlot({ k, kind, points, width, height, from, to, format }: 
                     </g>
                 );
             })}
-            <Shock k={k} x={lastX} y={kind === 'bars' ? (base + lastY) / 2 : lastY} r0={u} r1={u * 14} t0={to} />
         </svg>
     );
 }
