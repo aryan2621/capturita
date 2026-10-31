@@ -210,6 +210,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     /** The screen video has decoded its first frame (always true for Studio, which has no recording). */
     const [videoReady, setVideoReady] = useState(studio);
     const [loaderSkipped, setLoaderSkipped] = useState(false);
+    const [loaderShown, setLoaderShown] = useState(false);
     const [loaderSlow, setLoaderSlow] = useState(false);
     const [stage, setStage] = useState({ width: 0, height: 0 });
 
@@ -966,10 +967,16 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const loadingRef = useRef(loading);
     loadingRef.current = loading;
     useEffect(() => {
+        setLoaderShown(false);
         setLoaderSlow(false);
         if (!loading) return;
-        const timer = setTimeout(() => setLoaderSlow(true), 12000);
-        return () => clearTimeout(timer);
+        // Only a load that takes a while shows the loader (same 400ms as makingPreview), so short videos never flash it.
+        const show = setTimeout(() => setLoaderShown(true), 400);
+        const slow = setTimeout(() => setLoaderSlow(true), 12000);
+        return () => {
+            clearTimeout(show);
+            clearTimeout(slow);
+        };
     }, [loading]);
     const keyActions = useRef(actions);
     keyActions.current = actions;
@@ -1617,7 +1624,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                     onClose={() => setExporting(false)}
                 />}
 
-            {loading && (
+            {loading && loaderShown && (
                 <div
                     role='status'
                     aria-label='Loading preview'

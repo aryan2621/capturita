@@ -99,11 +99,13 @@ final class Controller {
             return NSNull()
         case "makePreview":
             guard let dir = args.string("dir") else { throw RecorderError("Missing project folder") }
-            // Never alongside a recording: both would use the video encoder, and the recording could drop frames.
-            while recorder.isRecording {
-                try await Task.sleep(for: .seconds(2))
+            let projectDir = URL(fileURLWithPath: dir)
+            // Never encode alongside a recording (both use the video encoder, and the recording could drop
+            // frames). Fail fast instead of waiting, so the editor plays the original rather than blocking.
+            if recorder.isRecording && !FileManager.default.fileExists(atPath: projectDir.appendingPathComponent(PreviewMaker.fileName).path) {
+                throw RecorderError("Recording in progress; playing the original")
             }
-            return try await PreviewMaker.make(projectDir: URL(fileURLWithPath: dir))
+            return try await PreviewMaker.make(projectDir: projectDir)
         case "cancel":
             bar.hide()
             await recorder.cancel()
