@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from '../lib/toast';
 import { api, errorMessage, fileUrl, formatDuration, isStudio, type CursorData, type Project } from '../lib/api';
-import { Button, IconButton, Popover, RangeInput, Segmented, TextInput, cx } from '../components/ui';
+import { Button, IconButton, Popover, RangeInput, Segmented, Spinner, TextInput, cx } from '../components/ui';
 import { CropOverlay } from '../editor/CropOverlay';
 import { ExportDialog } from '../editor/ExportDialog';
 import { useLicense } from '../lib/license';
@@ -207,6 +207,10 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
      */
     const [previewFile, setPreviewFile] = useState<string | null>(null);
     const [makingPreview, setMakingPreview] = useState(false);
+    /** The screen video has decoded its first frame (always true for Studio, which has no recording). */
+    const [videoReady, setVideoReady] = useState(studio);
+    const [loaderSkipped, setLoaderSkipped] = useState(false);
+    const [loaderSlow, setLoaderSlow] = useState(false);
     const [stage, setStage] = useState({ width: 0, height: 0 });
 
     const clickTimes = useMemo(() => cursor?.clicks.map(([t]) => t) ?? [], [cursor]);
@@ -318,8 +322,13 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     }, [project.id]);
     // When the video switches to the preview copy, put it back where playback is.
     const onScreenLoaded = () => {
+        setVideoReady(true);
         if (previewFile) playbackRef.current.seek(playbackRef.current.now());
     };
+    // The video element reloads when it switches to the smooth preview copy.
+    useEffect(() => {
+        if (!studio) setVideoReady(false);
+    }, [studio, previewFile]);
 
     // Once: the editing keys changed (S used to mark a cut).
     useEffect(() => {
@@ -952,6 +961,16 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         undo: history.undo,
         redo: history.redo,
     };
+    // Editing waits until the preview can show a frame, so a half-loaded video never receives changes.
+    const loading = !studio && !loaderSkipped && (!loaded || !videoReady || !playback.ready || makingPreview);
+    const loadingRef = useRef(loading);
+    loadingRef.current = loading;
+    useEffect(() => {
+        setLoaderSlow(false);
+        if (!loading) return;
+        const timer = setTimeout(() => setLoaderSlow(true), 12000);
+        return () => clearTimeout(timer);
+    }, [loading]);
     const keyActions = useRef(actions);
     keyActions.current = actions;
     useEffect(() => {
@@ -960,7 +979,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             const inField = ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName);
             if (inField && (target as HTMLInputElement).type !== 'range') return;
             // The export dialog, and the recorder (opened over the editor by ⌘⇧R), own the keyboard while open.
-            if (exportingRef.current || document.querySelector('[data-recorder-open]')) return;
+            if (exportingRef.current || loadingRef.current || document.querySelector('[data-recorder-open]')) return;
             const actions = keyActions.current;
             if (event.metaKey && (event.key === '=' || event.key === '+' || event.key === '-' || event.key === '0')) {
                 event.preventDefault();
@@ -1017,7 +1036,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     const exportName = `${project.source.name} ${new Date(project.createdAt).toISOString().slice(0, 16).replace('T', ' ').replace(':', '.')}`;
 
     return (
-        <div className='flex h-full flex-col'>
+        <div className='relative flex h-full flex-col'>
             <header className='flex h-14 shrink-0 items-center gap-3 border-b border-line bg-panel px-3'>
                 <IconButton label='Back to recordings' onClick={close}>
                     <ArrowLeft className='h-4 w-4' />
@@ -1181,16 +1200,6 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                         {placingFocus && (
                             <div className='absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full bg-panel/90 px-3 py-1.5 text-xs text-muted shadow'>
                                 Placing the zoom — drag the box, press Play to see it zoomed
-                            </div>
-                        )}
-                        {makingPreview && (
-                            <div className='absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full bg-panel/90 px-3 py-1.5 text-xs text-muted shadow'>
-                                <Loader2 className='h-3.5 w-3.5 animate-spin' /> Preparing a smooth preview…
-                            </div>
-                        )}
-                        {!playback.ready && (
-                            <div className='absolute inset-0 flex items-center justify-center'>
-                                <Loader2 className='h-6 w-6 animate-spin text-muted' />
                             </div>
                         )}
                     </div>
@@ -1608,6 +1617,21 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                     onClose={() => setExporting(false)}
                 />}
 
+            {loading && (
+                <div
+                    role='status'
+                    aria-label='Loading preview'
+                    className='absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-bg/70 backdrop-blur-sm'
+                >
+                    <Spinner size={32} className='text-fg' />
+                    {loaderSlow && (
+                        <Button size='sm' onClick={() => setLoaderSkipped(true)}>
+                            Continue anyway
+                        </Button>
+                    )}
+                </div>
+            )}
+
             {/* Frame sources for the canvas. Kept in the page (not display:none) so WebKit keeps decoding them. */}
             <div className='pointer-events-none fixed left-0 top-0 h-px w-px overflow-hidden opacity-0' aria-hidden>
                 {!studio && (
@@ -1615,6 +1639,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                         ref={playback.screenRef}
                         src={fileUrl(project, previewFile ?? project.tracks.screen.file)}
                         onLoadedData={onScreenLoaded}
+                        onError={() => setVideoReady(true)}
                         muted
                         playsInline
                         preload='auto'
