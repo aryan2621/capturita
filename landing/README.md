@@ -1,6 +1,6 @@
 # Capturita landing site
 
-Vite + React site with a Cloudflare Worker and D1 database for Capturita Pro checkout, signed license issuance, refunds, and license-status checks.
+Vite + React site with a Cloudflare Worker and D1 database for Capturita Pro checkout, signed license issuance, refunds, and device activation, and key recovery.
 
 ## Local development
 

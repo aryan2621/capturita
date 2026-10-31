@@ -52,3 +52,20 @@ export async function deactivate(env: Env, key: string, target: string): Promise
   ).bind(nowSec(), target, target, key).run();
   return res.meta.changes > 0;
 }
+
+export const RECOVER_MAX_FAILS = 10;
+export const RECOVER_WINDOW = 3600;
+
+export async function recoverLockedOut(env: Env, email: string, now = nowSec()): Promise<boolean> {
+  const r = await env.DB.prepare("SELECT count, window_start FROM recover_failures WHERE email = ?").bind(email).first<{ count: number; window_start: number }>();
+  return !!r && now - r.window_start < RECOVER_WINDOW && r.count >= RECOVER_MAX_FAILS;
+}
+
+export async function recordRecoverFailure(env: Env, email: string, now = nowSec()) {
+  await env.DB.prepare(
+    `INSERT INTO recover_failures (email, count, window_start) VALUES (?, 1, ?)
+     ON CONFLICT(email) DO UPDATE SET
+       count = CASE WHEN ? - window_start >= ? THEN 1 ELSE count + 1 END,
+       window_start = CASE WHEN ? - window_start >= ? THEN ? ELSE window_start END`,
+  ).bind(email, now, now, RECOVER_WINDOW, now, RECOVER_WINDOW, now).run();
+}

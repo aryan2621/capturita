@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import type { ZodType } from "zod";
 import type { Env } from "./types";
 import { PRODUCT, newId, nowSec } from "./product";
-import { activate, deactivate } from "./activation";
+import { activate, deactivate, recordRecoverFailure, recoverLockedOut } from "./activation";
 import { activateSchema, checkoutSchema, deactivateSchema, recoverSchema, refundSchema, verifySchema } from "./schema";
 import { RazorpayClient } from "./razorpay";
 import { checkOrderToken, orderToken, safeEqual } from "./crypto";
@@ -106,10 +106,13 @@ app.post("/api/licenses/recover", async (c) => {
   if (!b) return c.json({ error: "Enter the purchase email and the payment ID from your Razorpay receipt." }, 400);
   if (!(await allow(c.env, "LICENSE_LIMITER", ip(c))) || !(await allow(c.env, "LICENSE_LIMITER", `recover:${b.email}`))) return c.json({ error: "Too many attempts. Try again in a minute." }, 429);
   if (!(await verifyTurnstile(b.turnstile_token, c.env.TURNSTILE_SECRET, ip(c)))) return c.json({ error: "Bot check failed" }, 403);
+  if (await recoverLockedOut(c.env, b.email)) return c.json({ error: "Too many wrong attempts for this email. Try again in an hour or contact support." }, 429);
   const row = await c.env.DB.prepare(
     "SELECT l.key FROM licenses l JOIN orders o ON o.id = l.order_id JOIN customers cu ON cu.id = l.customer_id WHERE cu.email = ? AND o.razorpay_payment_id = ? AND l.status = 'active'",
   ).bind(b.email, b.payment_id).first<{ key: string }>();
-  return row ? c.json({ license_key: row.key }) : c.json({ error: "No active license matches that email and payment ID." }, 404);
+  if (row) return c.json({ license_key: row.key });
+  await recordRecoverFailure(c.env, b.email);
+  return c.json({ error: "No active license matches that email and payment ID." }, 404);
 });
 
 app.post("/api/payments/verify", async (c) => {

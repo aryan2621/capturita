@@ -65,6 +65,15 @@ describe("key recovery", () => {
   });
 });
 
+describe("recovery lockout", () => {
+  it("locks an email after 10 wrong payment ids, even for the right one, then expires", async () => {
+    for (let i = 0; i < 10; i++) expect((await post("/api/licenses/recover", { email: "buyer@test.dev", payment_id: `pay_bad${i}` })).status).toBe(404);
+    expect((await post("/api/licenses/recover", { email: "buyer@test.dev", payment_id: "pay_1" })).status).toBe(429);
+    env.DB.raw.prepare("UPDATE recover_failures SET window_start = window_start - 3601").run();
+    expect((await post("/api/licenses/recover", { email: "buyer@test.dev", payment_id: "pay_1" })).status).toBe(200);
+  });
+});
+
 describe("admin", () => {
   it("is rate limited before the token is checked", async () => {
     const e2 = makeEnv({ LICENSE_LIMITER: { limit: async () => ({ success: false }) } as any });
