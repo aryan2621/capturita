@@ -296,7 +296,7 @@ export function ExportDialog({
         <Modal onClose={close} dismissable={!busy} className='max-w-md' data-export-busy={busy || undefined}>
                 <div className='max-h-[85vh] space-y-5 overflow-y-auto p-6'>
                     <div className='flex items-center justify-between'>
-                        <h2 className='flex items-center gap-2 font-serif text-lg font-medium'>
+                        <h2 className='flex items-center gap-2 text-lg font-medium'>
                             <Download className='h-4 w-4' /> Export
                         </h2>
                         <Button size='icon' variant='ghost' className='h-8 w-8' onClick={close} disabled={busy} title='Close' aria-label='Close'>

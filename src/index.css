@@ -44,7 +44,7 @@
   --lane-voice: #c026d3;
   --lane-sfx: #ea580c;
   --shadow-lg: 0 20px 50px -16px rgb(31 30 29 / 0.22);
-  --scrollbar: #d6d3c6;
+  --scrollbar: #d0d0d0;
 }
 
 /* ---------- Dark ---------- */
@@ -85,7 +85,7 @@
   --lane-voice: #e879f9;
   --lane-sfx: #fb923c;
   --shadow-lg: 0 20px 50px -12px rgb(0 0 0 / 0.6);
-  --scrollbar: #4c4b46;
+  --scrollbar: #4a4a4a;
 }
 
 @theme inline {

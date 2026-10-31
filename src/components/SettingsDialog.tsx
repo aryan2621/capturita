@@ -100,9 +100,9 @@ export function SettingsDialog({
     const current = SECTIONS.find((x) => x.id === section);
 
     return (
-        <Modal onClose={onClose} className='flex h-[640px] max-w-[880px]'>
-            <nav aria-label='Settings sections' className='flex w-56 shrink-0 flex-col gap-4 overflow-y-auto border-r border-line bg-panel-2 p-3'>
-                <span className='px-2 pt-1 font-serif text-[17px] font-medium tracking-tight'>Settings</span>
+        <Modal onClose={onClose} className='flex h-[640px] max-w-[760px]'>
+            <nav aria-label='Settings sections' className='flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-line bg-panel-2 p-3'>
+                <span className='px-2 pt-1 text-[17px] font-medium tracking-tight'>Settings</span>
                 <TextInput
                     size='sm'
                     leading={<Search aria-hidden className='h-3.5 w-3.5' />}

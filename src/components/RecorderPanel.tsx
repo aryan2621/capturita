@@ -277,7 +277,7 @@ export function RecorderPanel({
             <div className='flex min-w-0 flex-1 flex-col'>
                 <div className='flex items-center gap-3 px-6 pb-2 pt-5'>
                     <div className='min-w-0 flex-1'>
-                        <h2 className='font-serif text-[22px] font-medium leading-tight tracking-tight'>New recording</h2>
+                        <h2 className='text-[22px] font-medium leading-tight tracking-tight'>New recording</h2>
                         <p className='mt-0.5 text-xs text-muted'>{mode.hint}</p>
                     </div>
                     <IconButton label='Refresh screens and windows' size='icon-sm' onClick={refreshSources} disabled={loadingSources || !screenGranted}>

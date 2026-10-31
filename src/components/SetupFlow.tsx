@@ -41,7 +41,7 @@ export function SetupFlow({
                     <span className='flex h-7 w-7 items-center justify-center rounded-lg bg-accent shadow-sm'>
                         <span className='h-2.5 w-2.5 rounded-full bg-white' />
                     </span>
-                    <span className='font-serif text-[17px] font-medium tracking-tight'>Set up Capturita</span>
+                    <span className='text-[17px] font-medium tracking-tight'>Set up Capturita</span>
                     <div className='ml-auto flex items-center gap-1.5' aria-label={`Step ${index + 1} of ${SETUP_STEPS.length}`}>
                         {SETUP_STEPS.map((s, i) => (
                             <span key={s} className={cx('h-1.5 rounded-full transition-all', i === index ? 'w-5 bg-accent' : i < index ? 'w-1.5 bg-accent/60' : 'w-1.5 bg-line-strong')} />
@@ -75,7 +75,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
     return (
         <div className='space-y-5'>
             <div className='space-y-2'>
-                <h2 className='font-serif text-2xl font-medium tracking-tight'>Welcome to Capturita</h2>
+                <h2 className='text-2xl font-medium tracking-tight'>Welcome to Capturita</h2>
                 <p className='text-sm text-muted'>
                     Record your screen, camera and voice, then polish it here: zooms, captions, hidden private info, and export to MP4 or YouTube.
                 </p>
@@ -138,7 +138,7 @@ function PermissionsStep({ onNext, onPermissionsChange }: { onNext: () => void; 
     return (
         <div className='space-y-5'>
             <div className='space-y-1'>
-                <h2 className='font-serif text-xl font-medium tracking-tight'>Permissions</h2>
+                <h2 className='text-xl font-medium tracking-tight'>Permissions</h2>
                 <p className='text-sm text-muted'>macOS asks before any app can see your screen or use the mic and camera.</p>
             </div>
             <div className='space-y-2'>
@@ -267,7 +267,7 @@ function CaptionsStep({ onNext }: { onNext: () => void }) {
     return (
         <div className='space-y-5'>
             <div className='space-y-1'>
-                <h2 className='font-serif text-xl font-medium tracking-tight'>Captions</h2>
+                <h2 className='text-xl font-medium tracking-tight'>Captions</h2>
                 <p className='text-sm text-muted'>
                     Capturita turns what you say into captions on this Mac, so nothing is uploaded. It needs a speech model ({model?.sizeMb ?? 547} MB), downloaded once.
                 </p>
@@ -310,7 +310,7 @@ function Done({ onFinish }: { onFinish: () => void }) {
     return (
         <div className='space-y-5'>
             <div className='space-y-1'>
-                <h2 className='font-serif text-xl font-medium tracking-tight'>You're all set</h2>
+                <h2 className='text-xl font-medium tracking-tight'>You're all set</h2>
                 <p className='text-sm text-muted'>Pick a screen, window or area, and press Record. Capturita adds the zooms for you.</p>
             </div>
             <Card padding='sm' className='flex items-center gap-3 rounded-xl text-sm'>

@@ -451,7 +451,8 @@ export function Modal({ onClose, dismissable = true, className, children, ...res
         aria-modal="true"
         tabIndex={-1}
         className={cx(
-          'max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl border border-line bg-raised text-fg shadow-xl outline-none',
+          'max-h-[90vh] w-full overflow-auto rounded-xl border border-line bg-raised text-fg shadow-xl outline-none',
+          !className?.includes('max-w-') && 'max-w-lg',
           className,
         )}
         {...rest}
@@ -814,16 +815,18 @@ export function MenuButton({
   items,
   onPick,
   className,
+  size,
 }: {
   label: ReactNode
   items: { key: string; label: ReactNode; hint?: string }[]
   onPick: (key: string) => void
   className?: string
+  size?: 'sm'
 }) {
   return (
     <Popover
       trigger={(open, toggle) => (
-        <Button variant="secondary" className={className} aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
+        <Button variant="secondary" size={size} className={className} aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
           {label}
           <Chevron className="size-4 text-muted" />
         </Button>
@@ -1236,7 +1239,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastCtx.Provider value={api}>
       {children}
       {createPortal(
-        <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4">
+        <div aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-2">
           {items.map((t) => (
             <ToastItem key={t.id} t={t} onDone={dismiss} />
           ))}

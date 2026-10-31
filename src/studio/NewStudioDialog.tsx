@@ -19,7 +19,7 @@ function Swatch({ template, big }: { template: StudioTemplate; big?: boolean }) 
     const { bg, surface, text, accent, muted } = template.colors;
     return (
         <div
-            className={cx('flex shrink-0 flex-col justify-end overflow-hidden rounded-lg border border-line p-3', big ? 'aspect-video w-full' : 'aspect-video w-32')}
+            className={cx('flex shrink-0 flex-col justify-end overflow-hidden rounded-lg border border-line p-3', big ? 'aspect-video w-full' : 'h-24 w-full')}
             style={{ background: `radial-gradient(120% 110% at 50% 0%, ${surface} 0%, ${bg} 62%)`, color: text }}
         >
             <span className='h-1.5 w-1.5 rounded-full' style={{ background: accent }} />
@@ -42,7 +42,7 @@ export function NewStudioDialog({ onClose, onContinue }: { onClose: () => void; 
         <Modal onClose={onClose} className='max-w-4xl'>
             <div className='flex h-[80vh] max-h-[640px] flex-col'>
                 <div className='border-b border-line px-5 py-4'>
-                    <h2 className='font-serif text-lg font-medium'>New Studio video</h2>
+                    <h2 className='text-lg font-medium'>New Studio video</h2>
                     <p className='text-sm text-muted'>Pick a starting point. Every scene and line stays editable.</p>
                 </div>
                 <div className='flex min-h-0 flex-1'>
