@@ -395,12 +395,12 @@ function AiCloudCard() {
                 )}
             </div>
             <div className='flex gap-2'>
-                <input
+                <TextInput
                     type='password'
                     value={key}
                     onChange={(e) => setKey(e.target.value)}
                     placeholder={cloud.hasKey ? 'Replace the saved key' : 'sk-ant-…'}
-                    className='h-9 min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-3 text-sm outline-none focus:border-accent'
+                    className='flex-1'
                     aria-label='Claude API key'
                 />
                 <Button size='sm' variant='primary' disabled={busy || !key.trim()} onClick={() => act(() => api.saveAiCloud(true, key), 'Claude is on')}>
@@ -468,7 +468,6 @@ function AiOpenAiCard() {
     };
 
     if (!cloud) return null;
-    const input = 'h-9 min-w-0 rounded-lg border border-line bg-panel-2 px-3 text-sm outline-none focus:border-accent';
     return (
         <div className={cx('space-y-3 rounded-xl border p-4', cloud.enabled ? 'border-accent/60 bg-panel-2' : 'border-line')}>
             <div className='flex items-start gap-3'>
@@ -509,22 +508,22 @@ function AiOpenAiCard() {
                 ))}
             </div>
             <div className='flex gap-2'>
-                <input
+                <TextInput
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
                     placeholder='Base URL'
-                    className={cx(input, 'flex-[2]')}
+                    className='flex-[2]'
                     aria-label='Base URL'
                 />
-                <input value={model} onChange={(e) => setModel(e.target.value)} placeholder='Model' className={cx(input, 'flex-1')} aria-label='Model name' />
+                <TextInput value={model} onChange={(e) => setModel(e.target.value)} placeholder='Model' className='flex-1' aria-label='Model name' />
             </div>
             <div className='flex gap-2'>
-                <input
+                <TextInput
                     type='password'
                     value={key}
                     onChange={(e) => setKey(e.target.value)}
                     placeholder={cloud.hasKey ? 'Replace the saved key' : 'API key'}
-                    className={cx(input, 'flex-1')}
+                    className='flex-1'
                     aria-label='API key'
                 />
                 <Button
@@ -833,7 +832,6 @@ export function GoogleSection() {
     };
 
     if (!status) return null;
-    const input = 'h-9 w-full rounded-lg border border-line bg-panel-2 px-3 text-sm outline-none focus:border-accent';
     return (
         <div className='space-y-5'>
             <p className='text-sm text-muted'>
@@ -883,16 +881,16 @@ export function GoogleSection() {
                 </button>
             ) : (
                 <div className='space-y-3'>
-                    <input
-                        className={input}
+                    <TextInput
+                        className='w-full'
                         value={clientId}
                         onChange={(e) => setClientId(e.target.value)}
                         placeholder='Client ID (ends in .apps.googleusercontent.com)'
                         aria-label='Client ID'
                         spellCheck={false}
                     />
-                    <input
-                        className={input}
+                    <TextInput
+                        className='w-full'
                         type='password'
                         value={clientSecret}
                         onChange={(e) => setClientSecret(e.target.value)}
