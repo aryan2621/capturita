@@ -15,7 +15,7 @@ import {
     type Thumbnails,
     type WindowSource,
 } from '../lib/api';
-import { Button, IconButton, Popover, Segmented, Switch, cx } from './ui';
+import { Button, Card, IconButton, Popover, Segmented, Switch, cx } from './ui';
 
 type Mode = 'display' | 'window' | 'area';
 
@@ -569,7 +569,7 @@ function StagePreview({ image, aspect, title, detail, camera }: { image?: string
 function SidebarSection({ title, children }: { title: string; children: ReactNode }) {
     return (
         <div className='space-y-2'>
-            <p className='text-[11px] font-semibold uppercase tracking-wider text-subtle'>{title}</p>
+            <p className='text-xs font-medium text-muted'>{title}</p>
             {children}
         </div>
     );
@@ -581,12 +581,12 @@ function Skeleton({ className }: { className?: string }) {
 
 function DisplayCard({ display, image, selected, onSelect }: { display: Display; image?: string; selected: boolean; onSelect: () => void }) {
     return (
-        <button
+        <Card
+            padding='none'
+            interactive
+            selected={selected}
             onClick={onSelect}
-            className={cx(
-                'group overflow-hidden rounded-xl border text-left transition-colors',
-                selected ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-line-strong'
-            )}
+            className='group overflow-hidden rounded-xl text-left'
             title={`Record ${display.name}`}
         >
             <div className='relative bg-stage' style={{ aspectRatio: `${display.width} / ${display.height}` }}>
@@ -608,18 +608,18 @@ function DisplayCard({ display, image, selected, onSelect }: { display: Display;
                     {display.isMain && ' · main'}
                 </span>
             </div>
-        </button>
+        </Card>
     );
 }
 
 function WindowCard({ window, image, selected, onSelect }: { window: WindowSource; image?: string; selected: boolean; onSelect: () => void }) {
     return (
-        <button
+        <Card
+            padding='none'
+            interactive
+            selected={selected}
             onClick={onSelect}
-            className={cx(
-                'group flex flex-col overflow-hidden rounded-xl border text-left transition-colors',
-                selected ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-line-strong'
-            )}
+            className='group flex flex-col overflow-hidden rounded-xl text-left'
             title={`Record ${window.app}${window.title ? ` — ${window.title}` : ''}`}
         >
             <div className='relative aspect-[16/10] bg-stage'>
@@ -644,7 +644,7 @@ function WindowCard({ window, image, selected, onSelect }: { window: WindowSourc
                     <p className='truncate text-[11px] text-subtle'>{window.title || 'Untitled window'}</p>
                 </div>
             </div>
-        </button>
+        </Card>
     );
 }
 
@@ -695,7 +695,7 @@ function InputRow({
 }
 
 function MenuHeading({ children }: { children: ReactNode }) {
-    return <p className='px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-subtle'>{children}</p>;
+    return <p className='px-2 pb-1 text-xs font-medium text-muted'>{children}</p>;
 }
 
 function MenuItem({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
