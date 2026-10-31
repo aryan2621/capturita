@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AbsoluteFill, continueRender, delayRender, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, continueRender, delayRender, useVideoConfig } from 'remotion';
 import { ThreeCanvas } from '@remotion/three';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import './fonts';
-import { BrandTexture, clamp, sceneGradient, useExit } from './SceneBase';
+import { BrandTexture, Depth, sceneGradient, useExit } from './SceneBase';
 import { frameLayout } from './layout';
-import { fitSize } from './text';
+import { Copy, Glow, Ring, easeOut, useTiming } from './deviceParts';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export type Showcase3DSubject = 'phone' | 'laptop' | 'logo';
@@ -233,66 +233,95 @@ function LogoTile({ logo, brand }: { logo: THREE.Texture; brand: Brand }) {
     );
 }
 
-/** A phone, a laptop or the logo on a tile, in 3D: it swings in and turns under a light in the brand colour. */
+/** Where each subject's underside is (in model units), for its contact shadow; the logo floats, so it has none. */
+const FLOOR: Partial<Record<Showcase3DSubject, number>> = { phone: -0.9, laptop: -0.52 };
+
+/** A soft dark pool on the floor under the subject, fading in as it lands. */
+function ContactShadow({ y, width, opacity }: { y: number; width: number; opacity: number }) {
+    const texture = useMemo(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 128;
+        const ctx = canvas.getContext('2d')!;
+        const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gradient.addColorStop(0, 'rgba(0,0,0,0.7)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 128, 128);
+        return new THREE.CanvasTexture(canvas);
+    }, []);
+    return (
+        <mesh position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[width, width * 0.55]} />
+            <meshBasicMaterial map={texture} transparent opacity={opacity} depthWrite={false} />
+        </mesh>
+    );
+}
+
+/** The frame the subject has landed on: the ring flashes and a glint crosses it. */
+const LAND = 12;
+
+/** A phone, a laptop or the logo on a tile, in 3D: it swings in on a spring, a glint of light crosses it as it lands, and it settles under a rim light in the brand colour. */
 export function Showcase3D({ subject, image, motion, headline, detail, transparent, brand, assets }: Showcase3DProps) {
-    const frame = useCurrentFrame();
-    const { fps, width, height } = useVideoConfig();
+    const { pop, ramp } = useTiming();
+    const { width, height } = useVideoConfig();
     const layout = frameLayout(width, height);
     const exit = useExit();
     const kind: Showcase3DSubject = ['phone', 'laptop', 'logo'].includes(subject) ? subject : 'phone';
     const hasText = !!(headline || detail);
     const side = hasText && !layout.stacked;
+    const { colors } = brand;
 
     const src = kind === 'logo' ? (brand.logo ? assetUrl(assets, brand.logo) : '') : image ? assetUrl(assets, image) : '';
     const loaded = useTexture(src);
     const fallback = useCanvasTexture(brand, kind === 'logo' ? (headline.trim()[0] ?? '•').toUpperCase() : '');
     const texture = loaded ?? fallback;
 
-    // Entrance over about a second, then a slow drift to the end.
-    const p = spring({ frame, fps, config: { damping: 16, stiffness: 70 } });
-    const yaw = (motion === 'spin' ? -(1 - p) * Math.PI * 1.6 : motion === 'orbit' ? 0 : -(1 - p) * 0.5) - 0.32;
-    const pitch = motion === 'tilt' ? (1 - p) * 0.9 + 0.12 : 0.1;
-    const lift = (1 - p) * -0.8;
+    // Lands in about half a second with a little overshoot.
+    const p = pop(0);
+    const swing = 1 - p;
+    const yaw = (motion === 'spin' ? -swing * Math.PI * 1.6 : motion === 'orbit' ? swing * 1.1 : -swing * 0.5) - 0.32;
+    const pitch = motion === 'tilt' ? swing * 0.9 + 0.12 : 0.1;
+    const lift = swing * -0.8;
     const scale = (kind === 'phone' ? 1.35 : kind === 'laptop' ? 1.05 : 1.15) * (0.85 + 0.15 * p);
+    const glint = ramp(LAND - 6, LAND + 14, (x) => x);
 
     // The canvas fills the device's area: right half beside text, or above it.
     const canvasW = Math.round(side ? width * 0.58 : width);
     const canvasH = Math.round(side || !hasText ? height : height * (layout.portrait ? 0.72 : 0.7));
     const textW = side ? width * 0.42 - layout.safeX * 1.5 : width - layout.safeX * 2;
-    const headSize = fitSize(headline, textW, brand.fonts.display, layout.text * (side ? 6.5 : 6), '750');
-    const textIn = spring({ frame: frame - 10, fps, config: { damping: 200 } });
+    const [haloX, haloY] = [width - canvasW / 2, canvasH / 2];
+    const floor = FLOOR[kind];
 
     return (
         <AbsoluteFill style={{ background: sceneGradient(brand, transparent), fontFamily: bodyFont(brand), opacity: exit }}>
-            <BrandTexture brand={brand} transparent={transparent} />
+            <Depth z={-0.5}>
+                <BrandTexture brand={brand} transparent={transparent} />
+                <Glow x={haloX} y={haloY} r={Math.min(canvasW, canvasH) * 0.75} color={`${colors.accent}55`} opacity={Math.min(1, p) * (0.6 + 0.4 * (1 - ramp(LAND, LAND + 20)))} scale={0.8 + 0.2 * p} />
+                <Ring x={haloX} y={haloY} r0={Math.min(canvasW, canvasH) * 0.2} r1={Math.min(canvasW, canvasH) * 0.7} t={ramp(LAND, LAND + 26, easeOut)} color={colors.accent} width={layout.unit * 0.4} />
+            </Depth>
             <div style={{ position: 'absolute', right: 0, top: 0, width: canvasW, height: canvasH }}>
                 <ThreeCanvas width={canvasW} height={canvasH} camera={{ fov: 30, position: [0, 0, 5.2] }} gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}>
                     <ambientLight intensity={0.55} />
                     <directionalLight position={[2.5, 3, 4]} intensity={2.2} />
-                    <pointLight position={[-3, -1, 2]} intensity={6} color={brand.colors.accent} />
+                    <directionalLight position={[-2.5, 1.5, -3]} intensity={2.4} color={colors.accent} />
+                    <pointLight position={[-3, -1, 2]} intensity={6} color={colors.accent} />
+                    {/* The glint: a white light that sweeps across the front as the subject lands. */}
+                    <pointLight position={[-4 + glint * 8, 1.2, 2.5]} intensity={glint > 0 && glint < 1 ? 14 * Math.sin(glint * Math.PI) : 0} color='#ffffff' />
                     <group position={[0, lift, 0]} rotation={[pitch, yaw, 0]} scale={scale}>
                         {kind === 'phone' && <Phone screen={texture} />}
-                        {kind === 'laptop' && <Laptop screen={texture} open={interpolate(frame, [6, 30], [0, 1], clamp)} />}
+                        {kind === 'laptop' && <Laptop screen={texture} open={ramp(2, 18, easeOut)} />}
                         {kind === 'logo' && <LogoTile logo={texture} brand={brand} />}
                     </group>
+                    {floor !== undefined && (
+                        <group position={[0, lift, 0]} scale={scale}>
+                            <ContactShadow y={floor} width={kind === 'laptop' ? 2.6 : 1.5} opacity={Math.min(1, p)} />
+                        </group>
+                    )}
                 </ThreeCanvas>
             </div>
             {hasText && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        left: layout.safeX,
-                        width: textW,
-                        ...(side ? { top: 0, bottom: 0, justifyContent: 'center' } : { bottom: layout.safeY, textAlign: 'center' }),
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: layout.unit * 1.6,
-                        opacity: textIn,
-                        transform: `translateY(${(1 - textIn) * layout.unit * 3}px)`,
-                    }}
-                >
-                    {headline && <div style={{ fontFamily: displayFont(brand), fontWeight: 750, fontSize: headSize, lineHeight: 1.05, color: brand.colors.text, letterSpacing: -headSize * 0.02 }}>{headline}</div>}
-                    {detail && <div style={{ fontSize: layout.text * 3.2, lineHeight: 1.35, color: brand.colors.muted }}>{detail}</div>}
+                <div style={{ position: 'absolute', left: layout.safeX, ...(side ? { top: 0, bottom: 0, display: 'flex', alignItems: 'center' } : { bottom: layout.safeY }) }}>
+                    <Copy brand={brand} headline={headline} detail={detail} width={textW} size={layout.text * (side ? 6.5 : 6)} align={side ? 'left' : 'center'} at={5} />
                 </div>
             )}
         </AbsoluteFill>

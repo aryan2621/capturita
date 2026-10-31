@@ -5,7 +5,7 @@ import './fonts';
 import { BrandTexture, Depth, useExit } from './SceneBase';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
-export type LogoStingStyle = 'pop' | 'wipe' | 'draw' | 'glow' | 'squash';
+export type LogoStingStyle = 'pop' | 'wipe' | 'draw' | 'glow' | 'squash' | 'flicker' | 'blur' | 'shockwave' | 'lockup';
 
 export interface LogoStingProps {
     style: LogoStingStyle;
@@ -20,9 +20,8 @@ export interface LogoStingProps {
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 
-/** Frame the logo lands on, per style; the burst and the wordmark key off it. */
 /** Frame the logo lands on, per style. */
-export const LOGO_HITS: Record<LogoStingStyle, number> = { pop: 10, wipe: 16, draw: 22, glow: 18, squash: 14 };
+export const LOGO_HITS: Record<LogoStingStyle, number> = { pop: 10, wipe: 16, draw: 22, glow: 18, squash: 14, flicker: 15, blur: 12, shockwave: 10, lockup: 18 };
 
 /** A short brand reveal: the logo arrives (pop, wipe, ring or glow), an accent burst fires, the name and tagline follow. */
 export function LogoSting({ style, wordmark, tagline, burst, transparent, brand, assets }: LogoStingProps) {
@@ -38,11 +37,14 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
     const hasLogo = !!brand.logo;
     const name = wordmark.trim();
     const logoSize = unit * (name && hasLogo ? 16 : 22);
+    const nameSize = Math.min(unit * (stacked ? 10 : 11), (width * (stacked ? 0.84 : 0.5)) / Math.max(1, name.length * 0.56));
+    const gap = unit * (stacked ? 4 : 4.5);
 
     // The logo's own entrance.
     const pop = spring({ frame, fps, config: { damping: 9, stiffness: 120, mass: 0.8 } });
     const smooth = spring({ frame: frame - 2, fps, config: { damping: 200 }, durationInFrames: hit });
     let logoStyle: CSSProperties = {};
+    let flicker = 1;
     if (kind === 'pop') {
         logoStyle = { transform: `scale(${pop}) rotate(${(1 - pop) * -12}deg)` };
     } else if (kind === 'wipe') {
@@ -53,6 +55,23 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
     } else if (kind === 'draw') {
         const inside = spring({ frame: frame - hit + 6, fps, config: { damping: 14, stiffness: 140 } });
         logoStyle = { opacity: inside, transform: `scale(${0.7 + inside * 0.3})` };
+    } else if (kind === 'flicker') {
+        // Neon tube: stutters on and off with a hashed pattern, then holds lit.
+        const on = frame >= hit ? 1 - (frame < hit + 5 && random(`flick-c-${frame}`) > 0.6 ? 0.3 : 0) : random(`flick-${frame}`) > 0.4 ? 0.45 + random(`flick-b-${frame}`) * 0.55 : 0.04;
+        flicker = on;
+        logoStyle = { opacity: on, filter: `drop-shadow(0 0 ${unit * 1.2 * on}px ${colors.accent}) drop-shadow(0 0 ${unit * 3.5 * on}px ${colors.accent})` };
+    } else if (kind === 'blur') {
+        // Resolves from a soft blur while the red/cyan channels slide together.
+        const t = interpolate(frame, [0, hit], [1, 0], { ...clamp, easing: (x) => x ** 1.5 });
+        logoStyle = { opacity: interpolate(frame, [0, hit * 0.6], [0, 1], clamp), filter: `blur(${unit * 2.2 * t}px) drop-shadow(${unit * 1.4 * t}px 0 0 #ff2a4d99) drop-shadow(${-unit * 1.4 * t}px 0 0 #19e6ff99)`, transform: `scale(${1 + t * 0.08})` };
+    } else if (kind === 'shockwave') {
+        const land = spring({ frame: frame - (hit - 8), fps, config: { damping: 11, stiffness: 160, mass: 0.7 } });
+        logoStyle = { transform: `scale(${land})`, opacity: interpolate(frame, [hit - 8, hit - 4], [0, 1], clamp) };
+    } else if (kind === 'lockup') {
+        // Big mark centred first; on the hit it shrinks and slides to sit beside the name.
+        const L = spring({ frame: frame - hit, fps, config: { damping: 18, stiffness: 120 } });
+        const shift = name ? (stacked ? (nameSize * 1.1 + gap) / 2 : (logoSize + gap + nameSize * 0.56 * name.length) / 2 - logoSize / 2) * (1 - L) : 0;
+        logoStyle = { opacity: interpolate(frame, [0, 6], [0, 1], clamp), transform: `translate(${stacked ? 0 : shift}px, ${stacked ? shift : 0}px) scale(${pop * (1 + (1 - L) * (name ? 1.1 : 0))})` };
     } else {
         const blur = interpolate(frame, [0, hit], [unit * 3, 0], clamp);
         logoStyle = { opacity: interpolate(frame, [0, hit * 0.7], [0, 1], clamp), filter: `blur(${blur}px)`, transform: `scale(${interpolate(frame, [0, hit], [1.15, 1], clamp)})` };
@@ -65,7 +84,7 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
     const ringOut = spring({ frame: frame - hit - 4, fps, config: { damping: 200 }, durationInFrames: 16 });
 
     // Glow behind the logo: peaks on the hit, settles to a soft halo.
-    const glow = (kind === 'glow' ? interpolate(frame, [0, hit, hit + 20], [0, 1, 0.45], clamp) : interpolate(frame, [hit, hit + 6, hit + 30], [0, 0.5, 0.2], clamp)) * (1 + beatPulse * 0.4);
+    const glow = (kind === 'flicker' ? flicker * 0.9 : kind === 'glow' ? interpolate(frame, [0, hit, hit + 20], [0, 1, 0.45], clamp) : interpolate(frame, [hit, hit + 6, hit + 30], [0, 0.5, 0.2], clamp)) * (1 + beatPulse * 0.4);
 
     const nameIn = spring({ frame: frame - hit - 4, fps, config: { damping: 200 } });
     const taglineIn = spring({ frame: frame - hit - 14, fps, config: { damping: 200 } });
@@ -95,7 +114,7 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
             <Depth z={-0.5}><BrandTexture brand={brand} transparent={transparent} /></Depth>
             <Depth z={1} style={{ alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', transform: `scale(${settle})` }}>
-                <div style={{ display: 'flex', flexDirection: stacked ? 'column' : 'row', alignItems: 'center', gap: unit * (stacked ? 4 : 4.5) }}>
+                <div style={{ display: 'flex', flexDirection: stacked ? 'column' : 'row', alignItems: 'center', gap }}>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <div
                             style={{
@@ -108,6 +127,7 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
                             }}
                         />
                         {burst && <Burst frame={frame - hit} radius={logoSize * 0.75} unit={unit} color={colors.accent} />}
+                        {kind === 'shockwave' && <Shockwave frame={frame - hit} radius={logoSize * 0.6} unit={unit} color={colors.accent} />}
                         {kind === 'draw' && (
                             <svg width={ringRadius * 2 + unit * 2} height={ringRadius * 2 + unit * 2} style={{ position: 'absolute', overflow: 'visible', opacity: 1 - ringOut, transform: `scale(${1 + ringOut * 0.35})` }}>
                                 <circle
@@ -132,7 +152,7 @@ export function LogoSting({ style, wordmark, tagline, burst, transparent, brand,
                                 style={{
                                     color: colors.text,
                                     fontFamily: displayFont(brand),
-                                    fontSize: Math.min(unit * (stacked ? 10 : 11), (width * (stacked ? 0.84 : 0.5)) / Math.max(1, name.length * 0.56)),
+                                    fontSize: nameSize,
                                     fontWeight: 800,
                                     lineHeight: 1.1,
                                     letterSpacing: -unit * 0.25,
@@ -195,6 +215,24 @@ function Burst({ frame, radius, unit, color }: { frame: number; radius: number; 
                         opacity={fade}
                     />
                 );
+            })}
+        </svg>
+    );
+}
+
+/** Expanding ring plus fine particles flung outward from the logo; `frame` counts from the hit. */
+function Shockwave({ frame, radius, unit, color }: { frame: number; radius: number; unit: number; color: string }) {
+    if (frame < 0 || frame > 30) return null;
+    const t = interpolate(frame, [0, 26], [0, 1], { extrapolateRight: 'clamp', easing: (x) => 1 - Math.pow(1 - x, 3) });
+    const fade = 1 - t;
+    return (
+        <svg width={1} height={1} style={{ position: 'absolute', overflow: 'visible', left: '50%', top: '50%' }}>
+            <circle r={radius * (1 + t * 3.2)} fill='none' stroke={color} strokeWidth={unit * 0.9 * fade + 0.5} opacity={fade} />
+            <circle r={radius * (1 + t * 2)} fill='none' stroke={color} strokeWidth={unit * 0.3} opacity={fade * 0.5} />
+            {Array.from({ length: 18 }, (_, i) => {
+                const angle = (i / 18) * Math.PI * 2 + random(`sw-a-${i}`) * 0.3;
+                const dist = radius * (1.2 + random(`sw-d-${i}`) * 2.6) * t + radius;
+                return <circle key={i} cx={Math.cos(angle) * dist} cy={Math.sin(angle) * dist} r={unit * (0.25 + random(`sw-r-${i}`) * 0.5) * fade} fill={color} opacity={fade} />;
             })}
         </svg>
     );

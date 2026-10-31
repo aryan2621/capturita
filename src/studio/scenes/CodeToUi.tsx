@@ -1,4 +1,5 @@
 import { AbsoluteFill, Sequence, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Glow } from './deviceParts';
 import { CodeTyping } from './CodeTyping';
 import { clamp, useExit } from './SceneBase';
 import { UiCard, uiCardBeat, type UiCardProps } from './UiCard';
@@ -15,8 +16,8 @@ export interface CodeToUiProps extends Omit<UiCardProps, 'brand'> {
 }
 
 const FPS = 30;
-const HOLD = 14; // frames the finished code stays up before it turns into the window
-const MORPH = 16;
+const HOLD = 8; // frames the finished code stays up before it turns into the window
+const MORPH = 12;
 
 /** Frame the code starts turning into the window: typing ends (as in CodeTyping), plus a short hold. */
 export const codeToUiSwitch = ({ code, speed }: { code?: string; speed?: number }) =>
@@ -26,26 +27,28 @@ export const codeToUiSwitch = ({ code, speed }: { code?: string; speed?: number 
 export const codeToUiBeat = (props: { code?: string; speed?: number; toggles?: { text?: string }[] }) => codeToUiSwitch(props) / FPS + uiCardBeat(props);
 
 /**
- * CodeTyping, then the finished code gives way to a UiCard (what the code builds). The UiCard
- * shows only the user's own feature text, never a real product's screen.
+ * CodeTyping, then the finished code gives way to a UiCard (what the code builds) through a flash
+ * of accent light. The UiCard shows only the user's own feature text, never a real product's screen.
  */
 export function CodeToUi(props: CodeToUiProps) {
     const frame = useCurrentFrame();
-    const { durationInFrames } = useVideoConfig();
+    const { durationInFrames, width, height } = useVideoConfig();
     const exit = useExit();
     const at = codeToUiSwitch(props);
     const p = interpolate(frame, [at, at + MORPH], [0, 1], clamp);
     const { code, speed, heading, fileName, ...card } = props;
     return (
         <AbsoluteFill style={{ opacity: exit }}>
-            {p < 1 && (
-                <AbsoluteFill style={{ opacity: 1 - p, transform: `scale(${1 - p * 0.06})`, filter: `blur(${p * 6}px)` }}>
-                    <CodeTyping heading={heading} fileName={fileName} code={code} speed={speed} transparent={props.transparent} brand={props.brand} assets={props.assets} />
-                </AbsoluteFill>
-            )}
+            {/* The window sits under the code, which fades away to uncover it. */}
             <Sequence from={at} durationInFrames={Math.max(1, durationInFrames - at)} layout="none">
                 <UiCard {...(card as UiCardProps)} />
             </Sequence>
+            {p < 1 && (
+                <AbsoluteFill style={{ opacity: 1 - p, transform: `scale(${1 - p * 0.08})`, filter: `blur(${p * 6}px)` }}>
+                    <CodeTyping heading={heading} fileName={fileName} code={code} speed={speed} transparent={props.transparent} brand={props.brand} assets={props.assets} />
+                </AbsoluteFill>
+            )}
+            {p > 0 && p < 1 && <Glow x={width / 2} y={height / 2} r={Math.max(width, height) * 0.5} color={`${props.brand.colors.accent}66`} opacity={Math.sin(p * Math.PI)} />}
         </AbsoluteFill>
     );
 }

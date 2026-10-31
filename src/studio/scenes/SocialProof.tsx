@@ -1,8 +1,6 @@
-import { grow } from './layout';
-import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import './fonts';
-import { BrandTexture, Depth, sceneGradient, useExit } from './SceneBase';
-import { bodyFont, displayFont, type Brand } from './assets';
+import { al } from './launch/shapes';
+import { Ping, STAR_PATH, Sheen, Stage, useScene, type Scene } from './proofParts';
+import type { Brand } from './assets';
 
 export interface SocialProofProps {
     /** 0–5, halves allowed. */
@@ -13,43 +11,54 @@ export interface SocialProofProps {
     brand: Brand;
 }
 
-/** Seconds until the last star lights, for a sound. */
-export const SOCIAL_PROOF_BEAT = 1.4;
+const starAt = (i: number) => 0.1 + i * 0.2;
 
-/** Five stars that fill one by one, the rating and review count under them, and a badge line. */
-export function SocialProof({ rating, reviews, badge, transparent, brand }: SocialProofProps) {
-    const frame = useCurrentFrame();
-    const { fps, width, height } = useVideoConfig();
-    const u = (Math.min(width, height) / 100) * grow(width, height);
-    const { colors } = brand;
-    const exit = useExit();
-    const value = Math.max(0, Math.min(5, Number(rating) || 0));
-    const starSize = Math.min(u * 11, width * 0.14);
-    const numberIn = spring({ frame: frame - 6 - SOCIAL_PROOF_BEAT * fps * 0.6, fps, config: { damping: 200 } });
-    const lowerIn = spring({ frame: frame - 12 - SOCIAL_PROOF_BEAT * fps * 0.8, fps, config: { damping: 200 } });
+/** Seconds until the last star lights, for a sound. */
+export const SOCIAL_PROOF_BEAT = starAt(4) + 0.1;
+
+function Star({ s, i, fill, size }: { s: Scene; i: number; fill: number; size: number }) {
+    const p = s.pop(starAt(i));
+    const lit = s.ramp(starAt(i), starAt(i) + 0.25) * fill;
     return (
-        <AbsoluteFill style={{ background: sceneGradient(brand, transparent), alignItems: 'center', justifyContent: 'center', fontFamily: bodyFont(brand), lineHeight: 1.2, opacity: exit }}>
-            <Depth z={-0.5}><BrandTexture brand={brand} transparent={transparent} /></Depth>
-            <Depth z={1} style={{ alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: u * 3 }}>
-                    <div style={{ display: 'flex', gap: starSize * 0.12 }}>
-                        {[0, 1, 2, 3, 4].map((i) => {
-                            const fill = Math.max(0, Math.min(1, value - i));
-                            const p = spring({ frame: frame - 6 - i * (SOCIAL_PROOF_BEAT * fps * 0.15), fps, config: { damping: 12, stiffness: 150 } });
-                            return (
-                                <svg key={i} width={starSize} height={starSize} viewBox="0 0 24 24" style={{ transform: `scale(${Math.max(0, Math.min(1.15, p))})` }}>
-                                    <defs><clipPath id={`star-${i}`}>{/* the star spans x 2–22 of its box, so a partial fill is measured across that, not the whole box */}<rect width={fill >= 1 ? 24 : 2 + 20 * fill} height={24} /></clipPath></defs>
-                                    <path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z" fill={colors.surface} stroke={colors.accent} strokeWidth={1} strokeLinejoin="round" />
-                                    <path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z" fill={colors.accent} clipPath={`url(#star-${i})`} />
-                                </svg>
-                            );
-                        })}
-                    </div>
-                    <div style={{ fontFamily: displayFont(brand), fontSize: u * 12, fontWeight: 800, color: colors.text, fontVariantNumeric: 'tabular-nums', opacity: numberIn, transform: `translateY(${(1 - numberIn) * u * 2}px)` }}>{value.toFixed(1)}</div>
-                    <div style={{ fontSize: u * 3.4, color: colors.muted, opacity: numberIn }}>{reviews}</div>
-                    {badge && <div style={{ padding: `${u * 1}px ${u * 2.6}px`, borderRadius: u * 5, border: `${u * 0.25}px solid ${colors.accent}`, color: colors.accent, fontWeight: 700, fontSize: u * 2.8, opacity: lowerIn, transform: `translateY(${(1 - lowerIn) * u * 2}px)` }}>{badge}</div>}
+        <svg width={size} height={size} viewBox='0 0 24 24' style={{ transform: `scale(${Math.max(0, p)}) rotate(${(1 - Math.min(1, p)) * -25}deg)`, filter: lit > 0 ? `drop-shadow(0 0 ${s.u * 1.4 * lit}px ${al(s.c.accent, 0.85)})` : undefined, overflow: 'visible' }}>
+            <defs>
+                <linearGradient id={`sp-fill-${i}`} x1='0' y1='0' x2='1' y2='1'><stop offset='0' stopColor={s.c.text} /><stop offset='0.55' stopColor={s.c.accent} /></linearGradient>
+                {/* the star spans x 2–22 of its box, so a partial fill is measured across that, not the whole box */}
+                <clipPath id={`sp-clip-${i}`}><rect width={2 + 20 * lit} height={24} /></clipPath>
+            </defs>
+            <path d={STAR_PATH} fill={al(s.c.surface, 0.9)} stroke={al(s.c.accent, 0.7)} strokeWidth={0.9} strokeLinejoin='round' />
+            <path d={STAR_PATH} fill={`url(#sp-fill-${i})`} clipPath={`url(#sp-clip-${i})`} />
+        </svg>
+    );
+}
+
+/** Five stars that pop and fill one by one while the rating counts up, a ring on the last star, then the review count and a badge. */
+export function SocialProof({ rating, reviews, badge, transparent, brand }: SocialProofProps) {
+    const s = useScene(brand);
+    const { u, c } = s;
+    const value = Math.max(0, Math.min(5, Number(rating) || 0));
+    const size = Math.min(u * 11, s.width * 0.14);
+    const counted = value * s.ramp(starAt(0), starAt(4) + 0.2);
+    const number = s.pop(starAt(0));
+    const lower = s.pop(SOCIAL_PROOF_BEAT + 0.05);
+    const badgeIn = s.pop(SOCIAL_PROOF_BEAT + 0.2);
+    return (
+        <Stage s={s} transparent={transparent} gap={u * 3}>
+            <div style={{ position: 'relative', display: 'flex', gap: size * 0.12 }}>
+                {[0, 1, 2, 3, 4].map((i) => <Star key={i} s={s} i={i} fill={Math.max(0, Math.min(1, value - i))} size={size} />)}
+                <div style={{ position: 'absolute', left: '50%', top: '50%' }}><Ping s={s} at={starAt(4)} size={size * 3} dur={1} /></div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: u * 1.2, opacity: Math.min(1, number * 1.5), transform: `translateY(${(1 - number) * u * 3}px)` }}>
+                <span style={{ fontFamily: s.display, fontSize: u * 13, fontWeight: 800, lineHeight: 1, color: c.text, fontVariantNumeric: 'tabular-nums', letterSpacing: -u * 0.3, textShadow: `0 0 ${u * 5}px ${al(c.accent, 0.35)}` }}>{counted.toFixed(1)}</span>
+                <span style={{ fontSize: u * 4, fontWeight: 600, color: c.muted }}>/ 5</span>
+            </div>
+            <div style={{ fontSize: u * 3.4, color: c.muted, opacity: Math.min(1, lower * 1.5), transform: `translateY(${(1 - lower) * u * 2}px)` }}>{reviews}</div>
+            {badge && (
+                <div style={{ position: 'relative', overflow: 'hidden', padding: `${u}px ${u * 2.8}px`, borderRadius: u * 5, background: al(c.accent, 0.12), border: `${u * 0.25}px solid ${c.accent}`, boxShadow: `0 0 ${u * 4}px ${al(c.accent, 0.35)}`, color: c.accent, fontWeight: 700, fontSize: u * 2.8, opacity: Math.min(1, badgeIn * 1.5), transform: `scale(${0.8 + 0.2 * badgeIn})` }}>
+                    <Sheen s={s} at={SOCIAL_PROOF_BEAT + 0.3} />
+                    {badge}
                 </div>
-            </Depth>
-        </AbsoluteFill>
+            )}
+        </Stage>
     );
 }

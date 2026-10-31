@@ -44,9 +44,39 @@ import { ELEMENTS } from './elements';
 import { withMotionBlur } from './motionBlur';
 import { withCalm, withHeldEnd } from './SceneBase';
 import { withAtmosphere, withLook } from './atmosphere';
-import { Pricing } from './Pricing';
+import { Pricing, popularAt } from './Pricing';
 import { ScreenshotShowcase } from './ScreenshotShowcase';
 import { Testimonial } from './Testimonial';
+import { LAUNCH_SCENES, type LaunchScene } from './launch/catalog';
+
+/** A launch scene as the timeline edits it: its own labelled settings, and every field with a default. */
+function launchDefinition(scene: LaunchScene): SceneDefinition {
+    const { labels } = scene;
+    const fields: SceneField[] = [
+        { name: 'eyebrow', label: 'Small line above', type: 'text' },
+        { name: 'headline', label: 'Headline', type: 'text' },
+    ];
+    if (labels.subtitle) fields.push({ name: 'subtitle', label: labels.subtitle, type: 'text', multiline: true });
+    if (labels.metric) fields.push({ name: 'metric', label: labels.metric, type: 'number' });
+    if (labels.date) fields.push({ name: 'date', label: labels.date, type: 'text' });
+    if (labels.image) fields.push({ name: 'image', label: labels.image, type: 'image' });
+    if (labels.segment) fields.push({ name: 'segment', label: labels.segment, type: 'segment' });
+    if (labels.images) fields.push({ name: 'images', label: labels.images, type: 'list', item: [{ name: 'image', label: 'Screenshot', type: 'image' }], newItem: { image: '' }, min: 0, max: 5 });
+    if (labels.items && scene.list) {
+        const item: ListItemField[] = [{ name: 'text', label: scene.list.text, type: 'text' }];
+        if (scene.list.detail) item.push({ name: 'detail', label: scene.list.detail, type: 'text' });
+        fields.push({ name: 'items', label: labels.items, type: 'list', item, newItem: { text: scene.list.text }, min: 1, max: scene.list.max });
+    }
+    return {
+        label: scene.title,
+        component: withMotionBlur(scene.component as unknown as ComponentType<Record<string, unknown>>),
+        fields: [...fields, BLUR_FIELD],
+        defaultProps: { eyebrow: '', subtitle: '', metric: 0, date: '', items: [], ...scene.defaults },
+        defaultDuration: scene.duration,
+        beat: scene.hit,
+        beatLabel: 'Key moment',
+    };
+}
 
 /** Seconds into a scene of its beat, or undefined if it has none. */
 export function sceneBeat(scene: string, props: Record<string, unknown>): number | undefined {
@@ -140,6 +170,10 @@ export const SCENES: Record<string, SceneDefinition> = {
                     { value: 'draw', label: 'Ring' },
                     { value: 'squash', label: 'Squash' },
                     { value: 'glow', label: 'Glow' },
+                    { value: 'flicker', label: 'Neon flicker' },
+                    { value: 'blur', label: 'Blur resolve' },
+                    { value: 'shockwave', label: 'Shockwave' },
+                    { value: 'lockup', label: 'Lockup' },
                 ],
             },
             { name: 'wordmark', label: 'Name beside the logo (if the logo has none)', type: 'text' },
@@ -165,7 +199,7 @@ export const SCENES: Record<string, SceneDefinition> = {
         ],
         defaultProps: { eyebrow: 'Introducing', title: 'Your product', subtitle: 'One line about what it does' },
         defaultDuration: 4,
-        beat: 0.45,
+        beat: 0.55,
         beatLabel: 'Title lands',
         use: 'both',
     },
@@ -383,7 +417,7 @@ export const SCENES: Record<string, SceneDefinition> = {
         ],
         defaultProps: { image: '', style: 'rise', frame: 'card' },
         defaultDuration: 4,
-        beat: 0.6,
+        beat: 0.4,
         beatLabel: 'Image lands',
         use: 'both',
         group: 'animation',
@@ -611,7 +645,7 @@ export const SCENES: Record<string, SceneDefinition> = {
             ],
         },
         defaultDuration: 4,
-        beat: 1.9,
+        beat: 1.45,
         beatLabel: 'Count ends',
     },
     LowerThird: {
@@ -680,7 +714,7 @@ export const SCENES: Record<string, SceneDefinition> = {
         ],
         defaultProps: { headline: 'Try it free today', cta: 'Get started', url: 'yourproduct.com', showQr: true, socials: [{ network: 'x', handle: '@yourproduct' }] },
         defaultDuration: 5,
-        beat: 1.53,
+        beat: 1.0,
         beatLabel: 'Button press',
     },
     ScreenshotShowcase: {
@@ -720,7 +754,7 @@ export const SCENES: Record<string, SceneDefinition> = {
         ],
         defaultProps: { image: '', device: 'phone', placement: 'side', headline: 'Everything in your pocket', detail: 'One line about this screen.', url: '', scroll: false, cursor: false, zoom: false, focusX: 50, focusY: 40 },
         defaultDuration: 4.5,
-        beat: 0.5,
+        beat: 0.3,
         beatLabel: 'Device lands',
     },
     FeatureGrid: {
@@ -752,7 +786,7 @@ export const SCENES: Record<string, SceneDefinition> = {
             ],
         },
         defaultDuration: 4.5,
-        beat: 0.4,
+        beat: 0.15,
         beatLabel: 'First card',
     },
     HowItWorks: {
@@ -783,7 +817,7 @@ export const SCENES: Record<string, SceneDefinition> = {
             ],
         },
         defaultDuration: 5,
-        beat: 0.4,
+        beat: 0.15,
         beatLabel: 'First step',
     },
     UiCollage: {
@@ -796,7 +830,7 @@ export const SCENES: Record<string, SceneDefinition> = {
         ],
         defaultProps: { headline: 'Every screen, one product', images: [{ image: '' }, { image: '' }, { image: '' }] },
         defaultDuration: 4.5,
-        beat: 0.4,
+        beat: 0.2,
         beatLabel: 'First card',
     },
     Testimonial: {
@@ -854,7 +888,7 @@ export const SCENES: Record<string, SceneDefinition> = {
             ],
         },
         defaultDuration: 5,
-        beat: (props) => (34 + Math.max(1, Array.isArray(props.tiers) ? props.tiers.length : 1) * 6) / 30,
+        beat: (props) => popularAt(Math.max(1, Array.isArray(props.tiers) ? props.tiers.length : 1)),
         beatLabel: 'Popular plan lifts',
     },
     BeforeAfter: {
@@ -1216,6 +1250,7 @@ export const SCENES: Record<string, SceneDefinition> = {
         defaultProps: { subject: 'phone', image: '', motion: 'spin', headline: 'Built for your pocket', detail: '' },
         defaultDuration: 4.5,
     },
+    ...Object.fromEntries(LAUNCH_SCENES.map((scene) => [scene.id, launchDefinition(scene)])),
 };
 
 const ATMOSPHERE_FIELD: SceneField = {

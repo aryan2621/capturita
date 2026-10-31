@@ -1,10 +1,8 @@
-import { evolvePath } from '@remotion/paths';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import './fonts';
-import { BrandTexture, clamp, sceneGradient, useExit } from './SceneBase';
-import { frameLayout, grow } from './layout';
-import { fitSize } from './text';
-import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
+import { interpolate } from 'remotion';
+import { clamp } from './SceneBase';
+import { al } from './launch/shapes';
+import { Heading, Stage, headRoom, surface, take, useScene, type Scene } from './proofParts';
+import type { Brand, SceneAssets } from './assets';
 
 type Mark = 'yes' | 'no' | 'partial';
 
@@ -18,72 +16,69 @@ export interface ComparisonProps {
     assets: SceneAssets;
 }
 
-const PATHS: Record<Mark, string> = { yes: 'M 4 12.5 L 9.5 18 L 20 6', no: 'M 6 6 L 18 18 M 18 6 L 6 18', partial: 'M 5 12 L 19 12' };
+/** Each stroke of a mark, drawn one after the other. */
+const STROKES: Record<Mark, string[]> = { yes: ['M 4 12.5 L 9.5 18 L 20 6'], no: ['M 6 6 L 18 18', 'M 18 6 L 6 18'], partial: ['M 5 12 L 19 12'] };
 
-/** A tick, cross or dash that draws itself. */
 function MarkIcon({ mark, progress, size, color }: { mark: Mark; progress: number; size: number; color: string }) {
-    const d = PATHS[mark] ?? PATHS.no;
-    // Each stroke of the cross draws in turn.
-    const parts = d.split(/(?=M)/);
+    const strokes = STROKES[mark] ?? STROKES.no;
     return (
-        <svg width={size} height={size} viewBox='0 0 24 24'>
-            {parts.map((part, i) => {
-                const p = interpolate(progress, [i / parts.length, (i + 1) / parts.length], [0, 1], clamp);
-                const evolved = evolvePath(p, part.trim());
-                return <path key={i} d={part} fill='none' stroke={color} strokeWidth={2.8} strokeLinecap='round' strokeLinejoin='round' strokeDasharray={evolved.strokeDasharray} strokeDashoffset={evolved.strokeDashoffset} />;
+        <svg width={size} height={size} viewBox='0 0 24 24' style={{ overflow: 'visible' }}>
+            {strokes.map((d, i) => {
+                const p = interpolate(progress, [i / strokes.length, (i + 1) / strokes.length], [0, 1], clamp);
+                return <path key={i} d={d} pathLength={1} fill='none' stroke={color} strokeWidth={2.8} strokeLinecap='round' strokeLinejoin='round' strokeDasharray='1' strokeDashoffset={1 - p} opacity={p > 0 ? 1 : 0} />;
             })}
         </svg>
     );
 }
 
-/** Us vs them: a table whose rows slide in while ticks and crosses draw; our column is highlighted. */
-export function Comparison({ heading, us, them, rows, transparent, brand }: ComparisonProps) {
-    const frame = useCurrentFrame();
-    const { fps, width, height } = useVideoConfig();
-    const layout = frameLayout(width, height);
-    const u = layout.unit * grow(width, height);
-    const t = layout.text * grow(width, height);
-    const { colors } = brand;
-    const exit = useExit();
-    const list = (Array.isArray(rows) ? rows : []).filter((r) => r?.feature?.trim()).slice(0, 6);
-    const innerW = Math.min(width - layout.safeX * 2, t * 130);
-    const colW = Math.min(t * 18, innerW * 0.22);
-    const headH = heading ? t * 10 : 0;
-    const rowH = Math.min(t * 9, (height - layout.safeY * 2 - headH - t * 8) / Math.max(1, list.length));
-    const headIn = spring({ frame, fps, config: { damping: 200 } });
-    // Once the rows have landed, our column glows up one time.
-    const glow = spring({ frame: frame - 18 - list.length * 5, fps, config: { damping: 14, stiffness: 120 } });
-    const headSize = fitSize(heading, innerW, brand.fonts.display, t * 6);
-    const color = (mark: Mark, ours: boolean) => (mark === 'yes' ? (ours ? colors.accent : colors.text) : mark === 'partial' ? colors.muted : `${colors.muted}aa`);
-
+function Cell({ s, mark, ours, width, size, draw }: { s: Scene; mark: Mark; ours: boolean; width: number; size: number; draw: number }) {
+    const win = ours && mark === 'yes';
+    const color = win ? s.c.bg : mark === 'yes' ? s.c.text : mark === 'partial' ? s.c.muted : al(s.c.muted, 0.67);
     return (
-        <AbsoluteFill style={{ background: sceneGradient(brand, transparent), fontFamily: bodyFont(brand), lineHeight: 1.2, opacity: exit, alignItems: 'center', justifyContent: 'center', padding: `${layout.safeY}px ${layout.safeX}px` }}>
-            <BrandTexture brand={brand} transparent={transparent} />
-            {heading && <div style={{ color: colors.text, fontFamily: displayFont(brand), fontSize: headSize, fontWeight: 800, lineHeight: 1.1, textAlign: 'center', marginBottom: t * 3, opacity: headIn }}>{heading}</div>}
-            <div style={{ position: 'relative', width: innerW }}>
-                {/* Our column's highlight, behind the rows. */}
-                <div style={{ position: 'absolute', right: colW, top: -u, bottom: -u, width: colW, borderRadius: u * 2, background: `${colors.accent}22`, border: `1px solid ${colors.accent}66`, opacity: headIn, boxShadow: `0 0 ${u * 5 * glow}px ${colors.accent}55` }} />
-                <div style={{ display: 'flex', height: t * 7, alignItems: 'center', opacity: headIn }}>
-                    <div style={{ flex: 1 }} />
-                    <div style={{ width: colW, textAlign: 'center', color: colors.accent, fontSize: t * 3, fontWeight: 800, lineHeight: 1.2 }}>{us}</div>
-                    <div style={{ width: colW, textAlign: 'center', color: colors.muted, fontSize: t * 2.8, fontWeight: 600, lineHeight: 1.2 }}>{them}</div>
-                </div>
-                {list.map((row, i) => {
-                    const slide = spring({ frame: frame - 10 - i * 5, fps, config: { damping: 200 } });
-                    const draw = interpolate(frame, [16 + i * 5, 30 + i * 5], [0, 1], clamp);
-                    return (
-                        <div key={i} style={{ display: 'flex', height: rowH, alignItems: 'center', borderTop: `1px solid ${colors.muted}26`, opacity: slide, transform: `translateX(${(1 - slide) * -u * 6}px)` }}>
-                            <div style={{ flex: 1, color: colors.text, fontSize: t * 3, fontWeight: 600, lineHeight: 1.2, paddingRight: u * 2 }}>{row.feature}</div>
-                            <div style={{ width: colW, display: 'flex', justifyContent: 'center' }}>
-                                <MarkIcon mark={row.us} progress={draw} size={Math.min(rowH * 0.6, t * 5)} color={color(row.us, true)} />
-                            </div>
-                            <div style={{ width: colW, display: 'flex', justifyContent: 'center' }}>
-                                <MarkIcon mark={row.them} progress={draw} size={Math.min(rowH * 0.6, t * 5)} color={color(row.them, false)} />
-                            </div>
-                        </div>
-                    );
-                })}
+        <div style={{ width, display: 'flex', justifyContent: 'center' }}>
+            <div style={{ width: size * 1.5, height: size * 1.5, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: win ? s.c.accent : 'transparent', boxShadow: win ? `0 0 ${s.u * 2.4 * draw}px ${al(s.c.accent, 0.7)}` : undefined, transform: `scale(${win ? 0.6 + 0.4 * draw : 1})` }}>
+                <MarkIcon mark={mark} progress={draw} size={size} color={color} />
             </div>
-        </AbsoluteFill>
+        </div>
+    );
+}
+
+/** Us vs them: a panel whose rows slide in while ticks and crosses draw; our column rises as a lit pillar and flashes once the last row lands. */
+export function Comparison({ heading, us, them, rows, transparent, brand }: ComparisonProps) {
+    const s = useScene(brand);
+    const { u, t, c } = s;
+    const list = take(rows, 6).filter((r) => r?.feature?.trim());
+    const width = Math.min(s.innerW, t * 130);
+    const colW = Math.min(t * 18, width * 0.22);
+    const rowH = Math.min(t * 9, (s.height - s.layout.safeY * 2 - headRoom(s, heading) - t * 8) / Math.max(1, list.length));
+    const lastRow = 0.2 + list.length * 0.09;
+    const pillar = s.pop(0.1);
+    const flash = s.pop(lastRow + 0.25);
+    const head = s.pop(0.05);
+    return (
+        <Stage s={s} transparent={transparent} at={[62, 50]}>
+            <Heading s={s} text={heading} />
+            <div style={{ position: 'relative', width }}>
+                <div style={{ ...surface(s), padding: `0 ${u * 2}px` }}>
+                    <div style={{ display: 'flex', height: t * 7, alignItems: 'center', opacity: Math.min(1, head * 1.5), transform: `translateY(${(1 - head) * -u * 2}px)` }}>
+                        <div style={{ flex: 1 }} />
+                        <div style={{ width: colW, textAlign: 'center', color: c.accent, fontSize: t * 3, fontWeight: 800 }}>{us}</div>
+                        <div style={{ width: colW, textAlign: 'center', color: c.muted, fontSize: t * 2.8, fontWeight: 600 }}>{them}</div>
+                    </div>
+                    {list.map((row, i) => {
+                        const slide = s.pop(0.15 + i * 0.09);
+                        const draw = s.ramp(0.22 + i * 0.09, 0.5 + i * 0.09);
+                        return (
+                            <div key={i} style={{ display: 'flex', height: rowH, alignItems: 'center', borderTop: `1px solid ${al(c.muted, 0.18)}`, opacity: Math.min(1, slide * 2), transform: `translateX(${(1 - slide) * -u * 6}px)` }}>
+                                <div style={{ flex: 1, color: c.text, fontSize: t * 3, fontWeight: 600, paddingRight: u * 2 }}>{row.feature}</div>
+                                <Cell s={s} mark={row.us} ours width={colW} size={Math.min(rowH * 0.42, t * 3.4)} draw={draw} />
+                                <Cell s={s} mark={row.them} ours={false} width={colW} size={Math.min(rowH * 0.42, t * 3.4)} draw={draw} />
+                            </div>
+                        );
+                    })}
+                </div>
+                <div style={{ position: 'absolute', right: colW + u * 2, top: -u * 1.6, bottom: -u * 1.6, width: colW, borderRadius: u * 2.2, background: `linear-gradient(180deg, ${al(c.accent, 0.34)}, ${al(c.accent, 0.12)})`, border: `1px solid ${al(c.accent, 0.6 + 0.4 * flash)}`, boxShadow: `0 0 ${u * (3 + 5 * flash)}px ${al(c.accent, 0.45 + 0.3 * flash)}`, opacity: Math.min(1, pillar * 2), pointerEvents: 'none', transform: `scaleY(${pillar})` }} />
+            </div>
+        </Stage>
     );
 }

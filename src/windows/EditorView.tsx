@@ -9,6 +9,7 @@ import {
     FastForward,
     FolderOpen,
     Gauge,
+    LayoutGrid,
     Keyboard,
     Loader2,
     Minus,
@@ -89,6 +90,7 @@ import { TargetPicker } from '../studio/TargetPicker';
 import { LayerHandles } from '../studio/LayerHandles';
 import { beatsOnTimeline } from '../editor/beats';
 import { layerAspect, type Layer } from '../studio/scenes/layers';
+import { SceneLibrary } from '../studio/SceneLibrary';
 
 /** A new Studio video starts as a short teaser to edit: logo, a statement, an end card. */
 function studioStarter(): SceneClip[] {
@@ -189,6 +191,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     /** What the ✨ menu adds: a scene in the timeline, or an overlay drawn over it. */
     const [addAs, setAddAs] = useState<'scene' | 'overlay' | 'animation'>('scene');
     const [sceneQuery, setSceneQuery] = useState('');
+    const [sceneLibraryOpen, setSceneLibraryOpen] = useState(false);
     /** True when the recording had no edit.json yet, so auto-zoom runs once the cursor loads. */
     const freshRef = useRef(false);
     const [cropping, setCropping] = useState(false);
@@ -1303,6 +1306,9 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                         );
                                     }}
                                 </Popover>
+                                <IconButton label='Scene library: 50 launch scenes' variant='subtle' size='icon-sm' onClick={() => setSceneLibraryOpen(true)}>
+                                    <LayoutGrid className='h-4 w-4' />
+                                </IconButton>
                                 <IconButton
                                     label={cutRange ? 'Cut out the marked part (C)' : 'Mark a part to cut (C)'}
                                     variant={cutRange ? 'danger' : 'ghost'}
@@ -1617,6 +1623,16 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
             </div>
 
             {showShortcuts && <ShortcutsSheet onClose={() => setShowShortcuts(false)} />}
+            {sceneLibraryOpen && (
+                <SceneLibrary
+                    env={sceneEnv}
+                    onClose={() => setSceneLibraryOpen(false)}
+                    onAdd={(id) => {
+                        addScene(id);
+                        setSceneLibraryOpen(false);
+                    }}
+                />
+            )}
             {exporting && <ExportDialog
                     project={project}
                     edit={edit}

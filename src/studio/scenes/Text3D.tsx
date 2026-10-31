@@ -1,8 +1,6 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import './fonts';
-import { BrandTexture, clamp, sceneGradient, useExit } from './SceneBase';
+import { Aura, Canvas, Rule, Shock, Stage, al, hitFlash, shortSide, useHero } from './hero';
 import { fitSize } from './text';
-import { bodyFont, displayFont, type Brand } from './assets';
+import type { Brand } from './assets';
 
 export interface Text3DProps {
     /** One to three short lines. */
@@ -12,60 +10,56 @@ export interface Text3DProps {
     brand: Brand;
 }
 
-const LAYERS = 22;
+const LAYERS = 14;
+const SWING = 0.05;
 
 /** Seconds until the text has swung into place, for a sound. */
-export const TEXT_3D_BEAT = 0.9;
+export const TEXT_3D_BEAT = 0.4;
 
 /**
- * Extruded text in plain CSS 3D: the same lines stacked in depth, darker toward the back, with a
- * lit front face, swinging in and then drifting slowly. No WebGL, so it renders anywhere the
- * scenes do; a three.js version would need a bundled typeface (see the Status in 06-hero-scenes.md).
+ * Extruded text in plain CSS 3D: the same lines stacked in depth, shading from the accent to the
+ * background toward the back, with a lit front face that swings in past square and settles. No
+ * WebGL, so it renders anywhere the scenes do.
  */
 export function Text3D({ text, subtitle, transparent, brand }: Text3DProps) {
-    const frame = useCurrentFrame();
-    const { fps, width, height } = useVideoConfig();
-    const unit = Math.min(width, height) / 100;
-    const { colors } = brand;
-    const exit = useExit();
+    const { p, k } = useHero(brand, transparent);
+    const M = shortSide(k);
     const lines = String(text ?? '').split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 3);
-    const portrait = height > width * 1.05;
 
     // 0.6 of the width: the measure underestimates wide faces (mono), and the extrusion adds depth sideways.
-    const fontSize = Math.min(unit * (lines.length > 1 ? 15 : 19), fitSize(lines.join('\n') || ' ', width * 0.6, brand.fonts.display, 999), (height * 0.5) / (Math.max(1, lines.length) * 1.15));
+    const fontSize = Math.min(k.u * (lines.length > 1 ? 15 : 19), fitSize(lines.join('\n') || ' ', k.width * 0.6, brand.fonts.display, 999), (k.height * 0.5) / (Math.max(1, lines.length) * 1.15));
     const depth = fontSize * 0.3;
-    const p = spring({ frame: frame - 2, fps, config: { damping: 18, stiffness: 80 } });
-    const yaw = (1 - p) * -0.9;
-    const pitch = (1 - p) * 0.35 - 0.06;
-    const subIn = spring({ frame: frame - 16, fps, config: { damping: 200 } });
-    const face = { fontFamily: displayFont(brand), fontSize, fontWeight: 800, lineHeight: 1.08, letterSpacing: -fontSize * 0.02, textAlign: 'center', whiteSpace: 'pre' } as const;
-    const block = (
-        <>
-            {lines.map((l) => <div key={l}>{l}</div>)}
-        </>
-    );
+    const swing = k.pop(SWING, 11);
+    const yaw = (1 - swing) * -0.9;
+    const pitch = (1 - swing) * 0.35 - 0.06;
+    const subIn = k.pop(TEXT_3D_BEAT - 0.1, 14);
+    const hit = hitFlash(k, TEXT_3D_BEAT);
+    const face = { fontFamily: k.display, fontSize, fontWeight: 800, lineHeight: 1.08, letterSpacing: -fontSize * 0.02, textAlign: 'center', whiteSpace: 'pre' } as const;
+    const block = lines.map((l) => <div key={l}>{l}</div>);
+    const textH = fontSize * 1.08 * Math.max(1, lines.length);
+    const [cx, cy] = [k.width / 2, k.height / 2 - (subtitle ? fontSize * 0.25 : 0)];
 
     return (
-        <AbsoluteFill style={{ background: sceneGradient(brand, transparent), fontFamily: bodyFont(brand), lineHeight: 1.2, opacity: exit }}>
-            <BrandTexture brand={brand} transparent={transparent} />
-            <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', perspective: Math.max(width, height) * 1.1, paddingBottom: subtitle ? fontSize * 0.5 : 0 }}>
-                <div style={{ position: 'relative', transformStyle: 'preserve-3d', transform: `rotateX(${pitch}rad) rotateY(${yaw}rad) scale(${0.9 + 0.1 * p})`, opacity: interpolate(frame, [0, 8], [0, 1], clamp) }}>
-                    {Array.from({ length: LAYERS }, (_, i) => {
-                        const back = i / LAYERS; // 0 just behind the face, 1 at the very back
-                        return (
-                            <div key={i} style={{ ...face, position: 'absolute', inset: 0, color: colors.accent, filter: `brightness(${0.85 - back * 0.55})`, transform: `translateZ(${-(i + 1) * (depth / LAYERS)}px)`, whiteSpace: 'pre' }}>
-                                {block}
-                            </div>
-                        );
-                    })}
-                    <div style={{ ...face, position: 'relative', color: colors.text, textShadow: `0 ${fontSize * 0.02}px ${fontSize * 0.08}px ${colors.accent}55` }}>{block}</div>
+        <Stage p={p}>
+            <Aura k={k} x={cx} y={cy} r={M * 0.8} a={0.24 + hit * 0.2} scale={swing} />
+            <Canvas k={k}>
+                <Shock k={k} x={cx} y={cy} r0={fontSize} r1={M * 0.85} t0={TEXT_3D_BEAT} />
+            </Canvas>
+            <div style={{ position: 'absolute', left: cx - fontSize * 3, top: cy + textH * 0.62 + depth, width: fontSize * 6, height: fontSize * 0.5, borderRadius: '50%', background: `radial-gradient(closest-side, ${al(k.c.bg, 0.6)}, transparent)`, opacity: swing, transform: `scaleX(${0.6 + 0.4 * swing})` }} />
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', perspective: Math.max(k.width, k.height) * 1.1, paddingBottom: subtitle ? fontSize * 0.5 : 0 }}>
+                <div style={{ position: 'relative', transformStyle: 'preserve-3d', transform: `rotateX(${pitch}rad) rotateY(${yaw}rad) scale(${0.88 + 0.12 * swing})`, opacity: Math.min(1, k.s * 12) }}>
+                    {Array.from({ length: LAYERS }, (_, i) => (
+                        <div key={i} style={{ ...face, position: 'absolute', inset: 0, color: `color-mix(in srgb, ${k.c.accent} ${Math.round(85 - (i / LAYERS) * 60)}%, ${k.c.bg})`, transform: `translateZ(${-(i + 1) * (depth / LAYERS)}px)` }}>{block}</div>
+                    ))}
+                    <div style={{ ...face, position: 'relative', color: k.c.text, textShadow: `0 ${fontSize * 0.02}px ${fontSize * 0.08}px ${al(k.c.accent, 0.35 + hit * 0.5)}` }}>{block}</div>
                 </div>
-            </AbsoluteFill>
+            </div>
             {subtitle && (
-                <div style={{ position: 'absolute', left: width * 0.1, right: width * 0.1, top: height * (portrait ? 0.7 : 0.74), textAlign: 'center', fontSize: Math.max(unit * 2.8, fontSize * 0.22), color: colors.muted, opacity: subIn, transform: `translateY(${(1 - subIn) * unit * 2.4}px)` }}>
-                    {subtitle}
+                <div style={{ position: 'absolute', left: k.width * 0.1, right: k.width * 0.1, top: k.height * (k.portrait ? 0.7 : 0.74), display: 'flex', flexDirection: 'column', alignItems: 'center', gap: k.u * 1.6, textAlign: 'center', opacity: Math.min(1, subIn * 1.5), transform: `translateY(${(1 - subIn) * k.u * 2.4}px)` }}>
+                    <Rule k={k} width={10} progress={subIn} />
+                    <div style={{ fontSize: Math.max(k.u * 2.8, fontSize * 0.22), color: k.c.muted }}>{subtitle}</div>
                 </div>
             )}
-        </AbsoluteFill>
+        </Stage>
     );
 }

@@ -1,9 +1,7 @@
 import { useBeatSnap } from './beat';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import './fonts';
-import { BrandTexture, Depth, clamp, sceneGradient, useExit } from './SceneBase';
+import { Aura, Canvas, Rule, Shock, Sparks, Stage, al, easeOutQuart, hitFlash, inkGradient, shortSide, useHero } from './hero';
 import { fitSize } from './text';
-import { bodyFont, displayFont, type Brand } from './assets';
+import type { Brand } from './assets';
 
 export interface BigNumberProps {
     /** The figure, e.g. "10x", "$4.2M", "98%"; its digits tick up from zero, the rest stays put. */
@@ -18,57 +16,50 @@ export interface BigNumberProps {
 /** Digits (with thousands commas / one decimal point) of the first number in the value, split around it. */
 function split(value: string) {
     const m = /\d[\d,]*(?:\.\d+)?/.exec(value);
-    if (!m) return { pre: value, num: null as number | null, decimals: 0, post: '' };
+    if (!m) return { pre: value, num: null, decimals: 0, post: '', commas: false };
     const raw = m[0].replace(/,/g, '');
     return { pre: value.slice(0, m.index), num: Number(raw), decimals: raw.split('.')[1]?.length ?? 0, post: value.slice(m.index + m[0].length), commas: m[0].includes(',') };
 }
 
-/** Seconds until the count lands, for a sound. */
-export const BIG_NUMBER_BEAT = 1.4;
+const COUNT_FROM = 4 / 30;
+/** Seconds the count runs, so it lands at BIG_NUMBER_BEAT + COUNT_FROM (what the scene's beat adds up to). */
+export const BIG_NUMBER_BEAT = 1;
+const HIT = COUNT_FROM + BIG_NUMBER_BEAT;
 
-/** Huge type with a ticking count: the figure counts up with an ease-out, then the label rises under it. */
-export function BigNumber({ value, label, glow, transparent, brand }: BigNumberProps) {
-    const frame = useCurrentFrame();
-    const { fps, width, height } = useVideoConfig();
+/** Huge gradient type that counts up with an ease-out and lands with a flash and a ring; the label rises under it. */
+export function BigNumber({ value, label, glow: lit, transparent, brand }: BigNumberProps) {
+    const { p, k } = useHero(brand, transparent);
     const snap = useBeatSnap();
-    const onBeat = (f: number) => snap(f / fps) * fps; // entrance frame moved onto a nearby beat
-    const unit = Math.min(width, height) / 100;
-    const { colors } = brand;
-    const exit = useExit();
+    const M = shortSide(k);
+    const [cx, cy] = [k.width / 2, k.height * 0.46];
 
-    const { pre, num, decimals, post, commas } = split(String(value ?? '')) as ReturnType<typeof split> & { commas?: boolean };
-    const progress = interpolate(frame, [4, 4 + BIG_NUMBER_BEAT * fps], [0, 1], { ...clamp, easing: (t) => 1 - Math.pow(1 - t, 4) });
-    const shown = num === null ? '' : (num * progress).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: !!commas });
-    const text = `${pre}${shown}${post}`;
-    // Size on the final text so the figure doesn't resize while it ticks; 0.68 leaves room for wide faces (mono) that the measure underestimates.
-    const fontSize = Math.min(unit * 34, fitSize(String(value || ' '), width * 0.68, brand.fonts.display, 999));
+    const { pre, num, decimals, post, commas } = split(String(value ?? ''));
+    const count = easeOutQuart(k.ramp(COUNT_FROM, HIT));
+    const shown = num === null ? '' : (num * count).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: commas });
+    // Sized on the final text so the figure doesn't resize while it ticks; 0.68 leaves room for wide faces the measure underestimates.
+    const fontSize = Math.min(k.u * 34, fitSize(String(value || ' '), k.width * 0.68, brand.fonts.display, 999));
 
-    const enter = spring({ frame: frame - onBeat(2), fps, config: { damping: 200 } });
-    const labelIn = spring({ frame: frame - 4 - BIG_NUMBER_BEAT * fps * 0.6, fps, config: { damping: 200 } });
+    const enter = k.pop(snap(0.03), 12);
+    const hit = hitFlash(k, HIT);
+    const labelIn = k.pop(HIT - 0.35, 14);
+    const halo = lit ? `drop-shadow(0 0 ${fontSize * 0.18}px ${al(k.c.accent, 0.75)}) drop-shadow(0 0 ${fontSize * 0.5}px ${al(k.c.accent, 0.4)})` : `drop-shadow(0 ${fontSize * 0.05}px ${fontSize * 0.12}px ${al(k.c.bg, 0.7)})`;
 
     return (
-        <AbsoluteFill style={{ background: sceneGradient(brand, transparent), alignItems: 'center', justifyContent: 'center', fontFamily: bodyFont(brand), lineHeight: 1.2, opacity: exit }}>
-            <Depth z={-0.5}><BrandTexture brand={brand} transparent={transparent} /></Depth>
-            <Depth z={1} style={{ alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: fontSize * 0.08, opacity: enter, transform: `translateY(${(1 - enter) * unit * 2.4}px)` }}>
-                    <div
-                        style={{
-                            fontFamily: displayFont(brand),
-                            fontSize,
-                            fontWeight: 800,
-                            lineHeight: 1,
-                            letterSpacing: -fontSize * 0.03,
-                            color: colors.accent,
-                            fontVariantNumeric: 'tabular-nums',
-                            whiteSpace: 'pre',
-                            textShadow: glow ? `0 0 ${fontSize * 0.35}px ${colors.accent}66` : undefined,
-                        }}
-                    >
-                        {text}
-                    </div>
-                    <div style={{ fontSize: Math.max(unit * 3.2, fontSize * 0.16), color: colors.text, opacity: labelIn, transform: `translateY(${(1 - labelIn) * unit * 2.4}px)`, textAlign: 'center', maxWidth: width * 0.8 }}>{label}</div>
+        <Stage p={p}>
+            <Aura k={k} x={cx} y={cy} r={M * 0.75} a={(lit ? 0.38 : 0.2) + hit * 0.25} scale={enter} />
+            <Canvas k={k}>
+                {[0.46, 0.62].map((r, i) => <circle key={i} cx={cx} cy={cy} r={M * r * k.pop(0.05 + i * 0.1, 14)} fill="none" stroke={al(k.c.muted, 0.22 - i * 0.07)} strokeWidth={k.u * 0.18} strokeDasharray={i ? `${k.u} ${k.u * 1.4}` : undefined} />)}
+                <Shock k={k} x={cx} y={cy} r0={M * 0.3} r1={M * 0.75} t0={HIT} />
+                <Shock k={k} x={cx} y={cy} r0={M * 0.3} r1={M * 0.95} t0={HIT + 0.1} width={0.2} a={0.4} />
+                <Sparks k={k} x={cx} y={cy} t0={HIT} r0={M * 0.3} r1={M * 0.6} />
+            </Canvas>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: fontSize * 0.1, transform: `translateY(${(1 - enter) * k.u * 3}px) scale(${(0.88 + 0.12 * enter) * (1 + hit * 0.05)})`, opacity: Math.min(1, enter * 2) }}>
+                <div style={{ filter: halo }}>
+                    <div style={{ ...inkGradient(k), fontFamily: k.display, fontSize, fontWeight: 800, lineHeight: 1.05, letterSpacing: -fontSize * 0.03, fontVariantNumeric: 'tabular-nums', whiteSpace: 'pre' }}>{`${pre}${shown}${post}`}</div>
                 </div>
-            </Depth>
-        </AbsoluteFill>
+                <Rule k={k} width={14} progress={labelIn} />
+                <div style={{ fontSize: Math.max(k.u * 3.2, fontSize * 0.16), color: k.c.text, opacity: labelIn, transform: `translateY(${(1 - labelIn) * k.u * 2.4}px)`, textAlign: 'center', maxWidth: k.width * 0.8, marginTop: fontSize * 0.04 }}>{label}</div>
+            </div>
+        </Stage>
     );
 }

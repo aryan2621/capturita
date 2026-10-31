@@ -1,8 +1,7 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import './fonts';
-import { BrandTexture, clamp, SceneImage, sceneGradient, useExit } from './SceneBase';
-import { frameLayout, grow } from './layout';
-import { bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
+import { SceneImage } from './SceneBase';
+import { al } from './launch/shapes';
+import { Ping, STAR_PATH, Sheen, Stage, surface, useScene, type Scene } from './proofParts';
+import type { Brand, SceneAssets } from './assets';
 
 export interface TestimonialProps {
     quote: string;
@@ -15,63 +14,62 @@ export interface TestimonialProps {
     assets: SceneAssets;
 }
 
-const STAR = 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z';
+/** Star i starts filling at 0.2s + 0.1s * i: the scene's beat is the last one (see its entry in index.ts). */
+const starAt = (i: number) => 0.2 + i * 0.1;
+const WORD_FROM = 0.3;
+const WORD_STEP = 0.05;
 
-/** A customer quote: big quote mark, the words fade in one by one, stars fill, then who said it. */
+function Stars({ s, stars }: { s: Scene; stars: number }) {
+    const size = s.t * 4;
+    return (
+        <div style={{ position: 'relative', display: 'flex', gap: s.u * 0.8, marginBottom: s.u * 3 }}>
+            {Array.from({ length: 5 }, (_, i) => {
+                const lit = i < stars;
+                const p = lit ? s.pop(starAt(i)) : s.pop(starAt(i), { stiffness: 200, damping: 30 }) * 0.5;
+                return (
+                    <svg key={i} width={size} height={size} viewBox='0 0 24 24' style={{ transform: `scale(${0.5 + p * 0.5})`, filter: lit ? `drop-shadow(0 0 ${s.u * 0.8}px ${al(s.c.accent, 0.8)})` : undefined }}>
+                        <path d={STAR_PATH} fill={lit ? s.c.accent : 'none'} fillOpacity={Math.min(1, p)} stroke={s.c.accent} strokeWidth={1.2} strokeOpacity={lit ? 1 : 0.3} strokeLinejoin='round' />
+                    </svg>
+                );
+            })}
+            {stars > 0 && <div style={{ position: 'absolute', left: '50%', top: '50%' }}><Ping s={s} at={starAt(stars - 1)} size={s.t * 14} /></div>}
+        </div>
+    );
+}
+
+/** A customer quote: a ghost quote mark behind, stars popping in (a ring on the last), the words sharpening in one by one, then who said it. */
 export function Testimonial({ quote, name, role, avatar, rating, transparent, brand, assets }: TestimonialProps) {
-    const frame = useCurrentFrame();
-    const { fps, width, height } = useVideoConfig();
-    const layout = frameLayout(width, height);
-    const u = layout.unit * grow(width, height);
-    const t = layout.text * grow(width, height);
-    const { colors } = brand;
-    const exit = useExit();
+    const s = useScene(brand);
+    const { u, t, c } = s;
     const words = quote.trim().split(/\s+/).filter(Boolean);
-    const room = width - layout.safeX * 2;
     // Longer quotes get smaller type so they stay within about five lines.
     const quoteSize = Math.min(t * 6, t * 6 * Math.sqrt(60 / Math.max(60, quote.length)));
-    const markIn = spring({ frame, fps, config: { damping: 12, stiffness: 120 } });
     const stars = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
-    const wordsEnd = 8 + words.length * 1.6;
-    const byIn = spring({ frame: frame - wordsEnd - 4, fps, config: { damping: 200 } });
-
+    const mark = s.pop(0, { stiffness: 140, damping: 13, mass: 0.9 });
+    const byAt = WORD_FROM + words.length * WORD_STEP + 0.1;
+    const by = s.pop(byAt);
     return (
-        <AbsoluteFill style={{ background: sceneGradient(brand, transparent, '20% 10%'), fontFamily: bodyFont(brand), lineHeight: 1.2, opacity: exit, alignItems: 'center', justifyContent: 'center', padding: `${layout.safeY}px ${layout.safeX}px` }}>
-            <BrandTexture brand={brand} transparent={transparent} />
-            <div style={{ maxWidth: Math.min(room, t * 120), display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                <div style={{ color: colors.accent, fontFamily: displayFont(brand), fontSize: t * 16, fontWeight: 800, lineHeight: 0.8, height: t * 9, transform: `scale(${markIn}) rotate(${(1 - markIn) * -20}deg)` }}>“</div>
-                {stars > 0 && (
-                    <div style={{ display: 'flex', gap: u * 0.8, marginBottom: u * 3 }}>
-                        {Array.from({ length: 5 }, (_, i) => {
-                            const fill = i < stars ? interpolate(frame, [6 + i * 3, 12 + i * 3], [0, 1], clamp) : 0;
-                            return (
-                                <svg key={i} width={t * 4} height={t * 4} viewBox='0 0 24 24' style={{ transform: `scale(${0.7 + fill * 0.3})` }}>
-                                    <path d={STAR} fill={i < stars ? colors.accent : 'none'} fillOpacity={fill} stroke={colors.accent} strokeWidth={1.4} strokeOpacity={0.6} />
-                                </svg>
-                            );
-                        })}
-                    </div>
-                )}
-                <div style={{ color: colors.text, fontFamily: displayFont(brand), fontSize: quoteSize, fontWeight: 650, lineHeight: 1.25, letterSpacing: -quoteSize * 0.01 }}>
+        <Stage s={s} transparent={transparent} at={[22, 18]}>
+            <div style={{ position: 'absolute', left: '50%', top: '38%', transform: `translate(-50%, -50%) scale(${0.7 + 0.3 * mark}) rotate(${(1 - mark) * -14}deg)`, color: c.accent, opacity: 0.13 * Math.min(1, mark), fontFamily: s.display, fontSize: t * 46, fontWeight: 800, lineHeight: 0.8, pointerEvents: 'none' }}>“</div>
+            <div style={{ position: 'relative', maxWidth: Math.min(s.innerW, t * 120), display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                {stars > 0 && <Stars s={s} stars={stars} />}
+                <div style={{ color: c.text, fontFamily: s.display, fontSize: quoteSize, fontWeight: 650, lineHeight: 1.25, letterSpacing: -quoteSize * 0.01, textShadow: `0 ${u * 0.5}px ${u * 3}px ${al(c.bg, 0.5)}` }}>
                     {words.map((word, i) => {
-                        const p = interpolate(frame, [8 + i * 1.6, 16 + i * 1.6], [0, 1], clamp);
-                        return (
-                            <span key={i} style={{ display: 'inline-block', opacity: p, transform: `translateY(${(1 - p) * u * 1.5}px)`, marginRight: '0.28em' }}>
-                                {word}
-                            </span>
-                        );
+                        const p = s.ramp(WORD_FROM + i * WORD_STEP, WORD_FROM + i * WORD_STEP + 0.25);
+                        return <span key={i} style={{ display: 'inline-block', opacity: p, filter: p < 1 ? `blur(${(1 - p) * u * 0.5}px)` : undefined, transform: `translateY(${(1 - p) * u * 1.8}px)`, marginRight: '0.28em' }}>{word}</span>;
                     })}
                 </div>
                 {(name || role) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: u * 2, marginTop: t * 5, opacity: byIn, transform: `translateY(${(1 - byIn) * u * 2}px)` }}>
-                        {avatar && <SceneImage src={avatar} assets={assets} brand={brand} style={{ width: t * 8, height: t * 8, borderRadius: '50%', border: `${u * 0.4}px solid ${colors.accent}` }} />}
+                    <div style={{ ...surface(s, { radius: 5 }), position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: u * 2, marginTop: t * 5, padding: `${u * 1.2}px ${u * 3}px ${u * 1.2}px ${avatar ? u * 1.2 : u * 3}px`, opacity: Math.min(1, by * 1.6), transform: `translateY(${(1 - by) * u * 4}px) scale(${0.94 + 0.06 * by})` }}>
+                        <Sheen s={s} at={byAt + 0.1} />
+                        {avatar && <SceneImage src={avatar} assets={assets} brand={brand} style={{ width: t * 7, height: t * 7, borderRadius: '50%', border: `${u * 0.4}px solid ${c.accent}`, boxShadow: `0 0 ${u * 2}px ${al(c.accent, 0.5)}` }} />}
                         <div style={{ textAlign: 'left' }}>
-                            <div style={{ color: colors.text, fontSize: t * 3.4, fontWeight: 700, lineHeight: 1.2 }}>{name}</div>
-                            {role && <div style={{ color: colors.muted, fontSize: t * 2.8, fontWeight: 500, lineHeight: 1.2 }}>{role}</div>}
+                            <div style={{ color: c.text, fontSize: t * 3.4, fontWeight: 700 }}>{name}</div>
+                            {role && <div style={{ color: c.muted, fontSize: t * 2.8, fontWeight: 500 }}>{role}</div>}
                         </div>
                     </div>
                 )}
             </div>
-        </AbsoluteFill>
+        </Stage>
     );
 }

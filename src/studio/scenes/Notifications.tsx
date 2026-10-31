@@ -1,8 +1,6 @@
-import { grow } from './layout';
-import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import './fonts';
-import { BrandTexture, Depth, sceneGradient, useExit } from './SceneBase';
-import { bodyFont, displayFont, type Brand } from './assets';
+import { al } from './launch/shapes';
+import { Badge, Heading, Ping, Stage, staggerAt, surface, take, useScene } from './proofParts';
+import type { Brand } from './assets';
 
 export interface NotificationsProps {
     heading: string;
@@ -12,57 +10,39 @@ export interface NotificationsProps {
 }
 
 /** Seconds until the last notification has landed, for a sound. */
-export const NOTIFICATIONS_BEAT = 2.6;
+export const NOTIFICATIONS_BEAT = 1.5;
 
-/** Toasts that drop in from the top and push the earlier ones down, fading as they age. */
+/** Glass toasts that drop in from above with a bounce and push the earlier ones down, where they shrink, blur and dim; the newest glows and rings. */
 export function Notifications({ heading, items, transparent, brand }: NotificationsProps) {
-    const frame = useCurrentFrame();
-    const { fps, width, height } = useVideoConfig();
-    const u = (Math.min(width, height) / 100) * grow(width, height);
-    const { colors } = brand;
-    const exit = useExit();
-    const list = (items ?? []).slice(0, 4);
-    const at = (i: number) => 10 + (i / Math.max(1, list.length - 1)) * NOTIFICATIONS_BEAT * fps * 0.8;
-    const headIn = spring({ frame: frame - 2, fps, config: { damping: 200 } });
-    const cardH = u * 11;
+    const s = useScene(brand);
+    const { u, c } = s;
+    const list = take(items, 4);
+    const at = (i: number) => staggerAt(i, list.length, NOTIFICATIONS_BEAT);
+    const cardH = u * 11.5;
+    const width = Math.min(s.innerW, u * 80);
     return (
-        <AbsoluteFill style={{ background: sceneGradient(brand, transparent), alignItems: 'center', justifyContent: 'center', fontFamily: bodyFont(brand), lineHeight: 1.2, opacity: exit }}>
-            <Depth z={-0.5}><BrandTexture brand={brand} transparent={transparent} /></Depth>
-            <Depth z={1} style={{ alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ width: Math.min(width * 0.62, u * 80) }}>
-                    <div style={{ fontFamily: displayFont(brand), fontSize: u * 4.6, fontWeight: 800, color: colors.text, opacity: headIn, marginBottom: u * 3 }}>{heading}</div>
-                    <div style={{ position: 'relative', height: cardH * (list.length + 0.2) }}>
-                        {list.map((n, i) => {
-                            const drop = spring({ frame: frame - at(i), fps, config: { damping: 16, stiffness: 140 } });
-                            // Each later notification pushes this one down a slot (springing as it arrives).
-                            const slot = list.reduce((sum, _, j) => (j > i ? sum + spring({ frame: frame - at(j), fps, config: { damping: 16, stiffness: 140 } }) : sum), 0);
-                            const age = Math.min(1, slot / 3);
-                            return (
-                                <div
-                                    key={i}
-                                    style={{
-                                        position: 'absolute',
-                                        left: 0,
-                                        right: 0,
-                                        top: 0,
-                                        height: cardH * 0.9,
-                                        padding: `${u * 1.4}px ${u * 2.2}px`,
-                                        boxSizing: 'border-box',
-                                        borderRadius: u * 1.8,
-                                        background: colors.surface,
-                                        borderLeft: `${u * 0.6}px solid ${colors.accent}`,
-                                        opacity: Math.min(1, drop * 2) * (1 - age * 0.45),
-                                        transform: `translateY(${(slot + (1 - drop) * -1.5) * cardH}px) scale(${1 - age * 0.04})`,
-                                    }}
-                                >
-                                    <div style={{ fontSize: u * 2.8, fontWeight: 700, color: colors.text }}>{n.title}</div>
-                                    <div style={{ fontSize: u * 2.3, color: colors.muted, marginTop: u * 0.5 }}>{n.text}</div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </Depth>
-        </AbsoluteFill>
+        <Stage s={s} transparent={transparent} at={[50, 40]}>
+            <Heading s={s} text={heading} size={4.6} />
+            <div style={{ position: 'relative', width, height: cardH * (list.length + 0.2) }}>
+                {list.map((n, i) => {
+                    const drop = s.pop(at(i));
+                    // Each later notification pushes this one down a slot, springing as it arrives.
+                    const slot = list.reduce((sum, _, j) => (j > i ? sum + s.pop(at(j)) : sum), 0);
+                    const age = Math.min(1, slot / 3);
+                    const newest = i === list.length - 1;
+                    return (
+                        <div key={i} style={{ ...surface(s, { radius: 2, alpha: 0.7 }), position: 'absolute', left: 0, right: 0, top: 0, height: cardH * 0.9, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: u * 2, padding: `0 ${u * 2.2}px`, backdropFilter: `blur(${u * 1.2}px)`, borderColor: newest ? al(c.accent, 0.7) : undefined, boxShadow: `${surface(s).boxShadow}${newest ? `, 0 0 ${u * 5}px ${al(c.accent, 0.35 * drop)}` : ''}`, opacity: Math.min(1, drop * 2) * (1 - age * 0.45), filter: age > 0 ? `blur(${age * u * 0.18}px)` : undefined, transform: `translateY(${(slot - (1 - drop) * 1.6) * cardH}px) scale(${1 - age * 0.05})` }}>
+                            <Badge s={s} size={u * 5.6} label={n.title || '!'} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: u * 2.8, fontWeight: 700, color: c.text }}>{n.title}</div>
+                                <div style={{ fontSize: u * 2.3, color: c.muted, marginTop: u * 0.5 }}>{n.text}</div>
+                            </div>
+                            <div style={{ alignSelf: 'flex-start', marginTop: u * 1.3, fontSize: u * 1.7, fontWeight: 600, color: al(c.muted, 0.8) }}>now</div>
+                            {newest && <Ping s={s} at={at(i) + 0.05} size={width * 0.9} h={cardH * 0.9} radius={`${u * 3}px`} />}
+                        </div>
+                    );
+                })}
+            </div>
+        </Stage>
     );
 }
