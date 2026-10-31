@@ -55,8 +55,8 @@ final class CameraBubble: NSObject {
         view.wantsLayer = true
         view.layer?.cornerRadius = size / 2
         view.layer?.masksToBounds = true
-        view.layer?.borderWidth = 3
-        view.layer?.borderColor = NSColor.white.withAlphaComponent(0.9).cgColor
+        view.layer?.borderWidth = 1
+        view.layer?.borderColor = Theme.cg(Theme.line)
         let preview = AVCaptureVideoPreviewLayer(session: session)
         preview.videoGravity = .resizeAspectFill
         preview.frame = view.bounds

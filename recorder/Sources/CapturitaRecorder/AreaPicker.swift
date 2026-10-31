@@ -66,7 +66,7 @@ private final class SelectionView: NSView {
         bounds.fill()
 
         let hint = "Drag to select the area to record · Esc to cancel"
-        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 15, weight: .medium), .foregroundColor: NSColor.white]
+        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 14, weight: .semibold), .foregroundColor: NSColor.white]
         let size = hint.size(withAttributes: attributes)
         hint.draw(at: CGPoint(x: bounds.midX - size.width / 2, y: 48), withAttributes: attributes)
 
