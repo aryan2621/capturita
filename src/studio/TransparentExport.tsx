@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { Film, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { Button, ProgressBar } from '../components/ui';
 import { errorMessage, type Project } from '../lib/api';
 import { ExportCancelled, exportTransparent } from '../editor/export';

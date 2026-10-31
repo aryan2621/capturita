@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { AudioLines, FolderPlus, Mic, Play, Plus, Square, Type, Waves } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, fileUrl, type Project } from '../lib/api';
-import { Button, Select, Slider, Switch, TimeField } from '../components/ui';
+import { Button, Select, Slider, Switch, TextArea, TimeField } from '../components/ui';
 import { newId, type AudioClip, type AudioMix, type Ducking, type SoundCue } from './model';
 
 const percent = (v: number) => `${Math.round(v * 100)}%`;
@@ -284,12 +284,12 @@ export function AudioClipsSection({
             </div>
             {script !== null && (
                 <div className='space-y-2'>
-                    <textarea
+                    <TextArea
                         value={script}
                         onChange={(e) => setScript(e.target.value)}
                         rows={3}
                         placeholder='What should the voice say?'
-                        className='w-full resize-none rounded-lg border border-line bg-panel p-2 text-sm text-fg outline-none focus:border-accent'
+                        className='resize-none'
                         aria-label='Voiceover script'
                     />
                     <div className='flex items-center gap-2'>

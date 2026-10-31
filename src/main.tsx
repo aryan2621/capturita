@@ -1,18 +1,21 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { Toaster, toast } from 'sonner';
+import { ToastProvider } from './components/ui';
+import { toast } from './lib/toast';
 import { MainWindow } from './windows/MainWindow';
 import { TooltipLayer } from './components/TooltipLayer';
 import { LicenseProvider } from './lib/license';
-import { initTheme, useTheme } from './lib/theme';
+import { initTheme } from './lib/theme';
 import './index.css';
 
 initTheme();
 
-function ThemedToaster() {
-    const { theme } = useTheme();
+// Dev-only component gallery: open the Vite URL with #ui-preview.
+const UiPreview = import.meta.env.DEV && location.hash === '#ui-preview' ? lazy(() => import('./components/UiPreview')) : null;
+
+function PlannerToasts() {
     // Says which planner answered an AI request: the cloud model, the local one, or a fallback (with why).
     useEffect(() => {
         const unlisten = listen<{ by: string; detail: string }>('ai-planner', ({ payload }) => {
@@ -24,14 +27,21 @@ function ThemedToaster() {
             unlisten.then((u) => u());
         };
     }, []);
-    return <Toaster theme={theme} position='bottom-right' richColors />;
+    return null;
 }
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <React.StrictMode>
         <LicenseProvider>
-            <MainWindow />
-            <ThemedToaster />
+            {UiPreview && (
+                <Suspense>
+                    <UiPreview />
+                </Suspense>
+            )}
+            <ToastProvider>
+                <MainWindow />
+                <PlannerToasts />
+            </ToastProvider>
             <TooltipLayer />
         </LicenseProvider>
     </React.StrictMode>

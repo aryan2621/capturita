@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ArrowRight, Camera, Captions, Check, Download, Keyboard, Mic, MonitorUp, RotateCw, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, type CaptionProgress, type PermissionKind, type Permissions } from '../lib/api';
 import { finishSetup, setResumeStep, SETUP_STEPS, type SetupStep } from '../lib/setup';
-import { Button, Kbd, cx } from './ui';
+import { Badge, Button, Card, Kbd, ProgressBar, cx } from './ui';
 
 /** How often permissions are re-checked while that step is open (changes happen in System Settings). */
 const POLL_MS = 1500;
@@ -41,16 +41,16 @@ export function SetupFlow({
                     <span className='flex h-7 w-7 items-center justify-center rounded-lg bg-accent shadow-sm'>
                         <span className='h-2.5 w-2.5 rounded-full bg-white' />
                     </span>
-                    <span className='font-serif text-[17px] font-medium tracking-tight'>Set up Capturita</span>
+                    <span className='text-[17px] font-medium tracking-tight'>Set up Capturita</span>
                     <div className='ml-auto flex items-center gap-1.5' aria-label={`Step ${index + 1} of ${SETUP_STEPS.length}`}>
                         {SETUP_STEPS.map((s, i) => (
                             <span key={s} className={cx('h-1.5 rounded-full transition-all', i === index ? 'w-5 bg-accent' : i < index ? 'w-1.5 bg-accent/60' : 'w-1.5 bg-line-strong')} />
                         ))}
                     </div>
                     {step !== 'done' && (
-                        <button className='ml-3 text-xs text-muted hover:text-fg' onClick={close} title='Skip setup; run it again from Settings → General'>
+                        <Button size='sm' variant='ghost' className='ml-3' onClick={close} title='Skip setup; run it again from Settings → General'>
                             Skip setup
-                        </button>
+                        </Button>
                     )}
                 </div>
                 <div className='overflow-y-auto p-6'>
@@ -75,7 +75,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
     return (
         <div className='space-y-5'>
             <div className='space-y-2'>
-                <h2 className='font-serif text-2xl font-medium tracking-tight'>Welcome to Capturita</h2>
+                <h2 className='text-2xl font-medium tracking-tight'>Welcome to Capturita</h2>
                 <p className='text-sm text-muted'>
                     Record your screen, camera and voice, then polish it here: zooms, captions, hidden private info, and export to MP4 or YouTube.
                 </p>
@@ -138,7 +138,7 @@ function PermissionsStep({ onNext, onPermissionsChange }: { onNext: () => void; 
     return (
         <div className='space-y-5'>
             <div className='space-y-1'>
-                <h2 className='font-serif text-xl font-medium tracking-tight'>Permissions</h2>
+                <h2 className='text-xl font-medium tracking-tight'>Permissions</h2>
                 <p className='text-sm text-muted'>macOS asks before any app can see your screen or use the mic and camera.</p>
             </div>
             <div className='space-y-2'>
@@ -215,7 +215,7 @@ function PermissionsStep({ onNext, onPermissionsChange }: { onNext: () => void; 
 
 function PermissionRow({ icon, title, hint, state, actions }: { icon: ReactNode; title: string; hint: string; state: 'granted' | 'skipped' | 'missing'; actions: ReactNode }) {
     return (
-        <div className='flex items-start gap-3 rounded-xl border border-line bg-panel-2 p-3'>
+        <Card padding='sm' className='flex items-start gap-3 rounded-xl'>
             <span
                 className={cx(
                     'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
@@ -228,8 +228,9 @@ function PermissionRow({ icon, title, hint, state, actions }: { icon: ReactNode;
                 <p className='text-sm font-medium'>{title}</p>
                 <p className='text-xs text-muted'>{hint}</p>
             </div>
+            {state === 'granted' && <Badge tone='success'>Granted</Badge>}
             {actions && <div className='flex shrink-0 items-center gap-1.5'>{actions}</div>}
-        </div>
+        </Card>
     );
 }
 
@@ -266,24 +267,19 @@ function CaptionsStep({ onNext }: { onNext: () => void }) {
     return (
         <div className='space-y-5'>
             <div className='space-y-1'>
-                <h2 className='font-serif text-xl font-medium tracking-tight'>Captions</h2>
+                <h2 className='text-xl font-medium tracking-tight'>Captions</h2>
                 <p className='text-sm text-muted'>
                     Capturita turns what you say into captions on this Mac, so nothing is uploaded. It needs a speech model ({model?.sizeMb ?? 547} MB), downloaded once.
                 </p>
             </div>
-            <div className='flex items-center gap-3 rounded-xl border border-line bg-panel-2 p-3'>
+            <Card padding='sm' className='flex items-center gap-3 rounded-xl'>
                 <span className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', downloaded ? 'bg-success-soft text-success-fg' : 'bg-raised text-muted')}>
                     {downloaded ? <Check className='h-4 w-4' /> : <Captions className='h-4 w-4' />}
                 </span>
                 <div className='min-w-0 flex-1 space-y-1.5'>
                     <p className='text-sm font-medium'>{downloaded ? 'Speech model ready' : progress !== null ? 'Downloading the speech model…' : 'Speech model'}</p>
                     {progress !== null ? (
-                        <div className='flex items-center gap-2'>
-                            <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-line'>
-                                <div className='h-full bg-accent transition-[width]' style={{ width: `${Math.round(progress * 100)}%` }} />
-                            </div>
-                            <span className='w-9 text-right font-mono text-xs text-muted'>{Math.round(progress * 100)}%</span>
-                        </div>
+                        <ProgressBar value={progress} />
                     ) : (
                         <p className='text-xs text-muted'>{downloaded ? 'Captions work offline.' : 'You can also skip this; it downloads the first time you make captions.'}</p>
                     )}
@@ -299,7 +295,7 @@ function CaptionsStep({ onNext }: { onNext: () => void }) {
                             <Download className='h-3.5 w-3.5' /> Download
                         </Button>
                     ))}
-            </div>
+            </Card>
             <div className='flex items-center justify-end gap-3'>
                 {!downloaded && <span className='text-xs text-muted'>{progress !== null ? 'The download keeps going in the background.' : 'You can download it later in Settings.'}</span>}
                 <Button variant='primary' onClick={onNext}>
@@ -314,15 +310,15 @@ function Done({ onFinish }: { onFinish: () => void }) {
     return (
         <div className='space-y-5'>
             <div className='space-y-1'>
-                <h2 className='font-serif text-xl font-medium tracking-tight'>You're all set</h2>
+                <h2 className='text-xl font-medium tracking-tight'>You're all set</h2>
                 <p className='text-sm text-muted'>Pick a screen, window or area, and press Record. Capturita adds the zooms for you.</p>
             </div>
-            <div className='flex items-center gap-3 rounded-xl border border-line bg-panel-2 p-3 text-sm'>
+            <Card padding='sm' className='flex items-center gap-3 rounded-xl text-sm'>
                 <Keyboard className='h-4 w-4 shrink-0 text-muted' />
                 <span>
                     Press <Kbd>⌘</Kbd> <Kbd>⇧</Kbd> <Kbd>R</Kbd> from any app to start and stop recording.
                 </span>
-            </div>
+            </Card>
             <div className='flex justify-end'>
                 <Button variant='primary' onClick={onFinish}>
                     Start recording

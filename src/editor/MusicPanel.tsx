@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { AudioWaveform, Music, Repeat, Trash2, Upload, Volume2, VolumeX } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, fileUrl, type Project } from '../lib/api';
 import { loadMusic } from './audioSchedule';
 import { beatsOnTimeline, detectBeats, fitScenesToBeats } from './beats';
@@ -41,9 +41,10 @@ export async function importMusicTrack(project: Project, file: File, previous: M
 /** A "Suggested…" menu: songs that are only links until one is picked, then it is downloaded. */
 function SuggestedPicker({ disabled, onPick }: { disabled?: boolean; onPick: (index: number) => void }) {
     return (
-        <div className={disabled ? 'pointer-events-none w-32 opacity-40' : 'w-32'}>
+        <div className={disabled ? 'pointer-events-none opacity-40' : undefined}>
             <MenuButton
-                label='Suggested…'
+                size='sm'
+                label='Suggested'
                 items={SUGGESTED_MUSIC.map((song, i) => ({ key: String(i), label: song.title, hint: song.mood }))}
                 onPick={(key) => onPick(Number(key))}
             />

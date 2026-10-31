@@ -1,14 +1,14 @@
 import { RotateCw, ShieldAlert } from 'lucide-react';
 import { api, type Permissions } from '../lib/api';
-import { Button } from './ui';
+import { Button, Card } from './ui';
 
 /** Screen recording is the one permission Capturita can't work without. */
 export function PermissionsBanner({ permissions, onChange }: { permissions: Permissions; onChange: (p: Permissions) => void }) {
     if (permissions.screen === 'granted') return null;
 
     return (
-        <div className='flex items-start gap-4 rounded-2xl border border-warning/30 bg-warning-soft p-4'>
-            <ShieldAlert className='mt-0.5 h-5 w-5 shrink-0 text-warning' />
+        <Card className='flex items-start gap-4 border-warning/30 bg-warning-soft'>
+            <ShieldAlert className='mt-0.5 h-5 w-5 shrink-0 text-warning-fg' />
             <div className='flex-1 space-y-1'>
                 <p className='font-medium'>Allow screen recording</p>
                 <p className='text-sm text-muted'>
@@ -33,6 +33,6 @@ export function PermissionsBanner({ permissions, onChange }: { permissions: Perm
                     </Button>
                 </div>
             </div>
-        </div>
+        </Card>
     );
 }

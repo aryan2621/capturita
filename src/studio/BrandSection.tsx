@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Globe, ImagePlus, LayoutGrid, Loader2, Palette, Plus, Stamp, Trash2, X } from 'lucide-react';
-import { toast } from 'sonner';
-import { Button, ColorField, FontPicker, IconButton, Segmented, Select } from '../components/ui';
+import { toast } from '../lib/toast';
+import { Button, Card, ColorField, Field, FontPicker, IconButton, Segmented, Select, TextInput } from '../components/ui';
 import { errorMessage } from '../lib/api';
 import type { Edit } from '../editor/model';
 import { fitToMusic } from '../editor/beats';
@@ -112,7 +112,7 @@ export function BrandSection({ edit, onChange }: { edit: Edit; onChange: (patch:
     return (
         <section className='space-y-3'>
             <div className='flex min-h-8 items-center justify-between'>
-                <h3 className='flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted'>
+                <h3 className='flex items-center gap-2 text-sm font-semibold text-fg'>
                     <Stamp className='h-3.5 w-3.5' />
                     Brand
                 </h3>
@@ -138,13 +138,14 @@ export function BrandSection({ edit, onChange }: { edit: Edit; onChange: (patch:
                         createFromSite();
                     }}
                 >
-                    <input
+                    <TextInput
+                        size='sm'
                         autoFocus
                         value={site}
                         onChange={(e) => setSite(e.target.value)}
                         placeholder='example.com'
                         aria-label='Website address'
-                        className='h-8 min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-2 text-sm text-fg outline-none focus:border-accent'
+                        className='min-w-0 flex-1'
                     />
                     <Button size='sm' type='submit' disabled={!site.trim() || reading}>
                         {reading ? <Loader2 className='h-3.5 w-3.5 animate-spin' /> : 'Make kit'}
@@ -177,10 +178,12 @@ export function BrandSection({ edit, onChange }: { edit: Edit; onChange: (patch:
                     {KIT_PRESETS.map((preset) => {
                         const style = STYLES.find((s) => s.id === preset.style);
                         return (
-                            <button
+                            <Card
                                 key={preset.name}
+                                interactive
+                                padding='none'
                                 onClick={() => usePreset(preset)}
-                                className='overflow-hidden rounded-lg border border-line text-left transition-transform hover:-translate-y-0.5 hover:border-line-strong'
+                                className='overflow-hidden text-left'
                                 style={{ background: preset.colors.bg }}
                                 title={`Make a kit from ${preset.name}${style ? ` with ${style.label} motion: ${style.hint.toLowerCase()}` : ''}`}
                             >
@@ -206,7 +209,7 @@ export function BrandSection({ edit, onChange }: { edit: Edit; onChange: (patch:
                                     </div>
                                 </div>
                                 <div className='h-1' style={{ background: preset.colors.surface }} />
-                            </button>
+                            </Card>
                         );
                     })}
                 </div>
@@ -228,14 +231,9 @@ export function BrandSection({ edit, onChange }: { edit: Edit; onChange: (patch:
             {!kit && <p className='text-xs text-muted'>Motion scenes use the default colours. Pick or make a kit to use your own colours, fonts and logo.</p>}
             {kit && (
                 <div className='space-y-4'>
-                    <label className='block space-y-1'>
-                        <span className='text-xs'>Name</span>
-                        <input
-                            value={kit.name}
-                            onChange={(e) => updateKit({ name: e.target.value })}
-                            className='h-8 w-full rounded-lg border border-line bg-panel-2 px-2 text-sm text-fg outline-none focus:border-accent'
-                        />
-                    </label>
+                    <Field label='Name'>
+                        <TextInput size='sm' value={kit.name} onChange={(e) => updateKit({ name: e.target.value })} />
+                    </Field>
                     <div className='space-y-1.5'>
                         {COLOR_FIELDS.map(({ key, label }) => (
                             <div key={key} className='flex items-center justify-between gap-2 text-xs'>

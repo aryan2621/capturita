@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import { Button, cx, Modal } from '../components/ui';
+import { Button, Card, cx, Modal } from '../components/ui';
 import { SCENES } from './scenes';
 import { TEMPLATES, templateItems, type StudioTemplate, type TemplateScene } from './templates';
 import { totalDuration } from '../editor/model';
@@ -19,7 +19,7 @@ function Swatch({ template, big }: { template: StudioTemplate; big?: boolean }) 
     const { bg, surface, text, accent, muted } = template.colors;
     return (
         <div
-            className={cx('flex shrink-0 flex-col justify-end overflow-hidden rounded-lg border border-line p-3', big ? 'aspect-video w-full' : 'aspect-video w-32')}
+            className={cx('flex shrink-0 flex-col justify-end overflow-hidden rounded-lg border border-line p-3', big ? 'aspect-video w-full' : 'h-24 w-full')}
             style={{ background: `radial-gradient(120% 110% at 50% 0%, ${surface} 0%, ${bg} 62%)`, color: text }}
         >
             <span className='h-1.5 w-1.5 rounded-full' style={{ background: accent }} />
@@ -42,26 +42,26 @@ export function NewStudioDialog({ onClose, onContinue }: { onClose: () => void; 
         <Modal onClose={onClose} className='max-w-4xl'>
             <div className='flex h-[80vh] max-h-[640px] flex-col'>
                 <div className='border-b border-line px-5 py-4'>
-                    <h2 className='font-serif text-lg font-medium'>New Studio video</h2>
+                    <h2 className='text-lg font-medium'>New Studio video</h2>
                     <p className='text-sm text-muted'>Pick a starting point. Every scene and line stays editable.</p>
                 </div>
                 <div className='flex min-h-0 flex-1'>
                     <ul className='w-72 shrink-0 space-y-1 overflow-y-auto border-r border-line p-3' role='listbox' aria-label='Templates'>
                         {TEMPLATES.map((t) => (
                             <li key={t.id}>
-                                <button type='button' role='option' aria-selected={t.id === id} onClick={() => setId(t.id)} className={cx('flex w-full flex-col gap-2 rounded-xl p-2 text-left transition-colors', t.id === id ? 'bg-accent/10 ring-1 ring-accent' : 'hover:bg-line/40')}>
+                                <Card interactive selected={t.id === id} padding='sm' role='option' aria-selected={t.id === id} onClick={() => setId(t.id)} className='flex flex-col gap-2 text-left'>
                                     <Swatch template={t} />
                                     <span className='px-1 text-xs text-muted'>{t.blurb}</span>
                                     <span className='px-1 font-mono text-[11px] text-muted'>
                                         {t.scenes.length} scenes · {formatDuration(lengths[t.id])}
                                     </span>
-                                </button>
+                                </Card>
                             </li>
                         ))}
                         <li>
-                            <button type='button' role='option' aria-selected={id === ''} onClick={() => setId('')} className={cx('flex w-full items-center gap-2 rounded-xl p-3 text-left text-sm', id === '' ? 'bg-accent/10 ring-1 ring-accent' : 'hover:bg-line/40')}>
+                            <Card interactive selected={id === ''} padding='sm' role='option' aria-selected={id === ''} onClick={() => setId('')} className='flex items-center gap-2 text-sm'>
                                 <Sparkles className='h-4 w-4 text-muted' /> Blank video
-                            </button>
+                            </Card>
                         </li>
                     </ul>
                     <div className='flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-5'>

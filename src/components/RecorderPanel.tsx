@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { AppWindow, Camera, CameraOff, Check, ChevronRight, Crop, Mic, MicOff, Monitor, RefreshCw, Volume2, VolumeX, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import {
     api,
     errorMessage,
@@ -15,7 +15,7 @@ import {
     type Thumbnails,
     type WindowSource,
 } from '../lib/api';
-import { Button, IconButton, Popover, Segmented, Switch, cx } from './ui';
+import { Button, Card, IconButton, Popover, Segmented, Switch, cx } from './ui';
 
 type Mode = 'display' | 'window' | 'area';
 
@@ -277,7 +277,7 @@ export function RecorderPanel({
             <div className='flex min-w-0 flex-1 flex-col'>
                 <div className='flex items-center gap-3 px-6 pb-2 pt-5'>
                     <div className='min-w-0 flex-1'>
-                        <h2 className='font-serif text-[22px] font-medium leading-tight tracking-tight'>New recording</h2>
+                        <h2 className='text-[22px] font-medium leading-tight tracking-tight'>New recording</h2>
                         <p className='mt-0.5 text-xs text-muted'>{mode.hint}</p>
                     </div>
                     <IconButton label='Refresh screens and windows' size='icon-sm' onClick={refreshSources} disabled={loadingSources || !screenGranted}>
@@ -569,7 +569,7 @@ function StagePreview({ image, aspect, title, detail, camera }: { image?: string
 function SidebarSection({ title, children }: { title: string; children: ReactNode }) {
     return (
         <div className='space-y-2'>
-            <p className='text-[11px] font-semibold uppercase tracking-wider text-subtle'>{title}</p>
+            <p className='text-xs font-medium text-muted'>{title}</p>
             {children}
         </div>
     );
@@ -581,12 +581,12 @@ function Skeleton({ className }: { className?: string }) {
 
 function DisplayCard({ display, image, selected, onSelect }: { display: Display; image?: string; selected: boolean; onSelect: () => void }) {
     return (
-        <button
+        <Card
+            padding='none'
+            interactive
+            selected={selected}
             onClick={onSelect}
-            className={cx(
-                'group overflow-hidden rounded-xl border text-left transition-colors',
-                selected ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-line-strong'
-            )}
+            className='group overflow-hidden rounded-xl text-left'
             title={`Record ${display.name}`}
         >
             <div className='relative bg-stage' style={{ aspectRatio: `${display.width} / ${display.height}` }}>
@@ -608,18 +608,18 @@ function DisplayCard({ display, image, selected, onSelect }: { display: Display;
                     {display.isMain && ' · main'}
                 </span>
             </div>
-        </button>
+        </Card>
     );
 }
 
 function WindowCard({ window, image, selected, onSelect }: { window: WindowSource; image?: string; selected: boolean; onSelect: () => void }) {
     return (
-        <button
+        <Card
+            padding='none'
+            interactive
+            selected={selected}
             onClick={onSelect}
-            className={cx(
-                'group flex flex-col overflow-hidden rounded-xl border text-left transition-colors',
-                selected ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-line-strong'
-            )}
+            className='group flex flex-col overflow-hidden rounded-xl text-left'
             title={`Record ${window.app}${window.title ? ` — ${window.title}` : ''}`}
         >
             <div className='relative aspect-[16/10] bg-stage'>
@@ -644,7 +644,7 @@ function WindowCard({ window, image, selected, onSelect }: { window: WindowSourc
                     <p className='truncate text-[11px] text-subtle'>{window.title || 'Untitled window'}</p>
                 </div>
             </div>
-        </button>
+        </Card>
     );
 }
 
@@ -695,7 +695,7 @@ function InputRow({
 }
 
 function MenuHeading({ children }: { children: ReactNode }) {
-    return <p className='px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-subtle'>{children}</p>;
+    return <p className='px-2 pb-1 text-xs font-medium text-muted'>{children}</p>;
 }
 
 function MenuItem({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {

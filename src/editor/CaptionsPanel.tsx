@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttribut
 import { listen } from '@tauri-apps/api/event';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { Captions as CaptionsIcon, FileDown, Highlighter, Loader2, RefreshCw, Trash2, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, type CaptionProgress, type Project } from '../lib/api';
 import { Button, FontPicker, RadioList, Segmented, Select, Slider, Switch, cx } from '../components/ui';
 import { CAPTION_SOURCES, defaultCaptionSource, makeCaptions, makeVoiceCaptions, speechSources, type CaptionSource } from './captions';

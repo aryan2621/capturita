@@ -41,7 +41,7 @@ final class ControlBar {
             recording = false
         }
         let paused = if case .paused = mode { true } else { false }
-        dot.layer?.backgroundColor = (paused ? NSColor.systemYellow : NSColor.systemRed).cgColor
+        dot.layer?.backgroundColor = Theme.cg(paused ? Theme.warning : Theme.record)
         // The dot pulses while recording and holds still when paused.
         if case .recording = mode {
             if dot.layer?.animation(forKey: "pulse") == nil {
@@ -96,13 +96,15 @@ final class ControlBar {
         background.wantsLayer = true
         background.layer?.cornerRadius = size.height / 2
         background.layer?.masksToBounds = true
+        background.layer?.borderWidth = 1
+        background.layer?.borderColor = Theme.cg(Theme.line)
 
         dot.wantsLayer = true
         dot.layer?.cornerRadius = 5
         dot.translatesAutoresizingMaskIntoConstraints = false
 
         label.font = .monospacedDigitSystemFont(ofSize: 14, weight: .semibold)
-        label.textColor = .labelColor
+        label.textColor = Theme.fg
         label.translatesAutoresizingMaskIntoConstraints = false
 
         configure(pauseButton, action: "pause")
@@ -110,7 +112,7 @@ final class ControlBar {
         setSymbol(discardButton, "trash", "Discard recording")
         configure(stopButton, action: "stop")
         setSymbol(stopButton, "stop.fill", "Stop and save (⌘⇧R)")
-        stopButton.contentTintColor = .systemRed
+        stopButton.contentTintColor = Theme.record
 
         let buttons = NSStackView(views: [pauseButton, discardButton, stopButton])
         buttons.spacing = 4

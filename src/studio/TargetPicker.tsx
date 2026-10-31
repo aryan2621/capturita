@@ -1,4 +1,5 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react';
+import { Button } from '../components/ui';
 import { fileUrl, type Project } from '../lib/api';
 import type { Segment, TargetRect } from './scenes/assets';
 
@@ -135,9 +136,9 @@ export function TargetPicker({
             </div>
             <div className='absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-3 rounded-full bg-panel/95 py-1.5 pl-3 pr-1.5 text-xs text-muted shadow'>
                 Drag to draw the target, or move and resize the box
-                <button onClick={onDone} className='rounded-full bg-accent px-3 py-1 font-medium text-accent-fg'>
+                <Button variant='primary' size='sm' onClick={onDone}>
                     Done
-                </button>
+                </Button>
             </div>
         </div>
     );

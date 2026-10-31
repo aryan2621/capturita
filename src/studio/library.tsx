@@ -1,7 +1,7 @@
 // Animations and music that ship with the app (studio-assets/, licences in its LICENSES.md).
 // Vite emits each file as an asset; picking one copies it into the project like a file the user chose.
 
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { MenuButton } from '../components/ui';
 import { errorMessage } from '../lib/api';
 

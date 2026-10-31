@@ -21,12 +21,12 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, type AiCloud, type AiModels, type AiOpenAi, type CaptionModel, type CaptionProgress, type GoogleStatus } from '../lib/api';
 import { useLicense } from '../lib/license';
 import { useTheme, type ThemeChoice } from '../lib/theme';
 import { ProFeatureGate } from './ProFeatureGate';
-import { Button, IconButton, Modal, ProgressBar, Segmented, cx } from './ui';
+import { Badge, Button, Card, Field, IconButton, Modal, ProgressBar, SectionHeader, Segmented, SettingRow, TextArea, TextInput, cx } from './ui';
 
 export type SettingsSection = 'general' | 'ai' | 'captions' | 'google' | 'license';
 
@@ -100,22 +100,20 @@ export function SettingsDialog({
     const current = SECTIONS.find((x) => x.id === section);
 
     return (
-        <Modal onClose={onClose} className='flex h-[640px] max-w-[880px]'>
-            <nav aria-label='Settings sections' className='flex w-56 shrink-0 flex-col gap-4 overflow-y-auto border-r border-line bg-panel-2 p-3'>
-                <span className='px-2 pt-1 font-serif text-[17px] font-medium tracking-tight'>Settings</span>
-                <label className='relative block'>
-                    <Search aria-hidden className='pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle' />
-                    <input
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder='Search settings'
-                        aria-label='Search settings'
-                        className='h-8 w-full rounded-lg border border-line bg-panel pl-8 pr-2 text-sm outline-none focus:border-accent'
-                    />
-                </label>
+        <Modal onClose={onClose} className='flex h-[640px] max-w-[760px]'>
+            <nav aria-label='Settings sections' className='flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-line bg-panel-2 p-3'>
+                <span className='px-2 pt-1 text-[17px] font-medium tracking-tight'>Settings</span>
+                <TextInput
+                    size='sm'
+                    leading={<Search aria-hidden className='h-3.5 w-3.5' />}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder='Search settings'
+                    aria-label='Search settings'
+                />
                 {groups.map((g) => (
                     <div key={g} className='flex flex-col gap-0.5'>
-                        <span className='px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wider text-subtle'>{g}</span>
+                        <span className='px-2.5 pb-1 text-xs font-medium text-muted'>{g}</span>
                         {matches
                             .filter((x) => x.group === g)
                             .map((x) => (
@@ -200,22 +198,25 @@ function LicenseSection() {
 
     if (!license.supported) {
         return (
-            <div className='rounded-xl border border-line bg-panel-2 p-4'>
+            <Card>
                 <p className='text-sm font-medium'>Source build — Pro features unlocked</p>
                 <p className='mt-1 text-xs text-muted'>License activation is only used by official Capturita builds. The source remains MIT-licensed.</p>
-            </div>
+            </Card>
         );
     }
 
     return (
         <div className='space-y-5'>
-            <div className='rounded-xl border border-line bg-panel-2 p-4'>
+            <Card>
                 <div className='flex items-start gap-3'>
                     <span className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', license.pro ? 'bg-success-soft text-success-fg' : 'bg-raised text-muted')}>
                         {license.pro ? <Check className='h-4 w-4' /> : <KeyRound className='h-4 w-4' />}
                     </span>
                     <div className='min-w-0 flex-1'>
-                        <p className='text-sm font-semibold'>{license.pro ? 'Capturita Pro is active' : 'Capturita Free'}</p>
+                        <p className='flex items-center gap-2 text-sm font-semibold'>
+                            {license.pro ? 'Capturita Pro is active' : 'Capturita Free'}
+                            <Badge tone={license.pro ? 'success' : 'neutral'}>{license.pro ? 'Pro' : 'Not activated'}</Badge>
+                        </p>
                         {license.email && <p className='mt-0.5 truncate text-xs text-muted'>{license.email}</p>}
                         {license.updatesUntil && <p className='mt-1 text-xs text-muted'>Updates through {new Date(license.updatesUntil * 1000).toLocaleDateString()}.</p>}
                     </div>
@@ -225,22 +226,28 @@ function LicenseSection() {
                         </Button>
                     )}
                 </div>
-                {license.error && <p role='alert' className='mt-3 text-xs text-danger'>{license.error}</p>}
-                {license.notice && <p className='mt-3 text-xs text-muted'>{license.notice}</p>}
-            </div>
+                {license.error && (
+                    <p role='alert' className='mt-3 rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger-fg'>
+                        {license.error}
+                    </p>
+                )}
+                {license.notice && <p className='mt-3 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning-fg'>{license.notice}</p>}
+            </Card>
 
             {!license.pro && (
                 <div className='space-y-3'>
-                    <p className='text-sm text-muted'>Paste the license key from your Capturita Pro purchase email. The key is stored in this Mac’s Keychain.</p>
-                    <textarea
-                        value={key}
-                        onChange={(event) => setKey(event.target.value)}
-                        aria-label='Capturita Pro license key'
-                        placeholder='Paste your license key'
-                        rows={3}
-                        spellCheck={false}
-                        className='w-full resize-y rounded-lg border border-line bg-panel-2 px-3 py-2 font-mono text-xs outline-none focus:border-accent'
-                    />
+                    <Field label='License key' htmlFor='license-key' hint='Paste the key from your Capturita Pro purchase email. The key is stored in this Mac’s Keychain.'>
+                        <TextArea
+                            id='license-key'
+                            value={key}
+                            onChange={(event) => setKey(event.target.value)}
+                            aria-label='Capturita Pro license key'
+                            placeholder='Paste your license key'
+                            rows={3}
+                            spellCheck={false}
+                            className='font-mono text-xs'
+                        />
+                    </Field>
                     <div className='flex justify-end'>
                         <Button variant='primary' size='sm' disabled={busy || !key.trim()} onClick={activate}>
                             {busy && <Loader2 className='h-3.5 w-3.5 animate-spin' />} Activate license
@@ -256,25 +263,14 @@ function LicenseSection() {
 function Group({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
     return (
         <section className='mt-8 space-y-3 first:mt-0'>
-            <div>
-                <h3 className='text-sm font-semibold'>{title}</h3>
-                {description && <p className='mt-0.5 text-[13px] text-muted'>{description}</p>}
-            </div>
+            <SectionHeader title={title} description={description} />
             {children}
         </section>
     );
 }
 
 function Row({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
-    return (
-        <div className='flex items-center justify-between gap-6 border-b border-line py-4 first:pt-0 last:border-0'>
-            <div className='min-w-0 space-y-0.5'>
-                <p className='text-sm font-medium'>{title}</p>
-                {description && <p className='text-xs text-muted'>{description}</p>}
-            </div>
-            <div className='shrink-0'>{children}</div>
-        </div>
-    );
+    return <SettingRow title={title} description={description} control={children} className='border-b border-line py-4 first:pt-0 last:border-0' />;
 }
 
 const Progress = ProgressBar;
@@ -399,12 +395,12 @@ function AiCloudCard() {
                 )}
             </div>
             <div className='flex gap-2'>
-                <input
+                <TextInput
                     type='password'
                     value={key}
                     onChange={(e) => setKey(e.target.value)}
                     placeholder={cloud.hasKey ? 'Replace the saved key' : 'sk-ant-…'}
-                    className='h-9 min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-3 text-sm outline-none focus:border-accent'
+                    className='flex-1'
                     aria-label='Claude API key'
                 />
                 <Button size='sm' variant='primary' disabled={busy || !key.trim()} onClick={() => act(() => api.saveAiCloud(true, key), 'Claude is on')}>
@@ -472,7 +468,6 @@ function AiOpenAiCard() {
     };
 
     if (!cloud) return null;
-    const input = 'h-9 min-w-0 rounded-lg border border-line bg-panel-2 px-3 text-sm outline-none focus:border-accent';
     return (
         <div className={cx('space-y-3 rounded-xl border p-4', cloud.enabled ? 'border-accent/60 bg-panel-2' : 'border-line')}>
             <div className='flex items-start gap-3'>
@@ -513,22 +508,22 @@ function AiOpenAiCard() {
                 ))}
             </div>
             <div className='flex gap-2'>
-                <input
+                <TextInput
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
                     placeholder='Base URL'
-                    className={cx(input, 'flex-[2]')}
+                    className='flex-[2]'
                     aria-label='Base URL'
                 />
-                <input value={model} onChange={(e) => setModel(e.target.value)} placeholder='Model' className={cx(input, 'flex-1')} aria-label='Model name' />
+                <TextInput value={model} onChange={(e) => setModel(e.target.value)} placeholder='Model' className='flex-1' aria-label='Model name' />
             </div>
             <div className='flex gap-2'>
-                <input
+                <TextInput
                     type='password'
                     value={key}
                     onChange={(e) => setKey(e.target.value)}
                     placeholder={cloud.hasKey ? 'Replace the saved key' : 'API key'}
-                    className={cx(input, 'flex-1')}
+                    className='flex-1'
                     aria-label='API key'
                 />
                 <Button
@@ -837,7 +832,6 @@ export function GoogleSection() {
     };
 
     if (!status) return null;
-    const input = 'h-9 w-full rounded-lg border border-line bg-panel-2 px-3 text-sm outline-none focus:border-accent';
     return (
         <div className='space-y-5'>
             <p className='text-sm text-muted'>
@@ -887,16 +881,16 @@ export function GoogleSection() {
                 </button>
             ) : (
                 <div className='space-y-3'>
-                    <input
-                        className={input}
+                    <TextInput
+                        className='w-full'
                         value={clientId}
                         onChange={(e) => setClientId(e.target.value)}
                         placeholder='Client ID (ends in .apps.googleusercontent.com)'
                         aria-label='Client ID'
                         spellCheck={false}
                     />
-                    <input
-                        className={input}
+                    <TextInput
+                        className='w-full'
                         type='password'
                         value={clientSecret}
                         onChange={(e) => setClientSecret(e.target.value)}
