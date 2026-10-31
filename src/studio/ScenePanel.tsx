@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, ChevronUp, Copy, Crosshair, Diamond, ImagePlus, Link, Plus, Wand2, X } from 'lucide-react';
 import { Button, ColorField, MenuButton, Segmented, Select, Slider, Switch, TimeField } from '../components/ui';
 import {

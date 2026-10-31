@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { Check, Download, FastForward, Loader2, Scissors, Sparkles, Type, Wand2, X, ZoomIn } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, type CaptionProgress, type CursorData, type Project } from '../lib/api';
 import { Button, cx } from '../components/ui';
 import { askAi, applyProposals, fillerCuts, pauseCuts, type Proposal } from './aiEdit';

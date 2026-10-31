@@ -17,7 +17,7 @@ import {
     WandSparkles,
     ZoomIn,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { Button, ColorField, FontPicker, PositionPad, Segmented, Slider, Switch, ToggleButton, cx } from '../components/ui';
 import { ProFeatureGate } from '../components/ProFeatureGate';
 import { api, errorMessage, fileUrl } from '../lib/api';

@@ -25,7 +25,7 @@ import {
     Undo2,
     X,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, fileUrl, formatDuration, isStudio, type CursorData, type Project } from '../lib/api';
 import { Button, IconButton, Popover, RangeInput, Segmented, cx } from '../components/ui';
 import { CropOverlay } from '../editor/CropOverlay';

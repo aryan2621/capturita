@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ArrowRight, Camera, Captions, Check, Download, Keyboard, Mic, MonitorUp, RotateCw, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, type CaptionProgress, type PermissionKind, type Permissions } from '../lib/api';
 import { finishSetup, setResumeStep, SETUP_STEPS, type SetupStep } from '../lib/setup';
 import { Button, Kbd, cx } from './ui';

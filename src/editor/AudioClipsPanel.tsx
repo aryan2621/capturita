@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { AudioLines, FolderPlus, Mic, Play, Plus, Square, Type, Waves } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, fileUrl, type Project } from '../lib/api';
 import { Button, Select, Slider, Switch, TimeField } from '../components/ui';
 import { newId, type AudioClip, type AudioMix, type Ducking, type SoundCue } from './model';

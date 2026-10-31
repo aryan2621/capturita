@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Camera, Check, Clapperboard, ImagePlus, Loader2, Music, Pencil, Wand2, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, type CursorData, type Project } from '../lib/api';
 import { Button, cx, Segmented, Select, Slider } from '../components/ui';
 import type { Edit } from '../editor/model';

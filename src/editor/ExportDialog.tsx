@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { ArrowLeft, CheckCircle2, ChevronDown, Clipboard, Cloud, Copy, Download, ExternalLink, FileVideo, FolderOpen, KeyRound, Loader2, LogOut, RotateCw, SquarePlay, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, formatDuration, GOOGLE_SCOPES, type CursorData, type Destination, type GoogleStatus, type Privacy, type Project } from '../lib/api';
 import { Button, Modal, ProgressBar, Segmented, cx } from '../components/ui';
 import { GoogleSection } from '../components/SettingsDialog';

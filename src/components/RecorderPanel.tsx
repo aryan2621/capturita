@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { AppWindow, Camera, CameraOff, Check, ChevronRight, Crop, Mic, MicOff, Monitor, RefreshCw, Volume2, VolumeX, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import {
     api,
     errorMessage,

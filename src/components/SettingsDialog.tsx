@@ -21,7 +21,7 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, type AiCloud, type AiModels, type AiOpenAi, type CaptionModel, type CaptionProgress, type GoogleStatus } from '../lib/api';
 import { useLicense } from '../lib/license';
 import { useTheme, type ThemeChoice } from '../lib/theme';

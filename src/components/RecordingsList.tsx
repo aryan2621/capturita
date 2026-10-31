@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { AppWindow, Camera, Crop, Film, FolderOpen, Mic, Monitor, MousePointerClick, Plus, Sparkles, Trash2, Volume2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, fileUrl, formatDuration, isStudio, type Project } from '../lib/api';
 import { Button, IconButton, Kbd, cx } from './ui';
 

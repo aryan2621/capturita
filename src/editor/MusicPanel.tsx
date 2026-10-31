@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { AudioWaveform, Music, Repeat, Trash2, Upload, Volume2, VolumeX } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { api, errorMessage, fileUrl, type Project } from '../lib/api';
 import { loadMusic } from './audioSchedule';
 import { beatsOnTimeline, detectBeats, fitScenesToBeats } from './beats';

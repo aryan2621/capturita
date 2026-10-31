@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Globe, ImagePlus, LayoutGrid, Loader2, Palette, Plus, Stamp, Trash2, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 import { Button, ColorField, FontPicker, IconButton, Segmented, Select } from '../components/ui';
 import { errorMessage } from '../lib/api';
 import type { Edit } from '../editor/model';
