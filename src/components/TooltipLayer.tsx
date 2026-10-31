@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { cx, tooltipSurface } from './ui';
 
 const SHOW_DELAY_MS = 350;
 const EDGE_MARGIN = 8;
@@ -85,7 +86,7 @@ export function TooltipLayer() {
         <div
             ref={bubbleRef}
             role='tooltip'
-            className='pointer-events-none fixed z-[1000] max-w-xs rounded-md border border-line bg-panel-2 px-2 py-1 text-xs text-fg shadow-lg'
+            className={cx(tooltipSurface, 'fixed z-[1000] max-w-xs !whitespace-normal')}
             style={placement ? { left: placement.left, top: placement.top } : { left: -9999, top: -9999 }}
         >
             {tip.text}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { openPath } from '@tauri-apps/plugin-opener';
-import { FolderOpen, LayoutGrid, List, Plus, Settings, Sparkles } from 'lucide-react';
+import { FolderOpen, LayoutGrid, List, Plus, Search, Settings, Sparkles } from 'lucide-react';
 import { toast } from '../lib/toast';
 import { api, errorMessage, type Permissions, type Project } from '../lib/api';
 import { PermissionsBanner } from '../components/PermissionsBanner';
@@ -15,7 +15,7 @@ import { defaultEdit, totalDuration } from '../editor/model';
 import { loadBrandKits, setBrandKits } from '../studio/brandKits';
 import { NewStudioDialog } from '../studio/NewStudioDialog';
 import { templateBackground, templateItems, templateKit, type StudioTemplate } from '../studio/templates';
-import { Button, IconButton, Segmented } from '../components/ui';
+import { Button, IconButton, Segmented, Select, TextInput } from '../components/ui';
 import { SettingsDialog, type SettingsSection } from '../components/SettingsDialog';
 import { useLicense } from '../lib/license';
 
@@ -190,7 +190,7 @@ export function MainWindow() {
                     <span className='flex h-7 w-7 items-center justify-center rounded-lg bg-accent shadow-sm'>
                         <span className='h-2.5 w-2.5 rounded-full bg-white' />
                     </span>
-                    <span className='font-serif text-[17px] font-medium tracking-tight'>Capturita</span>
+                    <span className='text-base font-semibold tracking-tight'>Capturita</span>
                     <div className='ml-auto flex items-center gap-2'>
                         <Button
                             size='sm'
@@ -228,26 +228,22 @@ export function MainWindow() {
                         <section className='flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1'>
                             <div className='flex items-center justify-between gap-3'>
                                 <LibraryHeader recordings={recordings} />
-                                <input
+                                <TextInput
                                     type='search'
+                                    size='sm'
+                                    leading={<Search className='h-3.5 w-3.5' />}
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                     placeholder='Search recordings'
                                     aria-label='Search recordings'
-                                    className='ml-auto h-8 w-48 rounded-lg border border-line bg-panel-2 px-3 text-xs text-fg outline-none focus:border-accent'
+                                    className='ml-auto w-52'
                                 />
-                                <div className='w-56'>
-                                    <Segmented
-                                        size='sm'
-                                        label='Sort by'
-                                        value={sort}
-                                        onChange={setSort}
-                                        options={[
-                                            { value: 'newest', label: 'Newest' },
-                                            { value: 'name', label: 'Name' },
-                                            { value: 'longest', label: 'Longest' },
-                                        ]}
-                                    />
+                                <div className='w-32'>
+                                    <Select aria-label='Sort by' value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className='h-8'>
+                                        <option value='newest'>Newest</option>
+                                        <option value='name'>Name</option>
+                                        <option value='longest'>Longest</option>
+                                    </Select>
                                 </div>
                                 <div className='w-[92px]'>
                                     <Segmented<LibraryView>
