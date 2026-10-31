@@ -451,7 +451,7 @@ export function Modal({ onClose, dismissable = true, className, children, ...res
         aria-modal="true"
         tabIndex={-1}
         className={cx(
-          'max-h-[90vh] w-full overflow-auto rounded-xl border border-line bg-raised text-fg shadow-xl outline-none',
+          'max-h-[90vh] w-full overflow-auto rounded-lg border border-line bg-raised text-fg shadow-xl outline-none',
           !className?.includes('max-w-') && 'max-w-lg',
           className,
         )}
