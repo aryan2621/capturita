@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/* Follows the OS theme; force one with data-theme="light" | "dark" on <html>. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  /* ChatGPT's own fallback stack (OpenAI Sans is proprietary, so not bundled). */
+  --font-display: ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-sans: ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-destructive: var(--destructive);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-forest: var(--forest);
+  --color-forest-foreground: var(--forest-foreground);
+  --shadow-lift: var(--lift);
+}
+
+/* ChatGPT tokens (from the capturita-ui kit), under the landing's existing names. */
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --background: #ffffff; --foreground: #0d0d0d; --card: #ffffff;
+  --primary: #0d0d0d; --primary-foreground: #ffffff; --destructive: #b42318;
+  --muted: #f3f3f3; --muted-foreground: #5d5d5d;
+  --accent: #f3f3f3; --accent-foreground: #0d0d0d;
+  --border: rgb(0 0 0 / 0.10); --forest: #f9f9f9; --forest-foreground: #0d0d0d;
+  --lift: none;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #212121; --foreground: #ececec; --card: #303030;
+  --primary: #ececec; --primary-foreground: #0d0d0d; --destructive: #ff9a9e;
+  --muted: #2b2b2b; --muted-foreground: #b4b4b4;
+  --accent: #2b2b2b; --accent-foreground: #ececec;
+  --border: rgb(255 255 255 / 0.10); --forest: #171717; --forest-foreground: #ececec;
+  --lift: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --background: #212121; --foreground: #ececec; --card: #303030;
+    --primary: #ececec; --primary-foreground: #0d0d0d; --destructive: #ff9a9e;
+    --muted: #2b2b2b; --muted-foreground: #b4b4b4;
+    --accent: #2b2b2b; --accent-foreground: #ececec;
+    --border: rgb(255 255 255 / 0.10); --forest: #171717; --forest-foreground: #ececec;
+    --lift: none;
+  }
+}
+
+/* Hero keyword underline, as on chatgpt.com/overview. */
+
+html { scroll-behavior: smooth; }
+section[id] { scroll-margin-top: 5rem; }
+body { background: var(--background); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-family: var(--font-sans); letter-spacing: -0.035em; text-wrap: balance; }
+p { text-wrap: pretty; }
+:root { accent-color: var(--primary); }
+::selection { background: color-mix(in oklab, var(--primary) 28%, transparent); color: inherit; }
+* { scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent) transparent; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] summary svg { transform: rotate(180deg); }
+
+.feature-story-detail { display: block; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 600ms cubic-bezier(.22,1,.36,1), opacity 400ms ease; }
+.feature-story-detail-active { max-height: 20rem; opacity: 1; }
+.feature-story-label { font-size: 1.125rem; font-weight: 500; transition: font-size 450ms cubic-bezier(.22,1,.36,1); }
+.feature-story-label-active { font-size: 1.5rem; }
+.feature-preview-image { transition: opacity 700ms cubic-bezier(.22,1,.36,1); }
+@media (min-width: 1024px) {
+  /* --fw/--fx/--fs/--fp are written by FeatureShowcase on scroll. */
+  .feature-story-copy { opacity: clamp(0, calc((var(--fp, 0) - 0.55) * 2.2), 1); transform: translate3d(calc((1 - var(--fp, 0)) * -2rem), -50%, 0); pointer-events: auto; }
+  .feature-story-image { width: var(--fw, 62vw); transform: translate3d(var(--fx, 17vw), -50%, 0) scale(var(--fs, 1.18)); transform-origin: left center; will-change: transform; }
+  .feature-decor { opacity: calc(1 - var(--fp, 0) * 2.2); visibility: visible; }
+}
+@keyframes float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -14px; } }
+@keyframes bar { 0%, 100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .feature-story-detail, .feature-story-label, .feature-preview-image { transition-duration: 0.01ms; }
+}
+
+/* ---------- Motion: scroll reveal, hover lift ---------- */
+[data-reveal] { opacity: 0; transform: translateY(28px); transition: opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1); transition-delay: var(--rd, 0ms); }
+[data-reveal].in { opacity: 1; transform: none; }
+.lift { transition: transform .35s cubic-bezier(.22,1,.36,1), border-color .35s, box-shadow .35s; }
+.lift:hover { transform: translateY(-4px); border-color: color-mix(in oklab, var(--foreground) 28%, transparent); box-shadow: 0 18px 40px -18px rgba(0,0,0,.25); }
+a[class*="rounded-full"], button[class*="rounded-full"] { transition: transform .2s ease, background-color .2s, opacity .2s; }
+a[class*="rounded-full"]:active, button[class*="rounded-full"]:active { transform: scale(.97); }
+
+@media (prefers-reduced-motion: reduce) { [data-reveal] { opacity: 1; transform: none; } .lift:hover { transform: none; } }
+.lift[data-reveal] { transition: opacity .9s cubic-bezier(.22,1,.36,1) var(--rd, 0ms), transform .35s cubic-bezier(.22,1,.36,1), border-color .35s, box-shadow .35s; }
+.lift[data-reveal]:not(.in) { transform: translateY(28px); }
+
+/* Tailwind v4 resets buttons to the default cursor; make every enabled button show the pointer. */
+button:not(:disabled), [role="button"] { cursor: pointer; }
+
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Privacy numbers its sections like OpenAI's privacy policy: "1. Title". */
+.legal-numbered { counter-reset: sec; }
+.legal-numbered h2::before { counter-increment: sec; content: counter(sec) ". "; }

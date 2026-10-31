@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "capturita-site",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "capturita-db",
+      "database_id": "83ef1157-aa64-4c04-9253-2443ffbfdc29",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [
+    { "name": "CHECKOUT_LIMITER", "namespace_id": "2002", "simple": { "limit": 10, "period": 60 } },
+    { "name": "LICENSE_LIMITER", "namespace_id": "2012", "simple": { "limit": 20, "period": 60 } }
+  ],
+  "vars": {
+    "SITE_URL": "https://capturita-site.just-a-dev.workers.dev",
+    "SUPPORT_EMAIL": "risha2621@gmail.com",
+    "LICENSE_KID": "v1",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFt5GSAqEKW4O7BC"
+  }
+}

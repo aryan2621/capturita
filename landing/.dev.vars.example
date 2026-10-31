@@ -1,0 +1,17 @@
+# Copy to .dev.vars for local `wrangler dev`. For production use `wrangler secret put NAME`.
+# Placeholders only. Never commit real values.
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+RAZORPAY_WEBHOOK_SECRET=
+# From `pnpm keygen`: PKCS8 base64 private key (secret) and raw 32-byte public key.
+LICENSE_PRIVATE_KEY=
+LICENSE_PUBLIC_KEY_RAW=
+# Long random strings (e.g. `openssl rand -hex 32`).
+ADMIN_TOKEN=
+ORDER_TOKEN_SECRET=
+# Optional: Turnstile is skipped when TURNSTILE_SECRET is unset.
+TURNSTILE_SECRET=
+TURNSTILE_SITE_KEY=
+# Vars (also set in wrangler.jsonc). Override locally if needed.
+SUPPORT_EMAIL=risha2621@gmail.com
+SITE_URL=http://localhost:8787
