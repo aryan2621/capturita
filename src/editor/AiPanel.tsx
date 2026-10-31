@@ -3,7 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { Check, Download, FastForward, Loader2, Scissors, Sparkles, Type, Wand2, X, ZoomIn } from 'lucide-react';
 import { toast } from '../lib/toast';
 import { api, errorMessage, type CaptionProgress, type CursorData, type Project } from '../lib/api';
-import { Button, cx } from '../components/ui';
+import { Button, TextArea, cx } from '../components/ui';
 import { askAi, applyProposals, fillerCuts, pauseCuts, type Proposal } from './aiEdit';
 import { defaultCaptionSource, makeCaptions, speechSources } from './captions';
 import { recordingCaptions, type Edit } from './model';
@@ -257,7 +257,7 @@ export function AiPanel({
             ) : (
                 <>
                     <div className='space-y-2'>
-                        <textarea
+                        <TextArea
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             onKeyDown={(e) => {
@@ -268,7 +268,7 @@ export function AiPanel({
                             }}
                             rows={3}
                             placeholder='Describe an edit, e.g. “cut the part where I talk about pricing”'
-                            className='w-full resize-none rounded-lg border border-line bg-panel-2 p-2 text-sm text-fg outline-none focus:border-accent'
+                            className='resize-none'
                             aria-label='What should the AI change?'
                         />
                         <Button variant='primary' className='w-full' onClick={() => ask()} disabled={!prompt.trim()}>

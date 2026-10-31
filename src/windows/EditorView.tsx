@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from '../lib/toast';
 import { api, errorMessage, fileUrl, formatDuration, isStudio, type CursorData, type Project } from '../lib/api';
-import { Button, IconButton, Popover, RangeInput, Segmented, cx } from '../components/ui';
+import { Button, IconButton, Popover, RangeInput, Segmented, TextInput, cx } from '../components/ui';
 import { CropOverlay } from '../editor/CropOverlay';
 import { ExportDialog } from '../editor/ExportDialog';
 import { useLicense } from '../lib/license';
@@ -1252,13 +1252,13 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                                             },
                                                         ]}
                                                     />
-                                                    <input
+                                                    <TextInput
+                                                        size='sm'
                                                         autoFocus
                                                         value={sceneQuery}
                                                         onChange={(e) => setSceneQuery(e.target.value)}
                                                         placeholder={addAs === 'animation' ? 'Search animations' : 'Search scenes'}
                                                         aria-label='Search scenes'
-                                                        className='h-7 w-full rounded-md border border-line bg-panel-2 px-2 text-xs text-fg outline-none focus:border-accent'
                                                     />
                                                 </div>
                                                 {/* Scrolls once the list outgrows the window, so no scene is cut off. */}

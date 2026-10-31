@@ -4,7 +4,7 @@ import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { ArrowLeft, CheckCircle2, ChevronDown, Clipboard, Cloud, Copy, Download, ExternalLink, FileVideo, FolderOpen, KeyRound, Loader2, LogOut, RotateCw, SquarePlay, X } from 'lucide-react';
 import { toast } from '../lib/toast';
 import { api, errorMessage, formatDuration, GOOGLE_SCOPES, type CursorData, type Destination, type GoogleStatus, type Privacy, type Project } from '../lib/api';
-import { Button, Modal, ProgressBar, Segmented, cx } from '../components/ui';
+import { Button, Modal, ProgressBar, Segmented, TextArea, TextInput, cx } from '../components/ui';
 import { GoogleSection } from '../components/SettingsDialog';
 import { defaultExportName, ExportCancelled, exportSize, exportVideo, type ExportProgress, type ExportSettings, type Quality, type Resolution } from './export';
 import { ASPECTS, totalDuration, type Aspect, type Edit } from './model';
@@ -327,19 +327,16 @@ export function ExportDialog({
                             </Group>
 
                             <Group label='File name'>
-                                <div className='flex h-9 items-center rounded-lg border border-line bg-panel-2 focus-within:border-accent'>
-                                    <input
-                                        value={fileName}
-                                        onChange={(e) => setFileName(e.target.value)}
-                                        onFocus={(e) => e.target.select()}
-                                        placeholder={defaultExportName(project)}
-                                        className='h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none'
-                                        aria-label='File name'
-                                        title='Saved in ~/Movies/Capturita/Exports. If the name is taken, a number is added.'
-                                        spellCheck={false}
-                                    />
-                                    <span className='pr-3 font-mono text-xs text-muted'>{extension}</span>
-                                </div>
+                                <TextInput
+                                    trailing={<span className='font-mono text-xs'>{extension}</span>}
+                                    value={fileName}
+                                    onChange={(e) => setFileName(e.target.value)}
+                                    onFocus={(e) => e.target.select()}
+                                    placeholder={defaultExportName(project)}
+                                    aria-label='File name'
+                                    title='Saved in ~/Movies/Capturita/Exports. If the name is taken, a number is added.'
+                                    spellCheck={false}
+                                />
                             </Group>
 
                             <Group label='Aspect ratios'>
@@ -465,20 +462,19 @@ export function ExportDialog({
                                             )}
                                         </div>
                                     )}
-                                    <input
+                                    <TextInput
                                         value={title}
                                         onChange={(e) => setTitle(e.target.value)}
                                         placeholder='Title'
-                                        className='h-9 w-full rounded-lg border border-line bg-panel-2 px-3 text-sm outline-none focus:border-accent'
                                         aria-label='Title'
                                         title='Title'
                                     />
-                                    <textarea
+                                    <TextArea
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
                                         placeholder='Description (optional)'
                                         rows={2}
-                                        className='w-full resize-none rounded-lg border border-line bg-panel-2 p-2 text-sm outline-none focus:border-accent'
+                                        className='resize-none'
                                         aria-label='Description'
                                         title='Description'
                                     />

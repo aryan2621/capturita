@@ -18,7 +18,7 @@ import {
     ZoomIn,
 } from 'lucide-react';
 import { toast } from '../lib/toast';
-import { Button, ColorField, FontPicker, PositionPad, Segmented, Slider, Switch, ToggleButton, cx } from '../components/ui';
+import { Button, ColorField, FontPicker, PositionPad, Segmented, Slider, Switch, TextArea, ToggleButton, cx } from '../components/ui';
 import { ProFeatureGate } from '../components/ProFeatureGate';
 import { api, errorMessage, fileUrl } from '../lib/api';
 import { backgroundCss } from './render';
@@ -1129,13 +1129,13 @@ function TextSettings({ text, onChange }: { text: TextOverlay; onChange: (text: 
     const set = (partial: Partial<TextOverlay>, key: string) => onChange({ ...text, ...partial }, key);
     return (
         <div className='space-y-5'>
-            <textarea
+            <TextArea
                 value={text.text}
                 onChange={(e) => set({ text: e.target.value }, `text-${text.id}`)}
                 rows={3}
                 autoFocus
                 placeholder='Type something…'
-                className='w-full resize-none rounded-lg border border-line bg-panel-2 p-2 text-sm text-fg outline-none focus:border-accent'
+                className='resize-none'
                 aria-label='Text'
             />
             <FontPicker label='Font' value={text.font} fonts={FONTS} onChange={(font) => set({ font }, 'text-font')} />
