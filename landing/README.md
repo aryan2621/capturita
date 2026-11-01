@@ -19,8 +19,8 @@ pnpm dev
 pnpm deploy
 ```
 
-Official app builds set `CAPTURITA_LICENSE_API_URL` to the storefront (the signing public key is built into the app):
+Official app builds set `CAPTURITA_LICENSE_API_URL` to the storefront and `LICENSE_PUBLIC_KEY` to the storefront's public key (from `pnpm keygen`):
 
 ```sh
-scripts/set-release-vars.sh
+scripts/set-release-vars.sh <LICENSE_PUBLIC_KEY>
 ```

@@ -2,6 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     for name in [
+        "LICENSE_PUBLIC_KEY",
         "CAPTURITA_LICENSE_API_URL",
         "CAPTURITA_BUILD_TS",
     ] {
