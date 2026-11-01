@@ -1,11 +1,11 @@
 import { Check, Minus } from "lucide-react";
 import { Link } from "../router";
 import { SUPPORT_EMAIL, TERMS_URL } from "../config";
-import { usePrice } from "../usePrice";
+import { useProduct } from "../useProduct";
 import { BuyButton, Faq, PageHero, btnPrimary, h2 } from "../components/ui";
 
 export const free = ["Screen and window recording with mic, system audio and camera", "Trim, split, cut, change speed and add cursor zooms", "Standard MP4 and GIF exports", "Recordings stay on your Mac"];
-export const pro = ["On-device captions and subtitle exports", "AI-assisted edits with review before applying", "Studio scenes, animated titles and product showcases", "One year of updates for official Capturita builds"];
+export const pro = (updates: string) => ["On-device captions and subtitle exports", "AI-assisted edits with review before applying", "Studio scenes, animated titles and product showcases", `${updates[0].toUpperCase()}${updates.slice(1)} for official Capturita builds`];
 
 const compare: [string, boolean, boolean][] = [
   ["Screen, window and area recording", true, true],
@@ -19,12 +19,12 @@ const compare: [string, boolean, boolean][] = [
   ["Updates for official builds", false, true],
 ];
 
-const faq = [
-  ["What does one-time mean?", "You pay once. The key includes one year of updates for official Capturita builds. The version you bought remains usable after that; newer builds require a renewed key to unlock Pro."],
+const faqFor = (p: ReturnType<typeof useProduct>) => [
+  ["What does one-time mean?", `You pay once. The key includes ${p.updates} for official Capturita builds. The version you bought remains usable after that; newer builds require a renewed key to unlock Pro.`],
   ["Who handles payment?", "Payment is handled by Razorpay in INR. Card and UPI details go to Razorpay and never touch Capturita. Your license key is shown after payment; save it then."],
   ["How is my key checked?", "The signature is checked on your Mac. Official builds also activate the key online, which records your Mac (a hashed device ID and its name) and checks whether the key has been refunded. If the service is unreachable, the app allows up to 30 days since its last successful check for offline use."],
-  ["Can I get a refund?", "Yes, within 14 days of purchase. Email your purchase email and order ID; see the refund page."],
-  ["Can I use it on more than one computer?", "Yes, up to 2 Macs per key. To move it, choose Remove in Settings → License on the old Mac, or email support. Do not share or resell it."],
+  ["Can I get a refund?", `Yes, within ${p.refundDays} of purchase. Email your purchase email and order ID; see the refund page.`],
+  ["Can I use it on more than one computer?", `Yes, a key works on ${p.upTo}. To move it, choose Remove in Settings → License on the old Mac, or email support. Do not share or resell it.`],
 ];
 
 function Plan({ name, tagline, price, unit, list, lead, cta }: { name: string; tagline: string; price: string; unit?: string; list: string[]; lead?: string; cta: React.ReactNode }) {
@@ -43,17 +43,17 @@ function Plan({ name, tagline, price, unit, list, lead, cta }: { name: string; t
 }
 
 export default function Pricing() {
-  const price = usePrice();
+  const product = useProduct();
   return (
     <>
       <PageHero title="Pricing"><p>Record and edit for free. Upgrade once for captions, AI editing and Studio.</p></PageHero>
       <section className="mx-auto w-full max-w-4xl px-5 pb-16 sm:px-8">
         <div className="grid gap-5 md:grid-cols-2">
           <Plan name="Free" tagline="Record and edit" price="₹0" list={free} cta={<Link to="/download" className={`${btnPrimary} w-full`}>Download free</Link>} />
-          <Plan name="Pro" tagline="Captions, AI and Studio" price={price} unit="one-time" lead="Everything in Free and:" list={pro} cta={<BuyButton className={`${btnPrimary} w-full`} />} />
+          <Plan name="Pro" tagline="Captions, AI and Studio" price={product.price} unit="one-time" lead="Everything in Free and:" list={pro(product.updates)} cta={<BuyButton className={`${btnPrimary} w-full`} />} />
         </div>
         <p className="mt-6 text-sm text-muted-foreground">
-          Payment is by Razorpay (INR); the key is shown after payment and activated online on up to 2 Macs. See <a href={TERMS_URL} className="underline">Terms</a>.
+          Payment is by Razorpay (INR); the key is shown after payment and activated online on {product.upTo}. See <a href={TERMS_URL} className="underline">Terms</a>.
         </p>
       </section>
 
@@ -74,7 +74,7 @@ export default function Pricing() {
 
       <section aria-labelledby="faq-h" className="mx-auto w-full max-w-4xl px-5 py-12 pb-24 sm:px-8">
         <h2 id="faq-h" className={`mb-6 ${h2}`}>Questions</h2>
-        <Faq items={faq} />
+        <Faq items={faqFor(product)} />
         <p className="mt-6 text-sm text-muted-foreground">More questions? <Link to="/support" className="underline">Support</Link> · <a className="underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></p>
       </section>
     </>

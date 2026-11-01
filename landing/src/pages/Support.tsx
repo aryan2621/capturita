@@ -1,15 +1,17 @@
 import { Link } from "../router";
+import { useProduct } from "../useProduct";
 import { ACCOUNT_URL, REFUNDS_URL, SUPPORT_EMAIL } from "../config";
 import { LegalPage, LegalSection } from "../components/ui";
 
-const fixes = [
+const fixesFor = (upTo: string) => [
   ["Screen recording is blank", "Open System Settings → Privacy & Security → Screen & System Audio Recording, enable Capturita, then quit and reopen the app."],
   ["Microphone or camera is unavailable", "Check the relevant permission under System Settings → Privacy & Security. Microphone and Camera access are optional."],
   ["Capturita will not open", "Unsigned downloads may require approval in System Settings → Privacy & Security. The install page includes the steps."],
-  ["A Pro key is not accepted", "Check that the full key was copied, including the period between its two parts. A key unlocks up to 2 Macs and official builds released within the update period. If you see a device-limit message, choose Remove in Settings → License on one of those Macs, or remove a device from your storefront account (link below), or email support. The first activation needs the internet."],
+  ["A Pro key is not accepted", `Check that the full key was copied, including the period between its two parts. A key unlocks ${upTo} and official builds released within the update period. If you see a device-limit message, choose Remove in Settings → License on one of those Macs, or remove a device from your storefront account (link below), or email support. The first activation needs the internet.`],
 ];
 
 export default function Support() {
+  const fixes = fixesFor(useProduct().upTo);
   return (
     <LegalPage title="Support" intro="Help with installation, recording, or your Pro purchase.">
       <LegalSection title="Troubleshooting">

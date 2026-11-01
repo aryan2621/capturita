@@ -1,3 +1,4 @@
+import { useProduct } from "../useProduct";
 import { Link } from "../router";
 import { DownloadButton, h1, lead, prose, wrap } from "../components/ui";
 
@@ -13,6 +14,7 @@ function Tile({ img, alt, flip, children }: { img: string; alt: string; flip?: b
 }
 
 export default function Download() {
+  const { updates } = useProduct();
   return (
     <div className={`${wrap} max-w-5xl space-y-24 py-12 sm:py-20`}>
       <Tile img="/screenshots/editor-motion.jpg" alt="Capturita editor with zoom and cursor controls">
@@ -36,7 +38,7 @@ export default function Download() {
             <li>On first launch, grant Screen Recording permission. Microphone and Camera are optional.</li>
           </ol>
           <p>After purchase, copy the license key from the thank-you page, then open <strong>Settings → License</strong> in Capturita, paste it and choose <strong>Activate</strong>. See <Link to="/pricing">pricing</Link> for the full feature split.</p>
-          <p className="text-muted-foreground">A Pro purchase includes one year of updates for official builds; the version you bought stays usable after that.</p>
+          <p className="text-muted-foreground">A Pro purchase includes {updates} for official builds; the version you bought stays usable after that.</p>
         </div>
       </Tile>
     </div>

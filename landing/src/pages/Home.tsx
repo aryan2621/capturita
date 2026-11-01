@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Captions, FileVideo, Mic, Rocket, X } from "lucide-react";
 import { Link } from "../router";
 import { DownloadButton, btnPrimary, btnSecondary, h2, lead, wrap } from "../components/ui";
+import { useProduct } from "../useProduct";
 import { features } from "../features";
 
 const stickyTop = 64; // matches the 4rem nav
@@ -230,13 +231,14 @@ function UseCases() {
 }
 
 function Safety() {
+  const { refundWindow, updates } = useProduct();
   return (
     <section aria-labelledby="safe-h" className="py-20 text-center sm:py-28">
       <div className={wrap} data-reveal>
         <h2 id="safe-h" className={h2}>Designed to keep your recordings yours</h2>
         <p className={`mx-auto mt-4 max-w-2xl ${lead}`}>Capturita is built around your privacy: recordings, captions and AI editing stay on your Mac unless you choose to share them.</p>
         <div className="mx-auto mt-10 grid max-w-4xl gap-5 text-left md:grid-cols-2">
-          {[["On-device by default", "Captions and AI editing run on your Mac. Cloud AI and Google uploads are opt-in.", "/privacy", "Privacy"], ["Pay once, keep it", "Pro is a one-time purchase with a 14-day refund window and a year of updates.", "/pricing", "Pricing"]].map(([t, d, to, cta]) => (
+          {[["On-device by default", "Captions and AI editing run on your Mac. Cloud AI and Google uploads are opt-in.", "/privacy", "Privacy"], ["Pay once, keep it", `Pro is a one-time purchase with a ${refundWindow} and ${updates}.`, "/pricing", "Pricing"]].map(([t, d, to, cta]) => (
             <article key={t} className="lift rounded-2xl border border-border p-6">
               <h3 className="text-xl font-medium">{t}</h3>
               <p className="mt-3 text-muted-foreground">{d}</p>
