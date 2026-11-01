@@ -393,11 +393,11 @@ pub async fn activate_license(key: String) -> Result<LicenseState, String> {
 #[tauri::command]
 pub async fn remove_license() -> Result<(), String> {
     if let (Some(key), Ok(device)) = (keychain_value(KEY_ACCOUNT), device_id()) {
-        if let (false, Ok(payload)) = (STATUS_URL.is_empty(), verify(&key)) {
+        if !STATUS_URL.is_empty() {
             let _ = reqwest::Client::new()
                 .post(STATUS_URL.replace("/activate", "/deactivate"))
                 .timeout(std::time::Duration::from_secs(5))
-                .json(&json!({ "product_id": PRODUCT, "license_id": payload.lic, "device_id": device }))
+                .json(&json!({ "product_id": PRODUCT, "key": key, "device_id": device }))
                 .send()
                 .await;
         }
