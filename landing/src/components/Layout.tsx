@@ -6,11 +6,11 @@ import { useReveal } from "./Motion";
 export default function Layout({ children }: { children: ReactNode }) {
   useReveal();
   return (
-    <>
+    <div className="flex min-h-dvh flex-col">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-card focus:p-2">Skip to content</a>
       <Nav />
-      <main id="main">{children}</main>
+      <main id="main" className="flex-1">{children}</main>
       <Footer />
-    </>
+    </div>
   );
 }
