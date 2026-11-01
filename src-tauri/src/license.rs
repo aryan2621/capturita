@@ -35,9 +35,11 @@ struct Payload {
 
 #[derive(Deserialize)]
 struct ActivationToken {
-    typ: String,
-    lic: String,
-    dev: String,
+    #[serde(rename = "type")]
+    kind: String,
+    product: String,
+    license_id: String,
+    device_id: String,
     iat: u64,
     exp: u64,
 }
@@ -49,12 +51,12 @@ struct ActivateReply {
 
 #[derive(Deserialize)]
 struct DeviceInfo {
-    name: Option<String>,
+    device_name: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
 struct ErrorReply {
-    code: Option<String>,
+    error: Option<String>,
     devices: Option<Vec<DeviceInfo>>,
 }
 
@@ -237,7 +239,7 @@ async fn check_online(key: &str) -> Result<Check, String> {
     let response = reqwest::Client::new()
         .post(STATUS_URL)
         .timeout(std::time::Duration::from_secs(8))
-        .json(&json!({ "key": key, "device_id": device_id()?, "device_name": device_name() }))
+        .json(&json!({ "key": key, "product_id": PRODUCT, "device_id": device_id()?, "device_name": device_name() }))
         .send()
         .await
         .map_err(|error| format!("Could not reach the license service: {error}"))?;
@@ -251,14 +253,14 @@ async fn check_online(key: &str) -> Result<Check, String> {
     }
     let reply: ErrorReply = response.json().await.unwrap_or_default();
     // Only an explicit answer from our server revokes; a wrong URL or proxy error must never delete a buyer's key.
-    match (status, reply.code.as_deref()) {
-        (403 | 404, Some("revoked" | "invalid_key")) => Ok(Check::Revoked),
+    match (status, reply.error.as_deref()) {
+        (402 | 403 | 404, Some("revoked" | "invalid_key")) => Ok(Check::Revoked),
         (409, Some("seat_limit")) => {
             let names: Vec<String> = reply
                 .devices
                 .unwrap_or_default()
                 .into_iter()
-                .map(|d| d.name.unwrap_or_else(|| "Unnamed Mac".into()))
+                .map(|d| d.device_name.unwrap_or_else(|| "Unnamed Mac".into()))
                 .collect();
             Ok(Check::SeatLimit(format!(
                 "This license is already active on {}. Remove it from one of those Macs (Settings → License → Remove), or email support to free a seat.",
@@ -274,7 +276,7 @@ fn verify_activation(token: &str, public_key: &str, lic: &str, device: &str, now
     let (body, signature) = token.split_once('.').ok_or("Invalid activation")?;
     let bytes = verify_signature(body, signature, public_key)?;
     let t: ActivationToken = serde_json::from_slice(&bytes).map_err(|_| "Invalid activation")?;
-    if t.typ != "activation" || t.lic != lic || t.dev != device {
+    if t.kind != "device_activate" || t.product != PRODUCT || t.license_id != lic || t.device_id != device {
         return Err("This activation belongs to a different license or device".into());
     }
     if now > t.exp {
@@ -391,11 +393,11 @@ pub async fn activate_license(key: String) -> Result<LicenseState, String> {
 #[tauri::command]
 pub async fn remove_license() -> Result<(), String> {
     if let (Some(key), Ok(device)) = (keychain_value(KEY_ACCOUNT), device_id()) {
-        if !STATUS_URL.is_empty() {
+        if let (false, Ok(payload)) = (STATUS_URL.is_empty(), verify(&key)) {
             let _ = reqwest::Client::new()
                 .post(STATUS_URL.replace("/activate", "/deactivate"))
                 .timeout(std::time::Duration::from_secs(5))
-                .json(&json!({ "key": key, "target": device }))
+                .json(&json!({ "product_id": PRODUCT, "license_id": payload.lic, "device_id": device }))
                 .send()
                 .await;
         }
@@ -455,7 +457,7 @@ mod tests {
     fn activation_token_is_bound_to_license_device_and_time() {
         let sk = SigningKey::from_bytes(&[7; 32]);
         let public_key = STANDARD.encode(sk.verifying_key().to_bytes());
-        let body = r#"{"typ":"activation","lic":"lic_1","dev":"dev_1","iat":1000000,"exp":2000000}"#;
+        let body = r#"{"type":"device_activate","product":"capturita","kid":"v1","license_id":"lic_1","device_id":"dev_1","iat":1000000,"exp":2000000}"#;
         let token = format!("{}.{}", STANDARD.encode(body), STANDARD.encode(sk.sign(body.as_bytes()).to_bytes()));
         assert!(verify_activation(&token, &public_key, "lic_1", "dev_1", 1500000).is_ok());
         assert!(verify_activation(&token, &public_key, "lic_2", "dev_1", 1500000).is_err(), "other license");

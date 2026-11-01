@@ -7,10 +7,6 @@ import Download from "./pages/Download";
 import Features from "./pages/Features";
 import Support from "./pages/Support";
 import Privacy from "./pages/Privacy";
-import Terms from "./pages/Terms";
-import Refunds from "./pages/Refunds";
-import Success from "./pages/Success";
-import { BuyProvider } from "./components/Buy";
 import NotFound from "./pages/NotFound";
 
 const routes: Record<string, [ComponentType, string]> = {
@@ -20,9 +16,6 @@ const routes: Record<string, [ComponentType, string]> = {
   "/download": [Download, "Download · Capturita"],
   "/support": [Support, "Support · Capturita"],
   "/privacy": [Privacy, "Privacy · Capturita"],
-  "/terms": [Terms, "Terms · Capturita"],
-  "/refunds": [Refunds, "Refunds · Capturita"],
-  "/success": [Success, "Thank you · Capturita"],
 };
 
 export default function App() {
@@ -32,5 +25,5 @@ export default function App() {
     document.title = title;
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [path, title]);
-  return <BuyProvider><Layout><Page /></Layout></BuyProvider>;
+  return <Layout><Page /></Layout>;
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Link, usePath } from "../router";
 import { Logo, btnPrimary, btnSecondary, wrap } from "./ui";
-import { BuyButton } from "./Buy";
+import { BuyButton } from "./ui";
 
 const links = [["/features", "Features"], ["/pricing", "Pricing"], ["/download", "Download"], ["/support", "Support"]];
 

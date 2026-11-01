@@ -1,8 +1,8 @@
 import { Check, Minus } from "lucide-react";
 import { Link } from "../router";
-import { SUPPORT_EMAIL } from "../config";
-import { Faq, PageHero, btnPrimary, h2 } from "../components/ui";
-import { BuyButton } from "../components/Buy";
+import { SUPPORT_EMAIL, TERMS_URL } from "../config";
+import { usePrice } from "../usePrice";
+import { BuyButton, Faq, PageHero, btnPrimary, h2 } from "../components/ui";
 
 export const free = ["Screen and window recording with mic, system audio and camera", "Trim, split, cut, change speed and add cursor zooms", "Standard MP4 and GIF exports", "Recordings stay on your Mac"];
 export const pro = ["On-device captions and subtitle exports", "AI-assisted edits with review before applying", "Studio scenes, animated titles and product showcases", "One year of updates for official Capturita builds"];
@@ -43,16 +43,17 @@ function Plan({ name, tagline, price, unit, list, lead, cta }: { name: string; t
 }
 
 export default function Pricing() {
+  const price = usePrice();
   return (
     <>
       <PageHero title="Pricing"><p>Record and edit for free. Upgrade once for captions, AI editing and Studio.</p></PageHero>
       <section className="mx-auto w-full max-w-4xl px-5 pb-16 sm:px-8">
         <div className="grid gap-5 md:grid-cols-2">
           <Plan name="Free" tagline="Record and edit" price="₹0" list={free} cta={<Link to="/download" className={`${btnPrimary} w-full`}>Download free</Link>} />
-          <Plan name="Pro" tagline="Captions, AI and Studio" price="₹999" unit="one-time" lead="Everything in Free and:" list={pro} cta={<BuyButton className={`${btnPrimary} w-full`} />} />
+          <Plan name="Pro" tagline="Captions, AI and Studio" price={price} unit="one-time" lead="Everything in Free and:" list={pro} cta={<BuyButton className={`${btnPrimary} w-full`} />} />
         </div>
         <p className="mt-6 text-sm text-muted-foreground">
-          Payment is by Razorpay (INR); the key is shown after payment and activated online on up to 2 Macs. See <Link to="/terms" className="underline">Terms</Link>.
+          Payment is by Razorpay (INR); the key is shown after payment and activated online on up to 2 Macs. See <a href={TERMS_URL} className="underline">Terms</a>.
         </p>
       </section>
 

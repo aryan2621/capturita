@@ -1,5 +1,5 @@
 import { Link } from "../router";
-import { LEGAL_NAME, SUPPORT_EMAIL } from "../config";
+import { LEGAL_NAME, REFUNDS_URL, SUPPORT_EMAIL, TERMS_URL } from "../config";
 import { wrap } from "./ui";
 
 const col = "flex flex-col gap-1 [&_a]:flex [&_a]:min-h-8 [&_a]:items-center [&_a:hover]:text-foreground";
@@ -15,7 +15,7 @@ export default function Footer() {
         </div>
         <div className={col}>
           <h2 className={head}>Legal</h2>
-          <Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/refunds">Refunds</Link>
+          <Link to="/privacy">Privacy</Link><a href={TERMS_URL}>Terms</a><a href={REFUNDS_URL}>Refunds</a>
         </div>
         <div className={col}>
           <h2 className={head}>Support</h2>

@@ -1,13 +1,12 @@
 import { Link } from "../router";
-import { SUPPORT_EMAIL } from "../config";
+import { ACCOUNT_URL, REFUNDS_URL, SUPPORT_EMAIL } from "../config";
 import { LegalPage, LegalSection } from "../components/ui";
-import { RecoverKey } from "../components/RecoverKey";
 
 const fixes = [
   ["Screen recording is blank", "Open System Settings → Privacy & Security → Screen & System Audio Recording, enable Capturita, then quit and reopen the app."],
   ["Microphone or camera is unavailable", "Check the relevant permission under System Settings → Privacy & Security. Microphone and Camera access are optional."],
   ["Capturita will not open", "Unsigned downloads may require approval in System Settings → Privacy & Security. The install page includes the steps."],
-  ["A Pro key is not accepted", "Check that the full key was copied, including the period between its two parts. A key unlocks up to 2 Macs and official builds released within the update period. If you see a device-limit message, choose Remove in Settings → License on one of those Macs, or email support. The first activation needs the internet."],
+  ["A Pro key is not accepted", "Check that the full key was copied, including the period between its two parts. A key unlocks up to 2 Macs and official builds released within the update period. If you see a device-limit message, choose Remove in Settings → License on one of those Macs, or remove a device from your storefront account (link below), or email support. The first activation needs the internet."],
 ];
 
 export default function Support() {
@@ -24,7 +23,7 @@ export default function Support() {
       </LegalSection>
 
       <LegalSection title="Refunds">
-        <p>Refund requests are covered on the <Link to="/refunds">refunds page</Link>.</p>
+        <p>Refund requests are covered on the <a href={REFUNDS_URL}>refunds page</a>.</p>
       </LegalSection>
 
       <LegalSection title="Contact">
@@ -32,9 +31,8 @@ export default function Support() {
       </LegalSection>
 
       <LegalSection title="Lost your key?">
-        <p>Enter the email you bought with and the payment ID from your Razorpay receipt email.</p>
-        <RecoverKey />
-        <p>No receipt? Write from your purchase email address and we will help.</p>
+        <p>Sign in to your <a href={ACCOUNT_URL}>storefront account</a> to see your key, receipts and activated Macs, and to remove a Mac.</p>
+        <p>Can't sign in? Write from your purchase email address and we will help.</p>
       </LegalSection>
     </LegalPage>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Download } from "lucide-react";
+import { BUY_URL } from "../config";
 import { detectOS, RELEASES, useInstaller } from "../useInstaller";
 
 export const wrap = "mx-auto w-full max-w-6xl px-5 sm:px-8";
@@ -102,3 +103,8 @@ export function PageHero({ title, children, icon }: { title: ReactNode; children
 }
 
 export const btnLink = "inline-flex min-h-11 items-center gap-1.5 px-4 text-[15px] font-medium text-foreground hover:underline";
+
+/** Any "Buy Pro" button. Checkout lives on the storefront. */
+export function BuyButton({ className = btnPrimary }: { className?: string }) {
+  return <a href={BUY_URL} className={className}>Buy Pro</a>;
+}
