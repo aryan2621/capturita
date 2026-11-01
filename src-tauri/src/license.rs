@@ -9,10 +9,9 @@ const KEY_ACCOUNT: &str = "pro-key";
 const ACTIVATION_ACCOUNT: &str = "activation-token";
 const REVOKED_ACCOUNT: &str = "revoked-license-id";
 const PRODUCT: &str = "capturita";
-const PUBLIC_KEY: &str = match option_env!("CAPTURITA_LICENSE_PUBKEY") {
-    Some(key) => key,
-    None => "",
-};
+/// Official builds are the ones built with the storefront URL; without it the app is an unrestricted source build.
+/// The storefront's one signing key for every product (raw 32-byte Ed25519, base64). Public by design.
+const PUBLIC_KEY: &str = "dX+E+vjFryz9+ImS8fDpCuE1JU37BbVgd6G4W2hTQ44=";
 const STATUS_URL: &str = match option_env!("CAPTURITA_LICENSE_API_URL") {
     Some(url) => url,
     None => "",
@@ -74,7 +73,7 @@ pub struct LicenseState {
 
 impl Default for LicenseState {
     fn default() -> Self {
-        let source_build = PUBLIC_KEY.is_empty();
+        let source_build = STATUS_URL.is_empty();
         Self {
             supported: !source_build,
             pro: source_build,
@@ -408,7 +407,7 @@ pub async fn remove_license() -> Result<(), String> {
 
 /// Guard paid Tauri commands as well as the UI; online checks are refreshed by the app provider.
 pub fn require_pro() -> Result<(), String> {
-    if PUBLIC_KEY.is_empty() {
+    if STATUS_URL.is_empty() {
         return Ok(());
     }
     let key = keychain_value(KEY_ACCOUNT)
@@ -471,7 +470,7 @@ mod tests {
     #[test]
     fn source_builds_keep_pro_features_unrestricted() {
         let state = LicenseState::default();
-        assert_eq!(state.supported, !PUBLIC_KEY.is_empty());
-        assert_eq!(state.pro, PUBLIC_KEY.is_empty());
+        assert_eq!(state.supported, !STATUS_URL.is_empty());
+        assert_eq!(state.pro, STATUS_URL.is_empty());
     }
 }

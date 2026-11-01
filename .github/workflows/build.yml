@@ -19,7 +19,6 @@ jobs:
     name: Capturita (macOS)
     runs-on: macos-15
     env:
-      CAPTURITA_LICENSE_PUBKEY: ${{ vars.CAPTURITA_LICENSE_PUBKEY }}
       CAPTURITA_LICENSE_API_URL: ${{ vars.CAPTURITA_LICENSE_API_URL }}
     steps:
       - uses: actions/checkout@v5
@@ -43,7 +42,6 @@ jobs:
       - name: Check release license configuration
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          test -n "$CAPTURITA_LICENSE_PUBKEY" || { echo "Set the CAPTURITA_LICENSE_PUBKEY repository variable before releasing."; exit 1; }
           test -n "$CAPTURITA_LICENSE_API_URL" || { echo "Set the CAPTURITA_LICENSE_API_URL repository variable before releasing."; exit 1; }
 
       # The Tauri build first compiles the Swift ScreenCaptureKit helper (npm run build:recorder).

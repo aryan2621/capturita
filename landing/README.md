@@ -19,8 +19,8 @@ pnpm dev
 pnpm deploy
 ```
 
-Official app builds must use the storefront's licence public key and `https://storefront.just-a-dev.workers.dev/api/licenses/activate`:
+Official app builds set `CAPTURITA_LICENSE_API_URL` to the storefront (the signing public key is built into the app):
 
 ```sh
-scripts/set-release-vars.sh <LICENSE_PUBLIC_KEY_RAW>
+scripts/set-release-vars.sh
 ```
