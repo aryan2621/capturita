@@ -31,3 +31,5 @@ recorder/.build/
 
 # Lockfiles are not committed
 package-lock.json
+pnpm-lock.yaml
+yarn.lock
