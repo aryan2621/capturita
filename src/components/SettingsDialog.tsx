@@ -208,8 +208,8 @@ function LicenseSection() {
     return (
         <div className='space-y-5'>
             <Card>
-                <div className='flex items-start gap-3'>
-                    <span className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', license.pro ? 'bg-success-soft text-success-fg' : 'bg-raised text-muted')}>
+                <div className='flex items-center gap-4'>
+                    <span className={cx('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', license.pro ? 'bg-success-soft text-success-fg' : 'bg-raised text-muted')}>
                         {license.pro ? <Check className='h-4 w-4' /> : <KeyRound className='h-4 w-4' />}
                     </span>
                     <div className='min-w-0 flex-1'>
@@ -217,6 +217,7 @@ function LicenseSection() {
                             {license.pro ? 'Capturita Pro is active' : 'Capturita Free'}
                             <Badge tone={license.pro ? 'success' : 'neutral'}>{license.pro ? 'Pro' : 'Not activated'}</Badge>
                         </p>
+                        {!license.pro && <p className='mt-0.5 text-xs text-muted'>Paste a key below to unlock Pro.</p>}
                         {license.email && <p className='mt-0.5 truncate text-xs text-muted'>{license.email}</p>}
                         {license.updatesUntil && <p className='mt-1 text-xs text-muted'>Updates through {new Date(license.updatesUntil * 1000).toLocaleDateString()}.</p>}
                     </div>

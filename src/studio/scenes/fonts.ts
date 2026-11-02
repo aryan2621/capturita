@@ -13,6 +13,12 @@ import '@fontsource-variable/playfair-display';
 import '@fontsource-variable/fraunces';
 import '@fontsource-variable/bricolage-grotesque';
 import '@fontsource-variable/geist-mono';
+import '@fontsource/barlow/400.css';
+import '@fontsource/barlow/500.css';
+import '@fontsource/barlow/700.css';
+import '@fontsource/barlow-condensed/600.css';
+import '@fontsource/barlow-condensed/700.css';
+import '@fontsource/barlow-condensed/800.css';
 import { useEffect, useState } from 'react';
 import { continueRender, delayRender } from 'remotion';
 
@@ -29,7 +35,9 @@ export type SceneFont =
     | 'playfair'
     | 'fraunces'
     | 'bricolage'
-    | 'geist-mono';
+    | 'geist-mono'
+    | 'barlow'
+    | 'barlow-condensed';
 
 /** The bundled fonts brand kits choose from, with the CSS stack scenes set. */
 export const SCENE_FONTS: { value: SceneFont; label: string; stack: string }[] = [
@@ -46,6 +54,8 @@ export const SCENE_FONTS: { value: SceneFont; label: string; stack: string }[] =
     { value: 'playfair', label: 'Playfair Display', stack: "'Playfair Display Variable', Georgia, serif" },
     { value: 'fraunces', label: 'Fraunces', stack: "'Fraunces Variable', Georgia, serif" },
     { value: 'geist-mono', label: 'Geist Mono', stack: "'Geist Mono Variable', ui-monospace, monospace" },
+    { value: 'barlow', label: 'Barlow', stack: "'Barlow', system-ui, sans-serif" },
+    { value: 'barlow-condensed', label: 'Barlow Condensed', stack: "'Barlow Condensed', 'Barlow', system-ui, sans-serif" },
 ];
 
 /** The CSS family name (first in the stack), for loading and measuring. */

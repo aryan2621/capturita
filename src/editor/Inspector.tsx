@@ -747,7 +747,7 @@ function ZoomPanel({ edit, onChange, hasClicks, onAutoZoom, onAddZoom, onApplyZo
                     />
                 </div>
                 <Slider
-                    label='Motion blur (zoom and cursor)'
+                    label='Motion blur (zoom)'
                     value={edit.motion.blur}
                     min={0}
                     max={1}

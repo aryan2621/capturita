@@ -188,18 +188,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, width: number, height: 
             const point = toFrame(pointer.x, pointer.y);
             const press = style.pressEffect ? pressAmount(time - lastClick) : 0;
             const size = CURSOR_POINTS * unit * (1 - PRESS_DEPTH * press);
-            // Motion blur: fainter copies along where the cursor just was, in frame pixels.
-            const blur = edit.motion.blur;
-            const before = blur > 0 ? smoothCursorAt(cursor, time - (SHUTTER * 4) * blur, style.animation) : null;
-            const trail = before ? toFrame(before.x, before.y) : point;
-            const distance = Math.hypot(point.x - trail.x, point.y - trail.y);
-            const copies = Math.min(8, Math.floor(distance / Math.max(1, size * 0.08)));
             ctx.save();
-            for (let i = copies; i >= 1; i--) {
-                const k = i / (copies + 1);
-                ctx.globalAlpha = alpha * (1 - k) * 0.35;
-                drawCursor(ctx, shape, point.x + (trail.x - point.x) * k, point.y + (trail.y - point.y) * k, size);
-            }
             ctx.globalAlpha = alpha;
             drawCursor(ctx, shape, point.x, point.y, size);
             ctx.restore();
@@ -699,8 +688,8 @@ function drawHand(ctx: CanvasRenderingContext2D, x: number, y: number, size: num
     ctx.translate(x - 137 * k, y - 45 * k);
     ctx.scale(k, k);
     ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
-    ctx.shadowBlur = 3 / k;
-    ctx.shadowOffsetY = 1 / k;
+    ctx.shadowBlur = 3 * k; // shadow values ignore the transform, so scale them by hand
+    ctx.shadowOffsetY = 1 * k;
     ctx.fillStyle = '#fff';
     ctx.fill(HAND);
     ctx.shadowColor = 'transparent';

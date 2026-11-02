@@ -28,3 +28,6 @@ src-tauri/binaries/
 # Built by scripts/build-studio-renderer.sh
 src-tauri/studio-runtime/
 recorder/.build/
+
+# Lockfiles are not committed
+package-lock.json

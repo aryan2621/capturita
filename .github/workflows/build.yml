@@ -27,7 +27,6 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -38,7 +37,7 @@ jobs:
       - name: Tool versions
         run: swift --version && rustc --version && node --version
 
-      - run: npm ci
+      - run: npm install
 
       - name: Check release license configuration
         if: startsWith(github.ref, 'refs/tags/v')
