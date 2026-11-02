@@ -104,7 +104,7 @@ mkdir -p "$STAGE"
 # The development renderer has @remotion/bundler; it bundles against the app's own remotion and
 # react, exactly as the preview runs them.
 if [[ ! -d "$ROOT/studio-renderer/node_modules/@remotion/bundler" ]]; then
-  (cd "$ROOT/studio-renderer" && npm install --no-audit --no-fund > /dev/null)
+  (cd "$ROOT/studio-renderer" && npm ci --no-audit --no-fund > /dev/null)
 fi
 node "$ROOT/studio-renderer/render.mjs" --build-bundle "$STAGE/bundle"
 # Keep the source maps: renderMedia reads bundle.js.map from a local serve folder.
