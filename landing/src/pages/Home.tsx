@@ -134,7 +134,7 @@ function FeatureShowcase({ mode }: { mode: number }) {
 
   return (
     <section id="features" aria-label="Features" className="overflow-x-clip">
-      <div ref={trackRef} className="relative lg:h-[520svh]">
+      <div ref={trackRef} className="relative lg:h-[380svh]">
         <div ref={stageRef} className="feature-story-stage relative px-5 py-10 sm:px-8 lg:sticky lg:top-16 lg:h-[calc(100svh-4rem)] lg:p-0">
           <HeroDecor mode={mode} />
           <div
@@ -197,7 +197,7 @@ const cases: { title: string; text: string; art: ReactNode }[] = [
     art: <div className={`${pane} left-[14%] top-[48%] p-4`}><p className="text-xs text-muted-foreground">Timeline</p><div className="relative mt-3 space-y-2"><div className="h-7 w-[90%] rounded-md bg-[#cfe6c4]" /><div className="ml-[22%] h-7 w-[40%] rounded-md bg-[#bcd3f5]" /></div><span className="mt-4 inline-block rounded-full border border-border px-3 py-1 text-xs">Zoom 1.6×</span></div> },
   { title: "Tutorials", text: "Turn speech into captions on your Mac so every step is easy to follow, with nothing uploaded.",
     art: <div className={`${pane} left-[10%] top-[50%] p-5`}><p className="text-sm font-semibold">Captions</p><ul className="mt-3 space-y-2 font-mono text-xs text-muted-foreground"><li>00:03 Open Settings</li><li>00:07 Choose Captions</li><li className="text-foreground">00:11 Pick a model</li></ul><span className="absolute right-3 top-3 rounded-full bg-foreground px-3 py-1 text-xs text-background">On this Mac</span></div> },
-  { title: "Bug reports", text: "Show exactly what happened. Trim the dead time, circle the problem and send a short clip.",
+  { title: "Bug reports", text: "Show exactly what happened. Trim the dead time, hide anything private and send a short clip.",
     art: <div className="absolute bottom-10 left-6 right-6"><div className="relative flex items-center gap-3 rounded-2xl bg-background p-3 pr-6 shadow-lg"><span className="grid size-12 place-items-center rounded-xl bg-[#2f6bff] text-white"><FileVideo size={24} aria-hidden /></span><span><span className="block text-base font-semibold">checkout-bug.mp4</span><span className="text-sm text-muted-foreground">Video · 0:24</span></span><span className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-foreground text-background"><X size={14} aria-hidden /></span></div></div> },
   { title: "Release notes", text: "Export a tight GIF or MP4 of what changed and drop it straight into your changelog.",
     art: <div className={`${pane} left-[12%] top-[52%] p-5`}><p className="text-sm font-semibold">Export</p><div className="mt-3 flex gap-2 text-xs"><span className="rounded-full bg-foreground px-3 py-1 text-background">GIF</span><span className="rounded-full border border-border px-3 py-1">MP4</span></div><span className="mt-5 block rounded-full bg-foreground py-2 text-center text-xs text-background">Export</span></div> },
@@ -207,7 +207,7 @@ function UseCases() {
   const rail = useRef<HTMLDivElement>(null);
   const go = (dir: number) => rail.current?.scrollBy({ left: dir * 400, behavior: "smooth" });
   return (
-    <section aria-labelledby="uses-h" className="py-20 sm:py-28">
+    <section aria-labelledby="uses-h" className="py-14 sm:py-20">
       <div className={`${wrap} text-center`} data-reveal>
         <h2 id="uses-h" className={`mx-auto max-w-3xl ${h2}`}>Use Capturita for demos, docs, and everything in between.</h2>
         <div className="mt-8 flex justify-center gap-4">
@@ -233,7 +233,7 @@ function UseCases() {
 function Safety() {
   const { refundWindow, updates } = useProduct();
   return (
-    <section aria-labelledby="safe-h" className="py-20 text-center sm:py-28">
+    <section aria-labelledby="safe-h" className="py-14 text-center sm:py-20">
       <div className={wrap} data-reveal>
         <h2 id="safe-h" className={h2}>Designed to keep your recordings yours</h2>
         <p className={`mx-auto mt-4 max-w-2xl ${lead}`}>Capturita is built around your privacy: recordings, captions and AI editing stay on your Mac unless you choose to share them.</p>
@@ -276,7 +276,7 @@ export default function Home() {
       <UseCases />
       <Safety />
 
-      <section aria-labelledby="try-h" className="py-24 text-center sm:py-32">
+      <section aria-labelledby="try-h" className="py-16 text-center sm:py-24">
         <div data-reveal className={wrap}>
           <h2 id="try-h" className={h2}>Try Capturita today</h2>
           <p className={`mx-auto mt-4 max-w-xl ${lead}`}>Free to download for macOS. Upgrade once for captions, AI editing and Studio.</p>

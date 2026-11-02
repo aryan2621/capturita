@@ -1,16 +1,17 @@
 import { Check, Minus } from "lucide-react";
 import { Link } from "../router";
-import { SUPPORT_EMAIL, TERMS_URL } from "../config";
+import { REFUNDS_URL, SUPPORT_EMAIL, TERMS_URL } from "../config";
 import { useProduct } from "../useProduct";
 import { BuyButton, Faq, PageHero, btnPrimary, h2 } from "../components/ui";
 
-export const free = ["Screen and window recording with mic, system audio and camera", "Trim, split, cut, change speed and add cursor zooms", "Standard MP4 and GIF exports", "Recordings stay on your Mac"];
+export const free = ["Screen and window recording with mic, system audio and camera", "Trim, split, cut, change speed, hide private info and add cursor zooms", "MP4 exports up to 4K at 60 fps, and GIF", "Recordings stay on your Mac"];
 export const pro = (updates: string) => ["On-device captions and subtitle exports", "AI-assisted edits with review before applying", "Studio scenes, animated titles and product showcases", `${updates[0].toUpperCase()}${updates.slice(1)} for official Capturita builds`];
 
 const compare: [string, boolean, boolean][] = [
   ["Screen, window and area recording", true, true],
   ["Mic, system audio and camera", true, true],
   ["Trim, split, cut and speed changes", true, true],
+  ["Hide private info (blur, pixelate or cover)", true, true],
   ["Cursor zoom and click effects", true, true],
   ["MP4 and GIF export", true, true],
   ["On-device captions and subtitle exports", false, true],
@@ -19,11 +20,9 @@ const compare: [string, boolean, boolean][] = [
   ["Updates for official builds", false, true],
 ];
 
-const faqFor = (p: ReturnType<typeof useProduct>) => [
-  ["What does one-time mean?", `You pay once. The key includes ${p.updates} for official Capturita builds. The version you bought remains usable after that; newer builds require a renewed key to unlock Pro.`],
-  ["Who handles payment?", "Payment is handled by Razorpay in INR. Card and UPI details go to Razorpay and never touch Capturita. Your license key is shown after payment; save it then."],
+const faqFor = (p: ReturnType<typeof useProduct>): [string, React.ReactNode][] => [
+  ["Where are payment, refund and update terms?", <>Payment, refunds and updates are handled on the storefront. See its <a href={TERMS_URL} className="underline">Terms</a> and <a href={REFUNDS_URL} className="underline">Refund policy</a>. A key includes {p.updates} for official builds.</>],
   ["How is my key checked?", "The signature is checked on your Mac. Official builds also activate the key online, which records your Mac (a hashed device ID and its name) and checks whether the key has been refunded. If the service is unreachable, the app allows up to 30 days since its last successful check for offline use."],
-  ["Can I get a refund?", `Yes, within ${p.refundDays} of purchase. Email your purchase email and order ID; see the refund page.`],
   ["Can I use it on more than one computer?", `Yes, a key works on ${p.upTo}. To move it, choose Remove in Settings → License on the old Mac, or email support. Do not share or resell it.`],
 ];
 

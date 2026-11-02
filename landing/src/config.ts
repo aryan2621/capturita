@@ -5,3 +5,4 @@ export const BUY_URL = `${STOREFRONT_URL}/p/capturita`;
 export const TERMS_URL = `${STOREFRONT_URL}/terms`;
 export const REFUNDS_URL = `${STOREFRONT_URL}/refunds`;
 export const ACCOUNT_URL = `${STOREFRONT_URL}/account`;
+export const STORE_PRIVACY_URL = `${STOREFRONT_URL}/privacy`;

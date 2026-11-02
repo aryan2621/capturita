@@ -75,7 +75,7 @@ export function DownloadButton() {
   );
 }
 
-export function Faq({ items }: { items: string[][] }) {
+export function Faq({ items }: { items: [string, React.ReactNode][] }) {
   return (
     <div className="divide-y divide-border border-y border-border">
       {items.map(([q, a]) => (
