@@ -23,6 +23,9 @@ const compare: [string, boolean, boolean][] = [
 const faqFor = (p: ReturnType<typeof useProduct>): [string, React.ReactNode][] => [
   ["Where are payment, refund and update terms?", <>Payment, refunds and updates are handled on the storefront. See its <a href={TERMS_URL} className="underline">Terms</a> and <a href={REFUNDS_URL} className="underline">Refund policy</a>. A key includes {p.updates} for official builds.</>],
   ["How is my key checked?", "The signature is checked on your Mac. Official builds also activate the key online, which records your Mac (a hashed device ID and its name) and checks whether the key has been refunded. If the service is unreachable, the app allows up to 30 days since its last successful check for offline use."],
+  ["Do uploads to YouTube and Drive work out of the box?", <>No. You connect your own free Google Cloud project once (a Client ID and Secret in Settings); the <a href="https://github.com/aryan2621/capturita/blob/main/docs/google-setup.md" className="underline">setup guide</a> has the steps. Google keeps YouTube uploads private until it audits your project, and your Google sign-in expires every 7 days while the project is in Testing. Everything else in Free works without an account.</>],
+  ["Does Capturita update itself?", "No. Newer versions are published on the Download page, and a key includes updates for builds released within its update period."],
+  ["Do I need a key if I build from source?", "No. Source builds from the MIT repository have Pro unlocked; the key is for official builds."],
   ["Can I use it on more than one computer?", `Yes, a key works on ${p.upTo}. To move it, choose Remove in Settings → License on the old Mac, or email support. Do not share or resell it.`],
 ];
 

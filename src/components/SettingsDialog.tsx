@@ -424,19 +424,10 @@ const OPENAI_PRESETS = [
         baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
         model: 'gemini-2.5-pro',
     },
-    {
-        name: 'OpenRouter',
-        baseUrl: 'https://openrouter.ai/api/v1',
-        model: 'anthropic/claude-sonnet-4.5',
-    },
-    {
-        name: 'Ollama (local)',
-        baseUrl: 'http://localhost:11434/v1',
-        model: 'llama3.1',
-    },
+    { name: 'Custom (OpenAI-compatible)', baseUrl: '', model: '' },
 ];
 
-/** Any OpenAI-compatible cloud as the planner: OpenAI, Gemini, OpenRouter, Ollama. */
+/** OpenAI, Gemini or any other OpenAI-compatible cloud as the planner. */
 function AiOpenAiCard() {
     const [cloud, setCloud] = useState<AiOpenAi | null>(null);
     const [baseUrl, setBaseUrl] = useState('');
@@ -474,11 +465,11 @@ function AiOpenAiCard() {
             <div className='flex items-start gap-3'>
                 <div className='min-w-0 flex-1 space-y-1'>
                     <p className='flex items-center gap-2 text-sm font-medium'>
-                        OpenAI, Gemini and others (cloud)
+                        OpenAI, Gemini or a compatible API (cloud)
                         {cloud.enabled && <span className='rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-fg'>In use</span>}
                     </p>
                     <p className='text-xs text-muted'>
-                        Any OpenAI-compatible endpoint. Your key is kept in the Keychain. Your README and page text are sent to that provider. If it can’t be
+                        OpenAI, Gemini, or any endpoint that speaks the OpenAI API. Your key is kept in the Keychain. Your transcript, any text you provide and still images of Studio scenes are sent to that provider. If it can’t be
                         reached, the local model below is used. Turning this on turns Claude off.
                     </p>
                 </div>

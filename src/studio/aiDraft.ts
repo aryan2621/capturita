@@ -278,34 +278,6 @@ export async function planStoryboard(facts: DraftFacts, count: number, inputs: D
     return { steps: separateRepeats(spreadTextScenes(steps)), look: STYLES.some((st) => st.id === reply.look) ? reply.look! : lookFor(facts) };
 }
 
-/** A yes/no answer's probability: Clef returns `{ type: 'noul', noul: 0.85 }`. */
-const yesProbability = (a: unknown): number => Number((a as { noul?: number })?.noul ?? NaN);
-
-/**
- * Clef (Cloudflare's decision model) answers one yes/no per scene on the menu plus the look, so the
- * scenes are kept by how well they fit the text, not by fixed ranks. Story order stays the menu's.
- * The caller falls back to the other planners when this throws (no token, offline, odd answer).
- */
-export async function clefStoryboard(source: string, facts: DraftFacts, count: number, inputs: DraftInputs): Promise<{ steps: PlanStep[]; look: string }> {
-    const menu = storyboard(facts, MAX_DRAFT_SCENES, inputs, true);
-    const questions: Record<string, unknown> = {
-        look: { type: 'choice', instructions: 'Which visual look suits this product?', criteria: Object.fromEntries(STYLES.map((st) => [st.id, st.label])) },
-    };
-    menu.forEach((step, i) => (questions[`s${i}`] = { type: 'noul', instructions: `Would this scene make a strong part of a launch video for this product? ${step.scene}: ${step.purpose}` }));
-    const answers = await api.aiDecide(`${facts.name}: ${facts.tagline}\n\n${source.trim().slice(0, SOURCE_LIMIT)}`, questions);
-    const score = menu.map((_, i) => yesProbability(answers?.[`s${i}`]));
-    if (score.some((p) => !Number.isFinite(p))) throw new Error('Unreadable answer from Clef');
-    // Title (or logo) and the end card always stay; the strongest of the rest fill the count.
-    const must = (i: number) => ['TitleReveal', 'EndCard'].includes(menu[i].scene);
-    const best = menu.map((_, i) => i).filter((i) => !must(i)).sort((a, b) => score[b] - score[a]).slice(0, Math.max(0, count - menu.filter((_, i) => must(i)).length));
-    const kept = new Set([...best, ...menu.map((_, i) => i).filter(must)]);
-    // Text3D and the kinetic statement are two takes on the same hook: keep the likelier one.
-    if (kept.has(menu.findIndex((m) => m.scene === 'Text3D')) && kept.has(menu.findIndex((m) => m.scene === 'KineticStatement'))) kept.delete(menu.findIndex((m) => m.scene === 'Text3D'));
-    const steps = menu.filter((_, i) => kept.has(i));
-    const look = answers?.look?.choice ?? answers?.look;
-    return { steps: separateRepeats(spreadTextScenes(steps)), look: STYLES.some((st) => st.id === look) ? look : lookFor(facts) };
-}
-
 /** A line cut to at most `max` words: its first clause when that fits, else its first words. Never empty. */
 export function trimLine(line: string, max: number): string {
     const count = (t: string) => t.split(/\s+/).filter(Boolean).length;
@@ -359,8 +331,8 @@ export async function draftVideo(source: string, count: number, ctx: SceneAiCont
     const facts = await readFacts(source, cloud ? CLOUD_SOURCE_LIMIT : SOURCE_LIMIT);
     const draftInputs = { ...inputs, hasLogo: !!ctx.env.brand.logo, recording: ctx.project.kind === 'studio' ? 0 : totalDuration(ctx.edit.items) };
     if (cloud) ctx.onStep?.('Planning the story');
-    // Clef decides first (a token in the keychain); Claude's plan, then the rules, stand behind it.
-    const plan = (await clefStoryboard(source, facts, count, draftInputs).catch(() => null)) ?? (cloud ? await planStoryboard(facts, count, draftInputs).catch(() => null) : null);
+    // Claude's plan when cloud AI is on; the rules stand behind it.
+    const plan = cloud ? await planStoryboard(facts, count, draftInputs).catch(() => null) : null;
     const steps = plan?.steps ?? separateRepeats(spreadTextScenes(storyboard(facts, count, draftInputs)));
     const look = plan?.look ?? lookFor(facts);
     const factsCtx: SceneAiContext = { ...ctx, productName: ctx.productName || facts.name, facts: JSON.stringify(facts) };

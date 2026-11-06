@@ -193,9 +193,9 @@ function FeatureShowcase({ mode }: { mode: number }) {
 
 const pane = "absolute bottom-0 right-0 overflow-hidden rounded-tl-2xl bg-background shadow-[0_-8px_40px_-12px_rgba(0,0,0,.2)]";
 const cases: { title: string; text: string; art: ReactNode }[] = [
-  { title: "Product demos", text: "Record a walkthrough, add springy click zooms and a clean title, then export it ready to share.",
+  { title: "Product demos", text: "Record a walkthrough, add springy click zooms, then export it ready to share. Pro adds animated titles and captions.",
     art: <div className={`${pane} left-[14%] top-[48%] p-4`}><p className="text-xs text-muted-foreground">Timeline</p><div className="relative mt-3 space-y-2"><div className="h-7 w-[90%] rounded-md bg-[#cfe6c4]" /><div className="ml-[22%] h-7 w-[40%] rounded-md bg-[#bcd3f5]" /></div><span className="mt-4 inline-block rounded-full border border-border px-3 py-1 text-xs">Zoom 1.6×</span></div> },
-  { title: "Tutorials", text: "Turn speech into captions on your Mac so every step is easy to follow, with nothing uploaded.",
+  { title: "Tutorials", text: "Turn speech into captions made on your Mac, so every step is easy to follow.",
     art: <div className={`${pane} left-[10%] top-[50%] p-5`}><p className="text-sm font-semibold">Captions</p><ul className="mt-3 space-y-2 font-mono text-xs text-muted-foreground"><li>00:03 Open Settings</li><li>00:07 Choose Captions</li><li className="text-foreground">00:11 Pick a model</li></ul><span className="absolute right-3 top-3 rounded-full bg-foreground px-3 py-1 text-xs text-background">On this Mac</span></div> },
   { title: "Bug reports", text: "Show exactly what happened. Trim the dead time, hide anything private and send a short clip.",
     art: <div className="absolute bottom-10 left-6 right-6"><div className="relative flex items-center gap-3 rounded-2xl bg-background p-3 pr-6 shadow-lg"><span className="grid size-12 place-items-center rounded-xl bg-[#2f6bff] text-white"><FileVideo size={24} aria-hidden /></span><span><span className="block text-base font-semibold">checkout-bug.mp4</span><span className="text-sm text-muted-foreground">Video · 0:24</span></span><span className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-foreground text-background"><X size={14} aria-hidden /></span></div></div> },
@@ -236,9 +236,9 @@ function Safety() {
     <section aria-labelledby="safe-h" className="py-14 text-center sm:py-20">
       <div className={wrap} data-reveal>
         <h2 id="safe-h" className={h2}>Designed to keep your recordings yours</h2>
-        <p className={`mx-auto mt-4 max-w-2xl ${lead}`}>Capturita is built around your privacy: recordings, captions and AI editing stay on your Mac unless you choose to share them.</p>
+        <p className={`mx-auto mt-4 max-w-2xl ${lead}`}>Capturita is built around your privacy: recordings and captions stay on your Mac, and so does AI editing unless you turn on cloud AI. Uploads only happen when you choose them.</p>
         <div className="mx-auto mt-10 grid max-w-4xl gap-5 text-left md:grid-cols-2">
-          {[["On-device by default", "Captions and AI editing run on your Mac. Cloud AI and Google uploads are opt-in.", "/privacy", "Privacy"], ["Pay once, keep it", `Pro is a one-time purchase with a ${refundWindow} and ${updates}.`, "/pricing", "Pricing"]].map(([t, d, to, cta]) => (
+          {[["On-device by default", "Captions and AI editing run on your Mac. Cloud AI (it sends your transcript, and for Studio drafts the text you provide and still images of scenes, to your provider) and Google uploads are opt-in.", "/privacy", "Privacy"], ["Pay once, keep it", `Pro is a one-time purchase with a ${refundWindow} and ${updates}.`, "/pricing", "Pricing"]].map(([t, d, to, cta]) => (
             <article key={t} className="lift rounded-2xl border border-border p-6">
               <h3 className="text-xl font-medium">{t}</h3>
               <p className="mt-3 text-muted-foreground">{d}</p>

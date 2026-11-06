@@ -21,6 +21,7 @@ export default function Download() {
         <h1 className={h1}>Download Capturita for macOS</h1>
         <p className={`mt-6 ${lead}`}>Record your screen, polish it into a clear demo, and keep every file on your Mac. Free to download; unlock Pro with a one-time license.</p>
         <p className="mt-4 text-muted-foreground">macOS 15 or later, Apple silicon (M1 or newer). Capturita is macOS-only.</p>
+        <p className="mt-2 text-muted-foreground">Captions need a speech model (547 MB by default, 75 MB to 1.6 GB in all). The local AI editor downloads a 2.4 GB model on Macs under 16 GB of RAM or 6.4 GB on 16 GB and larger Macs, with larger optional models up to 16.5 GB. You choose when to download them.</p>
         <div className="mt-8 flex flex-wrap items-center gap-4">
           <DownloadButton />
         </div>
@@ -38,7 +39,8 @@ export default function Download() {
             <li>On first launch, grant Screen Recording permission. Microphone and Camera are optional.</li>
           </ol>
           <p>After purchase, copy the license key from the thank-you page, then open <strong>Settings → License</strong> in Capturita, paste it and choose <strong>Activate</strong>. See <Link to="/pricing">pricing</Link> for the full feature split.</p>
-          <p className="text-muted-foreground">A Pro purchase includes {updates} for official builds; the version you bought stays usable after that.</p>
+          <p>Uploading to YouTube or Google Drive needs your own free Google Cloud project: follow the <a href="https://github.com/aryan2621/capturita/blob/main/docs/google-setup.md">setup guide</a>.</p>
+          <p className="text-muted-foreground">A Pro purchase includes {updates} for official builds; the version you bought stays usable after that. Capturita does not update itself: download newer installers from this page, and read what changed in the <a href="https://github.com/aryan2621/downloads/releases?q=capturita">release notes</a>.</p>
         </div>
       </Tile>
     </div>

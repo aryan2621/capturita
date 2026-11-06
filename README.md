@@ -34,13 +34,13 @@ MIT-licensed, and source builds are not restricted. Activation is configured in 
    xattr -dr com.apple.quarantine /Applications/Capturita.app
    ```
 4. The setup asks for **Screen Recording** (needed), **Microphone** and **Camera**, and offers the
-   captions model (547 MB, optional, once). Other speech models, AI models, theme and Google uploads are in **Settings** (⚙).
+   captions model (547 MB, optional, once). The local AI editor downloads a 2.4 GB model on Macs under 16 GB of RAM, or 6.4 GB on 16 GB and larger Macs, when you first use it; larger optional models (up to 16.5 GB) are in Settings. Other speech models, AI models, theme and Google uploads are in **Settings** (⚙). Uploading to YouTube or Drive needs your own Google Cloud project: see the [Google setup guide](docs/google-setup.md).
 
 ## Quick start
 
 1. Click **New recording**, pick a screen, window or area, turn on mic / camera if you like, and press **Record**.
 2. Press **⌘⇧R** (or the stop button) to finish. The editor opens.
-3. Zooms are added on your clicks. Press **S** to split, **C** to cut a part, **Z** to add a zoom, **T** to add text, **H** to hide something. **?** shows every shortcut.
+3. Zooms are added on your clicks. Press **S** to split, **C** to cut a part, **Z** to add a zoom, **T** to add text (Pro), **H** to hide something. **?** shows every shortcut.
 4. **⌘E** to export an MP4 or upload. Files are saved in `~/Movies/Capturita`.
 
 ## Build from source

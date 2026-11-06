@@ -68,11 +68,11 @@ export default function Features() {
           <div>
             <ShieldCheck className="mb-4 text-muted-foreground" size={26} aria-hidden />
             <h2 id="privacy-h" className={h2}>Your recordings stay yours.</h2>
-            <p className={`mt-4 ${lead}`}>Captions and AI editing run on your Mac. Recordings stay in your Capturita folder unless you choose to upload or share them. Cloud AI and Google uploads are opt-in.</p>
+            <p className={`mt-4 ${lead}`}>Captions and AI editing run on your Mac. Recordings stay in your Capturita folder unless you choose to upload or share them. Cloud AI is opt-in and sends your transcript (and, for Studio drafts, the text you provide and still images of scenes) to the provider you choose. Google uploads are opt-in and use your own Google Cloud project.</p>
             <Link to="/privacy" className={`${btnLink} !px-0 underline`}>Read the privacy page <ArrowRight size={15} aria-hidden /></Link>
           </div>
           <ul className="divide-y divide-border rounded-2xl border border-border bg-background px-5">
-            {[["Recordings", "On this Mac"], ["Captions", "On this Mac"], ["AI edits", "On this Mac"], ["Sharing", "Only when you choose"]].map(([label, status]) => (
+            {[["Recordings", "On this Mac"], ["Captions", "On this Mac"], ["AI edits", "On this Mac (cloud is opt-in)"], ["Sharing", "Only when you choose"]].map(([label, status]) => (
               <li key={label} className="flex items-center justify-between gap-4 py-4"><span>{label}</span><span className="text-muted-foreground">{status}</span></li>
             ))}
           </ul>

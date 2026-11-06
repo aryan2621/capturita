@@ -79,7 +79,6 @@ pub fn run() {
             ai::download_ai_model,
             ai::cancel_ai_download,
             ai::ai_edit,
-            ai::ai_decide,
             ai::ai_cloud_status,
             ai::ai_cloud_save,
             ai::ai_cloud_remove_key,

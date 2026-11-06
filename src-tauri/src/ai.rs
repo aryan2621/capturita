@@ -541,7 +541,7 @@ pub fn ai_cloud_remove_key(app: AppHandle) -> Result<(), String> {
     write_setting(&app, "provider", json!("local"))
 }
 
-// ---- Any OpenAI-compatible cloud (OpenAI, Gemini, OpenRouter, Ollama…): base URL + model + key. ----
+// ---- OpenAI, Gemini or any OpenAI-compatible cloud: base URL + model + key. ----
 
 const OPENAI_ACCOUNT: &str = "openai-compatible-key";
 
@@ -647,31 +647,6 @@ pub async fn ai_openai_save(app: AppHandle, enabled: bool, base_url: String, mod
 pub fn ai_openai_remove_key(app: AppHandle) -> Result<(), String> {
     let _ = security_framework::passwords::delete_generic_password(CLOUD_SERVICE, OPENAI_ACCOUNT);
     write_setting(&app, "provider", json!("local"))
-}
-
-/// Asks Cloudflare's Clef decision model typed questions about `state`. Returns the raw `answers`
-/// object keyed by question id; the keychain holds the Workers AI token and account id.
-#[tauri::command]
-pub async fn ai_decide(state: String, questions: Value) -> Result<Value, String> {
-    crate::license::require_pro()?;
-    let token = keychain_key("cloudflare-api-token").ok_or("No Cloudflare token saved")?;
-    let account = keychain_key("cloudflare-account-id").ok_or("No Cloudflare account id saved")?;
-    let response = reqwest::Client::new()
-        .post(format!("https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/cloudflare/clef-flash"))
-        .timeout(Duration::from_secs(30))
-        .bearer_auth(token)
-        .json(&json!({ "model": "clef-flash", "state": state, "questions": questions }))
-        .send()
-        .await
-        .map_err(|e| format!("Clef didn't answer: {e}"))?;
-    let status = response.status();
-    let reply: Value = response.json().await.map_err(|e| e.to_string())?;
-    if !status.is_success() {
-        return Err(format!("Clef failed ({status}): {reply}"));
-    }
-    // Workers AI wraps the model's output in `result`.
-    let out = if reply["result"].is_null() { &reply } else { &reply["result"] };
-    Ok(out["answers"].clone())
 }
 
 /// Asks the model for edits. Its answer is forced into `schema` (llama.cpp turns the JSON schema
