@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Download } from "lucide-react";
 import { BUY_URL } from "../config";
-import { detectOS, RELEASES, useInstaller } from "../useInstaller";
+import { detectOS, RELEASES } from "../useInstaller";
 
 export const wrap = "mx-auto w-full max-w-6xl px-5 sm:px-8";
 /** One type scale for every page: display titles, section titles, lead paragraphs. */
@@ -66,10 +66,9 @@ export const prose = "space-y-3 leading-relaxed text-foreground/90 [&_a]:text-pr
 
 export function DownloadButton() {
   const o = detectOS();
-  const installer = useInstaller(o);
   const label = o === "mac" ? "Download for macOS" : "View macOS download";
   return (
-    <a href={installer ?? RELEASES} className={btnPrimary}>
+    <a href={RELEASES} className={btnPrimary}>
       <Download size={18} aria-hidden /> {label}
     </a>
   );
