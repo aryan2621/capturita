@@ -52,7 +52,7 @@ export default function Pricing() {
           <Plan name="Pro" tagline="Captions, AI and Studio" price={product.price} unit="one-time" lead="Everything in Free and:" list={pro(product.updates)} cta={<BuyButton className={`${btnPrimary} w-full`} />} />
         </div>
         <p className="mt-6 text-sm text-muted-foreground">
-          Payment is by Razorpay (INR); the key is shown after payment and activated online on {product.upTo}. See <a href={TERMS_URL} className="underline">Terms</a>.
+          Checkout needs a free storefront sign-in, and payment is by Razorpay (INR); the key is shown after payment and activated online on {product.upTo}. See <a href={TERMS_URL} className="underline">Terms</a>.
         </p>
       </section>
 
