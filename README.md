@@ -12,20 +12,16 @@
 
 Captions and AI editing run on your Mac. Your recordings are never uploaded unless you choose to.
 
-**[⬇ Download for macOS](https://github.com/aryan2621/capturita/releases/latest/download/Capturita_0.1.0_aarch64.dmg)**
-· macOS 15+, Apple silicon · [all downloads](https://github.com/aryan2621/capturita/releases/latest)
+**[⬇ Download for macOS](https://github.com/aryan2621/downloads/releases?q=capturita)**
+· macOS 15+, Apple silicon · [all downloads](https://github.com/aryan2621/downloads/releases?q=capturita)
 · **macOS only:** recording uses Apple's ScreenCaptureKit, so there's no Windows version yet.
 
 ## Free and Pro
 
 Recording and core editing remain free. Capturita Pro is a one-time ₹999 purchase and includes one
 year of updates. Pro activation applies to official Capturita builds; this repository remains
-MIT-licensed, and source builds are not restricted. See the [landing site source](landing/) for the
-storefront and license service configuration.
+MIT-licensed, and source builds are not restricted. Activation is configured in `.github/workflows/build.yml`; keys are sold and checked by the storefront.
 
-📖 **[User guide](docs/user.md)** — recording, every editing tool, shortcuts, export and upload
-☁️ **[Google setup](docs/google-setup.md)** — upload to YouTube and Drive with your own Google account
-🛠 **[Developer guide](docs/dev.md)** — build from source, code layout, how it works
 
 ## Install
 
@@ -54,4 +50,4 @@ git clone https://github.com/aryan2621/capturita.git
 cd capturita && npm install && npx tauri build --bundles app
 ```
 
-Needs Node, Rust, Xcode's Swift tools and `cmake`. Details in the [developer guide](docs/dev.md).
+Needs Node, Rust, Xcode's Swift tools and `cmake`.
