@@ -24,6 +24,7 @@ import { loadAudioFiles, loadAudioTracks, loadMusic, scheduleTimeline } from './
 import { loadClickSound } from './clickSound';
 import { aspectRatio, audioFiles, isIdentityFx, overlaysAt, positionAt, totalDuration, type Edit, type LayerFx } from './model';
 import { drawCaptions, drawDip, drawFrame, drawLayer, fillBackground, preloadBackground, type FrameSource } from './render';
+import { projectBrand, studioBackground } from '../studio/brandKits';
 import { renderScenes, renderTransparent, sceneFrames, type SceneFiles, type TransparentSource } from '../studio/renderScenes';
 import { SCENE_FPS } from '../studio/scenes';
 import { GifEncoder } from './gif';
@@ -32,7 +33,7 @@ import { correctColorSpace } from './encoderRange';
 export type Resolution = 480 | 720 | 1080 | 2160;
 export type Quality = 'studio' | 'high' | 'medium' | 'small';
 /** `mov`: the scenes and overlays alone as transparent ProRes 4444, for another editor. */
-export type ExportFormat = 'mp4' | 'gif' | 'mov';
+type ExportFormat = 'mp4' | 'gif' | 'mov';
 
 export interface ExportSettings {
     format: ExportFormat;
@@ -128,7 +129,8 @@ export async function exportVideo(options: {
     onProgress: (progress: ExportProgress) => void;
     signal: AbortSignal;
 }): Promise<string> {
-    const { project, edit, cursor, settings, onProgress, signal } = options;
+    const { project, cursor, settings, onProgress, signal } = options;
+    const edit = project.kind === 'studio' ? { ...options.edit, background: studioBackground(project, options.edit.background, await projectBrand(project, options.edit.brandKit)) } : options.edit;
     if (settings.format === 'mov') return exportTransparent({ project, edit, source: { kind: 'timeline' }, resolution: settings.resolution, fileName: options.fileName, onProgress, signal });
     const { screen, camera } = project.tracks;
     const total = totalDuration(edit.items);

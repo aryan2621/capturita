@@ -1,6 +1,9 @@
 import { fileUrl, type CursorData, type Project } from '../lib/api';
+import { drawAnnotations } from './annotations';
+import { drawTilted, drawWatermark, hasTilt } from './frameEffects';
 import { cameraViewport, cursorVisibility, smoothCursorAt } from './motion';
 import { captionAtOutput, type Dip, diagonalPoints, layerFilter, STREAK, fontStack, hideActive, textFrame, type Caption, type CaptionStyle, type HideRegion, type LayerFx, type TextFrame, type Background, type CursorShape, type Edit, type NormalizedRect, type TextOverlay } from './model';
+import { easeOutCubic } from '../lib/math';
 
 /** Cursor height in screen points before scaling. */
 const CURSOR_POINTS = 22;
@@ -80,7 +83,7 @@ export function layoutFrame(edit: Edit, project: Project, width: number, height:
  * The camera is a spring simulation over the zooms (see motion.ts), so zooms ease in and out,
  * pan smoothly while following the cursor, and glide from one zoom to the next.
  */
-export function zoomViewport(edit: Edit, cursor: CursorData | null, t: number, crop: NormalizedRect): NormalizedRect {
+function zoomViewport(edit: Edit, cursor: CursorData | null, t: number, crop: NormalizedRect): NormalizedRect {
     return cameraViewport({ zooms: edit.zooms, crop, cursor, cursorAnimation: edit.cursor.animation, screen: edit.motion.screen }, t);
 }
 
@@ -114,7 +117,24 @@ export function screenRectToFrame(rect: NormalizedRect, view: { crop: Normalized
     };
 }
 
+let tiltCard: HTMLCanvasElement | null = null;
+
 export function drawFrame(ctx: CanvasRenderingContext2D, width: number, height: number, inputs: FrameInputs): Rect {
+    if (hasTilt(inputs.edit)) {
+        const card = (tiltCard ??= document.createElement('canvas'));
+        if (card.width !== width || card.height !== height) {
+            card.width = width;
+            card.height = height;
+        }
+        const content = drawFrame(card.getContext('2d')!, width, height, { ...inputs, edit: { ...inputs.edit, tilt: undefined, watermark: undefined } });
+        ctx.save();
+        ctx.clearRect(0, 0, width, height);
+        fillBackground(ctx, inputs.edit.background, width, height, inputs.project);
+        drawTilted(ctx, card, inputs.edit.tilt!, width, height);
+        if (inputs.edit.watermark) drawWatermark(ctx, inputs.edit.watermark, width, height);
+        ctx.restore();
+        return content;
+    }
     const { edit, project, screen, camera, cursor, time } = inputs;
     const { crop, content } = screenView(edit, project, cursor, time, width, height, inputs.ignoreCrop, inputs.noZoom);
     const radius = Math.min(edit.radius * width, content.width / 2, content.height / 2);
@@ -163,6 +183,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, width: number, height: 
         for (const hide of edit.hides) {
             if (hideActive(hide, time)) drawHide(ctx, hide, screen, screenRectToFrame(hide, { crop, content }), width, height);
         }
+        drawAnnotations(ctx, edit.annotations, { crop, content }, width);
     }
 
     // Cursor and clicks, mapped from the recorded area into the cropped screen.
@@ -238,6 +259,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, width: number, height: 
         const frame = textFrame(text, time);
         if (frame.alpha > 0 && text.text.trim()) drawText(ctx, text, width, height, frame);
     }
+    if (edit.watermark) drawWatermark(ctx, edit.watermark, width, height);
 
     ctx.restore();
     return content;
@@ -337,7 +359,7 @@ const CAPTION_LINE_HEIGHT = 1.25;
 const CAPTION_MAX_WIDTH = 0.82;
 
 /** Lays a caption out in lines of words that fit the frame (shared by drawing and measuring). */
-export function layoutCaption(ctx: CanvasRenderingContext2D, caption: Caption, style: CaptionStyle, width: number, height: number) {
+function layoutCaption(ctx: CanvasRenderingContext2D, caption: Caption, style: CaptionStyle, width: number, height: number) {
     const fontSize = Math.max(8, style.size * Math.min(width, height));
     ctx.font = `${style.bold ? 700 : 500} ${fontSize}px ${fontStack(style.font)}`;
     const words = caption.words.length > 0 ? caption.words : caption.text.split(/\s+/).filter(Boolean).map((text) => ({ start: caption.start, end: caption.end, text }));
@@ -547,6 +569,7 @@ function loadImage(url: string) {
     let image = images.get(url);
     if (!image) {
         image = new Image();
+        image.crossOrigin = 'anonymous';
         image.decoding = 'async';
         image.src = url;
         images.set(url, image);
@@ -796,7 +819,6 @@ function copyForBlur(screen: FrameSource, views: NormalizedRect[], content: Rect
     return { canvas: blurCanvas, area, scaleX: w / area.width, scaleY: h / area.height };
 }
 
-const easeOutCubic = (x: number) => 1 - (1 - x) ** 3;
 
 /** A click at `point`, `progress` 0 → 1 through its animation. Right-clicks get a double ring. */
 function drawClick(ctx: CanvasRenderingContext2D, style: 'ripple' | 'pulse', color: string, point: { x: number; y: number }, progress: number, unit: number, scale: number, right: boolean) {

@@ -2,7 +2,7 @@ import { al } from './launch/shapes';
 import { Heading, Ping, Sheen, Stage, Tick, surface, take, useScene, type Scene } from './proofParts';
 import type { Brand, SceneAssets } from './assets';
 
-export interface PricingTier {
+interface PricingTier {
     name: string;
     price: string;
     period: string;

@@ -5,13 +5,13 @@ import { ElementView } from './elements';
 import { fitSize } from './text';
 import { SceneImage } from './SceneBase';
 import { type Brand, type SceneAssets } from './assets';
+import { easeInOutCubic as inOut } from '../../lib/math';
 
 // The Animation tab: pieces that are mostly motion, made to sit over the video (or on a plain background as a scene).
 // Everything springs in with a little overshoot and then holds still: no endless bobbing.
 
 const FRAME = 1 / 30;
 const ALIGN = { top: 'flex-start', center: 'center', bottom: 'flex-end' } as const;
-const inOut = Easing.inOut(Easing.cubic);
 
 /** Where the content sits in the frame, keeping inside the safe margins. */
 const Placed = ({ k, justify, align = 'center', children }: { k: Kit; justify: string; align?: string; children: React.ReactNode }) => (

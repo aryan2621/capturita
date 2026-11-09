@@ -69,7 +69,7 @@ interface RawAction {
 }
 
 /** The transcript as numbered lines, with long silences as lines of their own. */
-export function transcriptLines(captions: Caption[], duration: number) {
+function transcriptLines(captions: Caption[], duration: number) {
     const lines: { start: number; end: number; text: string }[] = [];
     let last = 0;
     for (const caption of [...captions].sort((a, b) => a.start - b.start)) {
@@ -92,7 +92,7 @@ export async function askAi(request: string, edit: Edit, project: Project, curso
 }
 
 /** Turns line numbers into times: one proposal per run of consecutive lines. */
-export function toProposals(actions: RawAction[], lines: { start: number; end: number }[], duration: number): Proposal[] {
+function toProposals(actions: RawAction[], lines: { start: number; end: number }[], duration: number): Proposal[] {
     const out: Proposal[] = [];
     for (const action of actions) {
         const reason = action.reason.trim();

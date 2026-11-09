@@ -2,9 +2,12 @@ import { BeatContext, beatsOf } from './beat';
 import { Gif } from '@remotion/gif';
 import { noise3D } from '@remotion/noise';
 import { createContext, useContext, type ComponentType, type CSSProperties, type ReactNode } from 'react';
-import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Easing, Img, interpolate } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from './clock';
 import { useFontsReady } from './fonts';
 import { assetUrl, type Brand, type SceneAssets } from './assets';
+import { easeOutCubic } from '../../lib/math';
+import { makeTransform, scale as scaleBy } from '@remotion/animation-utils';
 
 /** Frames the scene starts into the whole video (the timeline sets `clock`, in seconds), so light and camera drift carry across joins. */
 const ClockContext = createContext(0);
@@ -24,6 +27,23 @@ export function withCalm(Scene: ComponentType<Record<string, unknown>>): Compone
             <CalmContext.Provider value={props.calm !== false}>
                 <Scene {...props} />
             </CalmContext.Provider>
+        );
+    };
+}
+
+const PUSH_SCALE = 1.06;
+
+/** Pushes the scene in slowly over its whole length when its `camera` is 'push'; 'still' leaves it alone. */
+export function withCamera(Scene: ComponentType<Record<string, unknown>>): ComponentType<Record<string, unknown>> {
+    return function Camera(props: Record<string, unknown>) {
+        const frame = useCurrentFrame();
+        const { durationInFrames } = useVideoConfig();
+        if (props.camera !== 'push') return <Scene {...props} />;
+        const scale = interpolate(frame, [0, durationInFrames], [1, PUSH_SCALE], { ...clamp, easing: Easing.out(Easing.quad) });
+        return (
+            <AbsoluteFill style={{ transform: makeTransform([scaleBy(scale)]), transformOrigin: typeof props.focus === 'string' ? props.focus : '50% 50%' }}>
+                <Scene {...props} />
+            </AbsoluteFill>
         );
     };
 }
@@ -122,7 +142,7 @@ export function useExit(frames = 10) {
     return held ? 1 : interpolate(frame, [durationInFrames - frames, durationInFrames], [1, 0], clamp);
 }
 
-/** Where the camera is, in percent of the frame, so layers can move against it (see Depth). The camera is always locked: drifting, panning and pushing made content wander. */
+/** Where the camera is, in percent of the frame, so layers can move against it (see Depth). The push in `withCamera` scales the whole scene, so layers stay put against each other. */
 const CameraContext = createContext({ x: 0, y: 0 });
 
 /**
@@ -139,7 +159,7 @@ export function Depth({ z, children, style }: { z: number; children: ReactNode; 
 const HoldEnd = createContext(false);
 
 /** A shape carried between scenes: centre and width in percent of the frame, height as a share of width. */
-export interface HandoffShape { shape?: 'circle' | 'rect'; x?: number; y?: number; w?: number; h?: number; color?: string }
+interface HandoffShape { shape?: 'circle' | 'rect'; x?: number; y?: number; w?: number; h?: number; color?: string }
 
 const SHAPE_FRAMES = 14;
 
@@ -151,9 +171,8 @@ const SHAPE_FRAMES = 14;
 function HandoffOverlay({ shape, enter, brand }: { shape: HandoffShape; enter: boolean; brand?: Brand }) {
     const frame = useCurrentFrame();
     const { durationInFrames } = useVideoConfig();
-    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
     const t = enter ? interpolate(frame, [0, SHAPE_FRAMES], [0, 1], clamp) : interpolate(frame, [durationInFrames - SHAPE_FRAMES, durationInFrames], [0, 1], clamp);
-    const k = ease(t);
+    const k = easeOutCubic(t);
     const circle = (shape.shape ?? 'circle') === 'circle';
     const w = shape.w ?? 30;
     const h = circle ? w : w * (shape.h ?? 0.6);

@@ -3,7 +3,7 @@ import { KineticFrame, Mask, accentSet, bare, csv, wordStyle } from './kinetic';
 import { al, hitFlash, useHero, type Kit } from './hero';
 import type { Brand } from './assets';
 
-export type KineticStyle = 'punch' | 'stack' | 'slot' | 'sweep';
+type KineticStyle = 'punch' | 'stack' | 'slot' | 'sweep';
 const STYLES: KineticStyle[] = ['punch', 'stack', 'slot', 'sweep'];
 
 export interface KineticStatementProps {

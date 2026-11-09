@@ -3,10 +3,10 @@ import { BrandTexture } from './SceneBase';
 import { Sheen, al, card, glow, useHero } from './hero';
 import { assetUrl, type Brand, type SceneAssets } from './assets';
 
-export type LowerThirdSide = 'left' | 'right';
+type LowerThirdSide = 'left' | 'right';
 
 /** 'bar' is the card with an accent bar; 'minimal' is plain text over the video; 'pill' is a rounded accent pill. */
-export type LowerThirdStyle = 'bar' | 'minimal' | 'pill';
+type LowerThirdStyle = 'bar' | 'minimal' | 'pill';
 
 export interface LowerThirdProps {
     name: string;

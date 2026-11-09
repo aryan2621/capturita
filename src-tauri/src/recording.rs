@@ -117,6 +117,13 @@ pub fn toggle_from_shortcut(app: &AppHandle) {
     });
 }
 
+/// ⌘⇧2: the main window owns the capture settings, so it picks the area and takes the screenshot.
+pub fn screenshot_from_shortcut(app: &AppHandle) {
+    if current(app) == Status::Idle {
+        let _ = app.emit_to("main", "shortcut-screenshot", ());
+    }
+}
+
 /// Buttons on the helper's floating control bar.
 pub fn bar_action(app: &AppHandle, action: &str) {
     let app = app.clone();
@@ -290,6 +297,52 @@ pub fn list_recordings(app: AppHandle) -> Result<Vec<Value>, String> {
         .collect();
     projects.sort_by(|a, b| b["createdAt"].as_str().cmp(&a["createdAt"].as_str()));
     Ok(projects)
+}
+
+/// Captures one still of a display, window or area and saves it as a `kind: "screenshot"` project.
+#[tauri::command]
+pub async fn take_screenshot(app: AppHandle, helper: State<'_, Helper>, source: Value, scrolling: bool) -> Result<Value, String> {
+    let id = chrono::Local::now().format("Screenshot %Y-%m-%d at %H.%M.%S").to_string();
+    let dir = recordings_root(&app)?.join(&id);
+    let args = json!({ "source": source, "outputDir": dir.to_string_lossy() });
+    let shot = if scrolling {
+        let main = app.get_webview_window("main");
+        if let Some(main) = &main {
+            let _ = main.hide();
+        }
+        let result = helper.call(&app, "scrollScreenshot", args, Some(Duration::from_secs(180))).await;
+        if let Some(main) = &main {
+            let _ = main.show();
+            let _ = main.set_focus();
+        }
+        result?
+    } else {
+        helper.call(&app, "screenshot", args, Some(Duration::from_secs(30))).await?
+    };
+    write_screenshot_project(&dir, &id, shot["source"].clone(), &shot["width"], &shot["height"])
+}
+
+/// Writes the project.json of a screenshot already saved as `screenshot.png` in `dir`.
+pub(crate) fn write_screenshot_project(dir: &std::path::Path, id: &str, source: Value, width: &Value, height: &Value) -> Result<Value, String> {
+    let mut project = json!({
+        "version": 1,
+        "kind": "screenshot",
+        "id": id,
+        "createdAt": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "duration": 0,
+        "source": source,
+        "tracks": {
+            "screen": { "file": "screenshot.png", "offset": 0, "duration": 0, "width": width, "height": height },
+            "systemAudio": null,
+            "microphone": null,
+            "camera": null,
+            "cursor": { "file": "" }
+        }
+    });
+    let text = serde_json::to_string_pretty(&project).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("project.json"), text).map_err(|e| e.to_string())?;
+    project["path"] = json!(dir.to_string_lossy());
+    Ok(project)
 }
 
 /// A new Studio video: a project with only motion scenes and no screen recording. Its screen

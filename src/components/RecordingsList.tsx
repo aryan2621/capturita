@@ -20,6 +20,8 @@ import {
   errorMessage,
   fileUrl,
   formatDuration,
+  isScreenshot,
+  projectTitle,
   isStudio,
   type Project,
 } from "../lib/api";
@@ -206,7 +208,7 @@ export function RecordingsList({
                       </span>
                       <SourceIcon className="h-3.5 w-3.5 shrink-0 text-subtle" />
                       <span className="truncate font-medium">
-                        {project.source.name}
+                        {projectTitle(project)}
                       </span>
                     </span>
                   </td>
@@ -217,7 +219,7 @@ export function RecordingsList({
                     {whenRecorded(project.createdAt)}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs text-muted">
-                    {formatDuration(project.duration)}
+                    {isScreenshot(project) ? "Image" : formatDuration(project.duration)}
                   </td>
                   <td className="px-3 py-2">
                     <TrackIcons project={project} />
@@ -337,9 +339,13 @@ function Thumbnail({ project }: { project: Project }) {
           if (!cancelled) setUrl(URL.createObjectURL(blob));
         },
         () => {
-          // A Studio video has no recording to take a poster from; it can set one in the editor.
           if (!cancelled)
-            (isStudio(project) ? Promise.reject() : makePoster(project)).then(
+            (isScreenshot(project)
+              ? Promise.resolve(fileUrl(project, project.tracks.screen.file))
+              : isStudio(project)
+                ? Promise.reject()
+                : makePoster(project)
+            ).then(
               setUrl,
               () => setFailed(true),
             );
@@ -434,7 +440,7 @@ function RecordingCard({
             </Badge>
           ) : (
             <span className="absolute bottom-2 left-2 rounded-md bg-black/70 px-1.5 py-0.5 font-mono text-[11px] text-white">
-              {formatDuration(project.duration)}
+              {isScreenshot(project) ? "Image" : formatDuration(project.duration)}
             </span>
           )}
           <TrackIcons
@@ -446,7 +452,7 @@ function RecordingCard({
           <SourceIcon className="h-4 w-4 shrink-0 text-subtle" />
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium">
-              {project.source.name}
+              {projectTitle(project)}
             </span>
             <span
               className="block text-xs text-subtle"

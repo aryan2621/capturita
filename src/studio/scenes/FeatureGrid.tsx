@@ -1,5 +1,6 @@
 import { BarChart3, Clock, Globe, Heart, Layers, Lock, Rocket, Shield, Sparkles, Users, Wand2, Zap, type LucideIcon } from 'lucide-react';
-import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { AbsoluteFill } from 'remotion';
+import { useVideoConfig } from './clock';
 import './fonts';
 import { BrandTexture, Depth, sceneGradient, useExit } from './SceneBase';
 import { frameLayout, grow } from './layout';

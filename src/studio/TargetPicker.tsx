@@ -2,9 +2,9 @@ import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react
 import { Button } from '../components/ui';
 import { fileUrl, type Project } from '../lib/api';
 import type { Segment, TargetRect } from './scenes/assets';
+import { clamp01 } from '../lib/math';
 
 const MIN_SIZE = 0.02;
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 /**
  * Covers the preview with the recording's frame at the start of a scene's segment, so a callout

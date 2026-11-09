@@ -50,7 +50,7 @@ export function suggestTarget(cursor: CursorData | null, project: Project, segme
 }
 
 /** The editor's click zooms for the part of the recording a scene shows, in seconds from its start. */
-export function clickZooms(cursor: CursorData | null, segment: Segment) {
+function clickZooms(cursor: CursorData | null, segment: Segment) {
     if (!cursor) return [];
     const clicks = cursor.clicks.filter(([t]) => t >= segment.start && t <= segment.end).map(([t, x, y, button]) => [t - segment.start, x, y, button] as typeof cursor.clicks[number]);
     return clicks.length ? autoZooms({ ...cursor, moves: [], clicks }, segment.end - segment.start) : [];
@@ -76,7 +76,7 @@ export function initialSceneProps(id: string, items: TimelineItem[], time: numbe
         if (field.type === 'segment') props[field.name] = segment;
         if (field.type === 'rect') props[field.name] = suggestTarget(cursor, project, segment) ?? props[field.name];
     }
-    // A device showing the recording zooms in on the clicks in it, like the editor does.
-    if (id === 'DeviceShowcase') props.zooms = clickZooms(cursor, segment);
+    // Scenes showing the recording zoom in on the clicks in it, like the editor does.
+    props.zooms = clickZooms(cursor, segment);
     return props;
 }

@@ -6,6 +6,7 @@ import { BrandTexture, SceneImage, sceneGradient, useExit } from './SceneBase';
 import { frameLayout } from './layout';
 import { RiveCanvas } from './RiveCanvas';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
+import { hexRgb } from '../../lib/color';
 
 export interface LottieSceneProps {
     animation: string;
@@ -44,7 +45,7 @@ function recolour(data: LottieAnimationData, tint: 'auto' | 'accent' | 'original
     const mono = colours.every(([r, g, b]) => (r === 0 && g === 0 && b === 0) || (r === 1 && g === 1 && b === 1));
     if (tint === 'auto' && (!mono || !colours.length)) return data;
     const hex = tint === 'accent' ? accent : text;
-    const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const rgb = hexRgb(hex).map((channel) => channel / 255);
     for (const c of colours) if (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] < 0.5) c.splice(0, 3, ...rgb);
     return copy;
 }

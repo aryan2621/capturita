@@ -1,5 +1,6 @@
 import type { CursorData } from '../lib/api';
 import type { NormalizedRect, Zoom } from './model';
+import { smoothstep, clamp01 } from '../lib/math';
 
 /**
  * Spring-driven motion for the cursor and the zoom camera.
@@ -14,7 +15,7 @@ import type { NormalizedRect, Zoom } from './model';
 /** Simulation step in seconds (twice the usual frame rate, so 60 fps exports interpolate finely). */
 const STEP = 1 / 120;
 
-export interface SpringConfig {
+interface SpringConfig {
     tension: number;
     friction: number;
     mass: number;
@@ -112,11 +113,6 @@ class Axis {
 /** How far behind a moving target a spring trails, in seconds (friction / tension for a steady pull). */
 const springLag = (cfg: SpringConfig) => cfg.friction / cfg.tension;
 
-const smoothstep = (x: number) => {
-    const t = Math.min(1, Math.max(0, x));
-    return t * t * (3 - 2 * t);
-};
-
 // ---- Raw cursor ----
 
 /**
@@ -201,7 +197,7 @@ function sampleIndex(moves: CursorData['moves'], t: number) {
  * The recorded cursor at source time t (linear between samples, still during pauses). `steady`
  * leaves out hand shake, for the smoothed cursor.
  */
-export function cursorAt(data: CursorData, t: number, steady = false) {
+function cursorAt(data: CursorData, t: number, steady = false) {
     const moves = steady ? steadyMoves(data) : cleanMoves(data);
     if (moves.length === 0) return null;
     if (t <= moves[0][0]) return { x: moves[0][1], y: moves[0][2] };
@@ -470,6 +466,5 @@ export function cameraViewport(inputs: CameraInputs, t: number): NormalizedRect 
     const [logScale, ax, ay] = samplePath(path, t, scratch);
     if (logScale < 1e-4) return FULL;
     const size = Math.exp(-logScale);
-    const clamp = (v: number) => Math.min(1, Math.max(0, v));
-    return { x: clamp(ax) * (1 - size), y: clamp(ay) * (1 - size), width: size, height: size };
+    return { x: clamp01(ax) * (1 - size), y: clamp01(ay) * (1 - size), width: size, height: size };
 }

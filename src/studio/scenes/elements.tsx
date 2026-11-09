@@ -4,7 +4,7 @@ import { clamp } from './SceneBase';
 import type { BrandColors } from './assets';
 
 export const ELEMENTS = ['check', 'arrow', 'underline', 'ring', 'sparkles', 'burst', 'confetti'] as const;
-export type ElementName = (typeof ELEMENTS)[number];
+type ElementName = (typeof ELEMENTS)[number];
 
 /** What each element draws from: its colour, the frames since it came in, and its box in pixels. */
 interface Ctx {

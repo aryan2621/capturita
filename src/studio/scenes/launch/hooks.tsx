@@ -2,6 +2,7 @@
 import { Check, Col, Headline, Kicker, Pill, Rule, Stage, Sub, easeOut, listOf, mono, seeded, typed, useKit, type Kit, type LaunchProps } from './kit';
 import { al, shortSide } from './shapes';
 import { HitFx, variantFor } from '../hitFx';
+import { hexRgb } from '../../../lib/color';
 import { Atmosphere, DANGER, Motes, Sweep, glass, rise } from './fx';
 
 /** Pop-in with a hard scale slam: starts oversized and settles with overshoot. */
@@ -153,14 +154,16 @@ export function CinematicTitle(p: LaunchProps) {
     const k = useKit(p);
     const hit = 1.2;
     const bar = easeOut(k.ramp(0, 0.6)) * k.height * 0.11;
+    const [r, g, b] = hexRgb(k.c.bg);
+    const barColor = r * 0.299 + g * 0.587 + b * 0.114 > 140 ? k.c.text : '#04050a';
     const flare = k.pop(hit, 12);
     return (
         <Stage p={p}>
             <Atmosphere k={k} a={0.22} />
             <Motes k={k} n={14} colour={k.c.text} seed={4} speed={0.6} />
             <div style={{ position: 'absolute', left: '12%', right: '12%', top: '50%', height: k.u * 0.35, background: `linear-gradient(90deg, transparent, ${k.c.accent}, ${k.c.text}, ${k.c.accent}, transparent)`, opacity: k.s < hit ? 0 : 0.9 * Math.exp(-(k.s - hit) * 1.6), transform: `scaleX(${flare * 1.1})`, filter: `blur(${k.u * 0.2}px)`, boxShadow: `0 0 ${k.u * 4}px ${k.c.accent}` }} />
-            <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: bar, background: '#04050a' }} />
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: bar, background: '#04050a' }} />
+            <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: bar, background: barColor }} />
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: bar, background: barColor }} />
             <Col k={k} style={{ transform: `scale(${1 + k.ramp(0, k.seconds, 0, 0.05)})` }}>
                 <Kicker k={k} style={{ opacity: k.ramp(0.35, 0.8), letterSpacing: k.u * (0.4 + k.ramp(0, k.seconds, 0, 0.8)) }}>{p.eyebrow}</Kicker>
                 <Headline k={k} size={11} style={{ letterSpacing: k.u * (1.1 * (1 - easeOut(k.ramp(0.2, hit + 0.2))) + 0.05), opacity: k.ramp(0.2, 0.9), fontWeight: 700, textShadow: `0 0 ${k.u * 6}px ${al(k.c.accent, 0.35 * Math.min(1, flare))}` }}>{p.headline}</Headline>
@@ -211,7 +214,7 @@ export function PersonaCallout(p: LaunchProps) {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: k.u * 1.8, justifyContent: 'center', maxWidth: '80%' }}>
                     {who.map((item, i) => {
                         const lit = settled || (k.s >= 0.5 && i === active);
-                        return <Pill key={i} k={k} active={lit} style={{ fontSize: k.tx * 3, padding: `${k.u * 1.3}px ${k.u * 2.8}px`, boxShadow: lit ? `0 0 ${k.u * 4}px ${al(k.c.accent, 0.5)}` : 'none', ...rise(k, 0.1 + i * 0.08, 3, 11), transform: `translateY(${(1 - k.pop(0.1 + i * 0.08, 11)) * k.u * 3}px) scale(${lit && !settled ? 1.1 : 1})` }}>{item.text}</Pill>;
+                        return <Pill key={i} k={k} active={lit} style={{ fontSize: k.tx * 3, padding: `${k.u * 1.3}px ${k.u * 2.8}px`, boxShadow: lit ? `0 0 ${k.u * 4}px ${al(k.c.accent, 0.5)}` : 'none', ...rise(k, 0.1 + i * 0.08, 3), transform: `translateY(${(1 - k.pop(0.1 + i * 0.08, 11)) * k.u * 3}px) scale(${lit && !settled ? 1.1 : 1})` }}>{item.text}</Pill>;
                     })}
                 </div>
                 <Headline k={k} size={8.5} style={rise(k, hit + 0.05)}>{p.headline}</Headline>
@@ -243,7 +246,7 @@ export function StrikeOldWay(p: LaunchProps) {
                         </div>
                     );
                 })}
-                <Headline k={k} size={8} style={{ textAlign: 'left', marginTop: k.u * 2, ...rise(k, hit, 5, 11) }}>{p.headline}</Headline>
+                <Headline k={k} size={8} style={{ textAlign: 'left', marginTop: k.u * 2, ...rise(k, hit, 5) }}>{p.headline}</Headline>
             </Col>
         </Stage>
     );

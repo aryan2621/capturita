@@ -21,7 +21,7 @@ export function RecordingVideo({ recording, assets, segment, still, style, zooms
     const held = still ? 0 : length - 1;
     const video = (
         <Freeze frame={held} active={still || frame >= length}>
-            <OffthreadVideo src={assetUrl(assets, recording.file)} trimBefore={first} muted style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block', ...style }} />
+            <OffthreadVideo src={assetUrl(assets, recording.file)} trimBefore={first} muted style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...style }} />
         </Freeze>
     );
     if (!zooms?.length || still) return video;

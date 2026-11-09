@@ -15,7 +15,7 @@ export interface ScenePiece {
 }
 
 /** A piece on screen: seconds into it, its opacity (below 1 during a crossfade) and its transition look. */
-export interface ActivePiece {
+interface ActivePiece {
     id: string;
     time: number;
     opacity: number;
@@ -38,7 +38,7 @@ export interface SceneLayerHandle {
  * a transparent background, as in their rendered files.
  */
 export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; overlay?: boolean; env: SceneEnv; width: number; height: number }>(function SceneLayer({ pieces, overlay = false, env, width, height }, ref) {
-    const layers = useRef(new Map<string, { element: HTMLDivElement | null; inner: HTMLDivElement | null; player: PlayerRef | null; frame: number; visible: boolean }>());
+    const layers = useRef(new Map<string, { element: HTMLDivElement | null; inner: HTMLDivElement | null; player: PlayerRef | null; frame: number; visible: boolean; ready: boolean }>());
     const dipRef = useRef<HTMLDivElement | null>(null);
     // Scene indices that get a mounted Player: those on screen plus one either side.
     const [mounted, setMounted] = useState<[number, number]>([0, 1]);
@@ -61,7 +61,7 @@ export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; o
     const layer = (id: string) => {
         let entry = layers.current.get(id);
         if (!entry) {
-            entry = { element: null, inner: null, player: null, frame: -1, visible: false };
+            entry = { element: null, inner: null, player: null, frame: -1, visible: false, ready: false };
             layers.current.set(id, entry);
         }
         return entry;
@@ -88,7 +88,7 @@ export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; o
             }
             for (const [id, entry] of layers.current) {
                 const scene = active.find((s) => s.id === id);
-                const visible = !!scene && scene.opacity > 0;
+                const visible = !!scene && scene.opacity > 0 && entry.ready;
                 if (entry.element) {
                     if (visible !== entry.visible) entry.element.style.visibility = visible ? 'visible' : 'hidden';
                     if (scene) {
@@ -116,7 +116,7 @@ export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; o
 
     return (
         <div className='pointer-events-none absolute inset-0 overflow-hidden rounded-lg'>
-            {scenes.map(({ item, definition, props, frames }, index) => index >= mounted[0] && index <= mounted[1] && (
+            {scenes.map(({ item, definition, props, frames }, index) => (index === 0 || index === scenes.length - 1 || (index >= mounted[0] && index <= mounted[1])) && (
                 <div
                     key={item.id}
                     ref={(element) => {
@@ -136,6 +136,7 @@ export const SceneLayer = forwardRef<SceneLayerHandle, { pieces: ScenePiece[]; o
                                 const entry = layer(item.id);
                                 entry.player = player;
                                 entry.frame = -1;
+                                if (player && !entry.ready) requestAnimationFrame(() => requestAnimationFrame(() => (entry.ready = true)));
                             }}
                             component={definition.component}
                             inputProps={props}

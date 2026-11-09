@@ -30,7 +30,7 @@ export function createClickSound(context: BaseAudioContext): AudioBuffer {
  * A two-part mechanical mouse click, synthesized like the tick: a sharp "press" with a short
  * plastic resonance, then a lighter, higher "release" about 70 ms later.
  */
-export function createMouseClickSound(context: BaseAudioContext): AudioBuffer {
+function createMouseClickSound(context: BaseAudioContext): AudioBuffer {
     const rate = context.sampleRate;
     const length = Math.round(rate * 0.13);
     const buffer = context.createBuffer(1, length, rate);

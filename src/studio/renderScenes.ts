@@ -94,8 +94,9 @@ export async function renderScenes(
 }
 
 /**
- * One picture of each scene, late in it when everything has settled, for looking at (not for
- * export). Returns the picture files (absolute paths), one per item, cached like scene files.
+ * Pictures of each scene at the given points of it (a share of its length, late by default when
+ * everything has settled), for looking at (not for export). Returns the picture files (absolute
+ * paths), item by item with one per point, cached like scene files.
  */
 export async function renderStills(
     project: Project,
@@ -105,14 +106,15 @@ export async function renderStills(
     height: number,
     onProgress: RenderProgress,
     signal: AbortSignal,
+    at: number[] = [0.7],
 ): Promise<string[]> {
     const recording = recordingInfo(project);
     const jobs: SceneJob[] = [];
     const outs: string[] = [];
-    for (const item of items) {
+    for (const item of items.flatMap((entry) => at.map((point) => ({ ...entry, point })))) {
         if (!SCENES[item.scene]) throw new Error(`Unknown motion scene “${item.scene}”`);
         const frames = sceneFrames(item.duration);
-        const job = { composition: item.scene, props: sceneLookProps(item, brand, recording), frames, fps: SCENE_FPS, width, height, still: Math.min(frames - 1, Math.floor(frames * 0.7)) };
+        const job = { composition: item.scene, props: sceneLookProps(item, brand, recording), frames, fps: SCENE_FPS, width, height, still: Math.min(frames - 1, Math.floor(frames * item.point)) };
         const hash = (await sha256(JSON.stringify({ kind: 'still', version: SCENE_RENDER_VERSION, ...job }))).slice(0, 20);
         const out = `${project.path}/scenes/still-${hash}.jpg`;
         outs.push(out);
@@ -126,7 +128,7 @@ export async function renderStills(
  * The frames of the timeline where a scene, a dip or an overlay is on screen, as inclusive
  * ranges; the frame choice matches TransparentTimeline's (`frame / SCENE_FPS`).
  */
-export function visibleRanges(edit: Pick<Edit, 'items' | 'overlays'>, frames: number): [number, number][] {
+function visibleRanges(edit: Pick<Edit, 'items' | 'overlays'>, frames: number): [number, number][] {
     const ranges: [number, number][] = [];
     for (let frame = 0; frame < frames; frame++) {
         const t = frame / SCENE_FPS;

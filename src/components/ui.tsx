@@ -1,3 +1,4 @@
+import { clamp } from '../lib/math'
 import {
   createContext,
   forwardRef,
@@ -41,7 +42,6 @@ const menuRow =
 export const tooltipSurface =
   'pointer-events-none z-50 whitespace-nowrap rounded-lg bg-fg px-2 py-1 text-xs font-medium text-bg'
 
-const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 
 function Chevron({ className }: { className?: string }) {
   return (
@@ -61,7 +61,7 @@ function CheckIcon({ className }: { className?: string }) {
 /* ================================================================== A. EXISTING */
 
 export type Variant = 'primary' | 'secondary' | 'ghost' | 'subtle' | 'danger' | 'record'
-export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon' | 'icon-sm'
+type ButtonSize = 'sm' | 'md' | 'lg' | 'icon' | 'icon-sm'
 
 const variantCls: Record<Variant, string> = {
   primary: 'bg-accent text-accent-fg hover:bg-accent-hover',

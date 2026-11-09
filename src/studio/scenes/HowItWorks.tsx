@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
-import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { AbsoluteFill } from 'remotion';
+import { useVideoConfig } from './clock';
 import './fonts';
 import { BrandTexture, Depth, sceneGradient, useExit } from './SceneBase';
 import { frameLayout, grow } from './layout';

@@ -42,7 +42,7 @@ import { Showcase3D } from './Showcase3D';
 import { LAYER_BASE } from './layers';
 import { ELEMENTS } from './elements';
 import { withMotionBlur } from './motionBlur';
-import { withCalm, withHeldEnd } from './SceneBase';
+import { withCalm, withCamera, withHeldEnd } from './SceneBase';
 import { withAtmosphere, withLook } from './atmosphere';
 import { Pricing, popularAt } from './Pricing';
 import { ScreenshotShowcase } from './ScreenshotShowcase';
@@ -86,14 +86,15 @@ export function sceneBeat(scene: string, props: Record<string, unknown>): number
 }
 
 /** Every scene plays at this rate, in the preview and in helper renders. */
-export const SCENE_FPS = 30;
+import { AUTHORED_FPS, SCENE_FPS } from './fps';
+export { SCENE_FPS };
 
 /**
  * Part of every rendered scene file's name. Bump it when a scene's look changes, so exports
  * render it again instead of reusing files made with the old code. Scenes must set line-height
  * explicitly: the preview (WebKit) and the renderer (Chrome) disagree on `normal`.
  */
-export const SCENE_RENDER_VERSION = 13;
+export const SCENE_RENDER_VERSION = 15;
 
 /** Composition id of the whole timeline as one transparent layer (studio-renderer/entry). */
 export const TIMELINE_COMPOSITION = 'TransparentTimeline';
@@ -183,7 +184,7 @@ export const SCENES: Record<string, SceneDefinition> = {
         ],
         defaultProps: { style: 'pop', wordmark: '', tagline: '', burst: true },
         defaultDuration: 3,
-        beat: (props) => (LOGO_HITS[props.style as keyof typeof LOGO_HITS] ?? LOGO_HITS.pop) / SCENE_FPS,
+        beat: (props) => (LOGO_HITS[props.style as keyof typeof LOGO_HITS] ?? LOGO_HITS.pop) / AUTHORED_FPS,
         beatLabel: 'Logo hit',
     },
     TitleReveal: {
@@ -267,7 +268,7 @@ export const SCENES: Record<string, SceneDefinition> = {
         ],
         defaultProps: { value: '10x', label: 'faster than recording by hand', glow: false },
         defaultDuration: 3.5,
-        beat: BIG_NUMBER_BEAT + 4 / SCENE_FPS,
+        beat: BIG_NUMBER_BEAT + 4 / AUTHORED_FPS,
         beatLabel: 'Count lands',
         use: 'both',
     },
@@ -290,7 +291,7 @@ export const SCENES: Record<string, SceneDefinition> = {
         ],
         defaultProps: { heading: 'Growth, quarter by quarter', kind: 'bars', unit: 'k', points: [{ label: 'Q1', value: 12 }, { label: 'Q2', value: 21 }, { label: 'Q3', value: 34 }, { label: 'Q4', value: 58 }] },
         defaultDuration: 4.5,
-        beat: CHART_BEAT + 8 / SCENE_FPS,
+        beat: CHART_BEAT + 8 / AUTHORED_FPS,
         beatLabel: 'Chart lands',
         use: 'both',
     },
@@ -1309,9 +1310,9 @@ for (const definition of Object.values(SCENES)) {
     // Overlays sit over the video; moving them would move the video's frame with them.
     if ((definition.use ?? 'scene') !== 'overlay') {
         definition.fields.push(ATMOSPHERE_FIELD, CALM_FIELD, TYPE_FIELD, PALETTE_FIELD, ENTER_FIELD);
-        definition.defaultProps = { ...definition.defaultProps, calm: true };
+        definition.defaultProps = { ...definition.defaultProps, calm: false, camera: 'push' };
         // The camera moves the scene; the atmosphere stays on the screen over it.
-        definition.component = withCalm(withAtmosphere(withLook(definition.component)));
+        definition.component = withCalm(withAtmosphere(withCamera(withLook(definition.component))));
     }
     definition.component = withHeldEnd(definition.component);
 }

@@ -1,8 +1,9 @@
 import { useBeatPulse } from './beat';
 import type { CSSProperties } from 'react';
-import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, interpolate, random, spring } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from './clock';
 import './fonts';
-import { BrandTexture, Depth, useExit } from './SceneBase';
+import { BrandTexture, Depth, clamp, useExit } from './SceneBase';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
 export type LogoStingStyle = 'pop' | 'wipe' | 'draw' | 'glow' | 'squash' | 'flicker' | 'blur' | 'shockwave' | 'lockup';
@@ -17,8 +18,6 @@ export interface LogoStingProps {
     brand: Brand;
     assets: SceneAssets;
 }
-
-const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 
 /** Frame the logo lands on, per style. */
 export const LOGO_HITS: Record<LogoStingStyle, number> = { pop: 10, wipe: 16, draw: 22, glow: 18, squash: 14, flicker: 15, blur: 12, shockwave: 10, lockup: 18 };

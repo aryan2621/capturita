@@ -2,16 +2,16 @@
 // panel adds. Shared by the preview handles and the renderer, so keep app code out of it.
 import type { BrandColors } from './assets';
 
-export type LayerKind = 'text' | 'image' | 'shape' | 'logo' | 'icon' | 'element';
-export type LayerColor = keyof BrandColors | 'white' | 'black';
-export type LayerEnter = 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'wipe' | 'blur' | 'type' | 'words';
+type LayerKind = 'text' | 'image' | 'shape' | 'logo' | 'icon' | 'element';
+type LayerColor = keyof BrandColors | 'white' | 'black';
+type LayerEnter = 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'wipe' | 'blur' | 'type' | 'words';
 export type LayerEase = 'smooth' | 'linear' | 'in' | 'out' | 'overshoot';
 /** Frame shapes a layer can have its own layout for. */
 export type LayerAspect = 'wide' | 'square' | 'tall';
 export type LayerBox = { x: number; y: number; w: number; h: number };
 
 /** Where a layer is at one moment, set by a keyframe. */
-export interface LayerKey {
+interface LayerKey {
     /** Seconds into the scene. */
     t: number;
     x: number;

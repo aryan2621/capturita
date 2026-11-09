@@ -1,4 +1,5 @@
-import { AbsoluteFill, interpolate, random, useVideoConfig } from 'remotion';
+import { AbsoluteFill, interpolate, random } from 'remotion';
+import { useVideoConfig } from './clock';
 import './fonts';
 import { BrandTexture, Depth, clamp, sceneGradient, useExit } from './SceneBase';
 import { ElementView } from './elements';

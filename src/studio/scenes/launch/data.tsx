@@ -193,7 +193,7 @@ export function OdometerDigits(p: LaunchProps) {
                             </span>
                         );
                     })}
-                    <span style={{ color: k.c.accent, marginLeft: k.u, textShadow: `0 0 ${k.u * 4}px ${al(k.c.accent, 0.7)}`, ...rise(k, hit - 0.2, 3, 9) }}>+</span>
+                    <span style={{ color: k.c.accent, marginLeft: k.u, textShadow: `0 0 ${k.u * 4}px ${al(k.c.accent, 0.7)}`, ...rise(k, hit - 0.2, 3) }}>+</span>
                 </div>
                 <Rule k={k} width={24} progress={k.pop(hit)} />
                 <Headline k={k} size={4.6} style={rise(k, hit)}>{p.headline}</Headline>
@@ -219,7 +219,7 @@ export function MetricsGrid(p: LaunchProps) {
                         const bob = Math.sin(k.s * 1.3 + i * 1.7) * k.u * 0.35;
                         const [pre, post] = affixes(stat.detail);
                         return (
-                            <div key={i} style={{ ...glass(k, { padding: `${k.u * 3}px ${k.u * 2.4}px`, textAlign: 'center', position: 'relative', overflow: 'hidden' }), ...rise(k, 0.2 + i * 0.1, 5, 11), transform: `translateY(${(1 - k.pop(0.2 + i * 0.1, 11)) * k.u * 5 + bob}px) scale(${0.94 + 0.06 * k.pop(0.2 + i * 0.1, 11)})` }}>
+                            <div key={i} style={{ ...glass(k, { padding: `${k.u * 3}px ${k.u * 2.4}px`, textAlign: 'center', position: 'relative', overflow: 'hidden' }), ...rise(k, 0.2 + i * 0.1, 5), transform: `translateY(${(1 - k.pop(0.2 + i * 0.1, 11)) * k.u * 5 + bob}px) scale(${0.94 + 0.06 * k.pop(0.2 + i * 0.1, 11)})` }}>
                                 <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: k.u * 0.5, background: `linear-gradient(90deg, transparent, ${k.c.accent}, transparent)`, opacity: t }} />
                                 <div style={{ fontFamily: k.display, fontWeight: 900, fontSize: k.tx * 7, fontVariantNumeric: 'tabular-nums', color: k.c.text, textShadow: `0 0 ${k.u * 3}px ${al(k.c.accent, 0.35 * t)}` }}>{pre}{compact(numberIn(stat.detail) * t)}<span style={{ color: k.c.accent }}>{post}</span></div>
                                 <div style={{ marginTop: k.u, color: k.c.muted, fontSize: k.tx * 2.3 }}>{stat.text}</div>

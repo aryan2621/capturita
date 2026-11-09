@@ -1,6 +1,7 @@
 // Shared pieces for the "proof" scenes (Pricing, Chat, Faq, Roadmap...): one scene context, a stage with accent light, a heading, a card surface and hit effects.
 import type { CSSProperties, ReactNode } from 'react';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, interpolate, spring } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from './clock';
 import './fonts';
 import { al } from './launch/shapes';
 import { HitFx, variantFor } from './hitFx';
@@ -14,7 +15,8 @@ export const SNAP = { stiffness: 230, damping: 14, mass: 0.7 };
 /** Settles fast without a bounce, for text and fades. */
 export const SMOOTH = { stiffness: 260, damping: 32, mass: 0.8 };
 
-export const easeOut = (t: number) => 1 - (1 - t) ** 3;
+import { easeOutCubic as easeOut } from '../../lib/math';
+export { easeOut };
 
 /** When item `i` of `n` starts, spread so the last one starts at `last` (a lone item starts at `first`). */
 export const staggerAt = (i: number, n: number, last: number, first = 0.15) => first + (i / Math.max(1, n - 1)) * Math.max(0, last - first);

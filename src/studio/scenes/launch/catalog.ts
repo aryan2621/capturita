@@ -14,10 +14,10 @@ import { TYPE_SCENES } from './catalog-type';
 import { SHAPE_SCENES } from './catalog-shapes';
 
 export const LAUNCH_CATEGORIES = ['Hooks', 'Problem', 'Product reveal', 'UI demo', 'Code & AI', 'Data', 'Diagrams', 'Shapes', 'Text', 'Social proof', 'Closers'] as const;
-export type LaunchCategory = (typeof LAUNCH_CATEGORIES)[number];
+type LaunchCategory = (typeof LAUNCH_CATEGORIES)[number];
 
 /** The story beat a scene serves, in the order a launch video usually plays them. */
-export type LaunchBeat = 'Hook' | 'Problem' | 'Reveal' | 'Demo' | 'Proof' | 'Text' | 'CTA';
+type LaunchBeat = 'Hook' | 'Problem' | 'Reveal' | 'Demo' | 'Proof' | 'Text' | 'CTA';
 
 export interface LaunchScene {
     /** Composition id, as stored on the timeline. */
@@ -318,5 +318,3 @@ const CORE_SCENES: LaunchScene[] = [
 ];
 
 export const LAUNCH_SCENES: LaunchScene[] = [...CORE_SCENES, ...MEDIA_SCENES, ...BUILD_SCENES, ...INSIGHT_SCENES, ...TYPE_SCENES, ...SHAPE_SCENES];
-
-export const LAUNCH_SCENE_BY_ID = new Map(LAUNCH_SCENES.map((scene) => [scene.id, scene]));

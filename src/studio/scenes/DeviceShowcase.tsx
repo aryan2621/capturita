@@ -1,5 +1,6 @@
 import type { Zoom } from '../../editor/model';
-import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { AbsoluteFill } from 'remotion';
+import { useVideoConfig } from './clock';
 import './fonts';
 import { BrandTexture, Depth, useExit } from './SceneBase';
 import { frameLayout } from './layout';
@@ -7,8 +8,8 @@ import { Copy, DeviceFrame, Landing, easeOut, fitScreen, useTiming } from './dev
 import { bodyFont, type Brand, type RecordingInfo, type SceneAssets, type Segment } from './assets';
 import { RecordingVideo } from './RecordingVideo';
 
-export type DeviceKind = 'macbook' | 'browser' | 'window';
-export type HeadlinePlacement = 'side' | 'below' | 'none';
+type DeviceKind = 'macbook' | 'browser' | 'window';
+type HeadlinePlacement = 'side' | 'below' | 'none';
 
 export interface DeviceShowcaseProps {
     device: DeviceKind;

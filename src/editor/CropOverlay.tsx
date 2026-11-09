@@ -1,6 +1,7 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { NormalizedRect } from './model';
 import type { Rect } from './render';
+import { clamp } from '../lib/math';
 
 const MIN_SIZE = 0.08;
 type Handle = 'move' | 'nw' | 'ne' | 'sw' | 'se';
@@ -82,4 +83,3 @@ export function CropOverlay({ frame, crop, onChange }: { frame: Rect; crop: Norm
     );
 }
 
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));

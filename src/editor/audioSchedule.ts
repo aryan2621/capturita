@@ -200,7 +200,7 @@ export function scheduleTimeline(context: BaseAudioContext, destination: AudioNo
 }
 
 /** Output times of the automatic sounds: transitions (centred on the cut) and scene beats. */
-export function soundCues(items: TimelineItem[], overlays: OverlayClip[]): { sound: SoundCue; time: number; centred: boolean }[] {
+function soundCues(items: TimelineItem[], overlays: OverlayClip[]): { sound: SoundCue; time: number; centred: boolean }[] {
     const starts = itemStarts(items);
     const cues: { sound: SoundCue; time: number; centred: boolean }[] = [];
     items.forEach((item, index) => {
@@ -266,7 +266,7 @@ const levelAt = (buffer: AudioBuffer, seconds: number) => {
  * `ducking.amount` dB while a voiceover (or, optionally, the recording's microphone) is speaking,
  * moving with one-pole attack and release. Preview and export both apply this exact curve.
  */
-export function duckCurve(options: Pick<ScheduleOptions, 'tracks' | 'items' | 'mix' | 'clips'>, length: number): Float32Array {
+function duckCurve(options: Pick<ScheduleOptions, 'tracks' | 'items' | 'mix' | 'clips'>, length: number): Float32Array {
     const { mix, items } = options;
     const { amount, attack, release, underRecording } = mix.ducking;
     const count = Math.ceil(length / DUCK_WINDOW) + 1;

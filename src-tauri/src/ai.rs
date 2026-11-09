@@ -689,6 +689,16 @@ pub async fn ai_edit(app: AppHandle, ai: State<'_, Ai>, request: EditRequest) ->
             None => local,
         }),
     };
+    let answer = local_chat(&ai, port, &request).await?;
+    match &fell_back {
+        Some((cloud, why)) => announce("Local (fallback)", &format!("{cloud} failed: {why}")),
+        None => announce("Local", active_model(&app).name),
+    }
+    Ok(answer)
+}
+
+/// Asks the bundled local model on `port` and returns its JSON answer.
+async fn local_chat(ai: &Ai, port: u16, request: &EditRequest) -> Result<Value, String> {
     let body = json!({
         "messages": [
             { "role": "system", "content": request.system },
@@ -711,12 +721,15 @@ pub async fn ai_edit(app: AppHandle, ai: State<'_, Ai>, request: EditRequest) ->
     }
     let reply: Value = response.json().await.map_err(|e| e.to_string())?;
     *ai.last_used.lock().unwrap() = Some(Instant::now());
-    match &fell_back {
-        Some((cloud, why)) => announce("Local (fallback)", &format!("{cloud} failed: {why}")),
-        None => announce("Local", active_model(&app).name),
-    }
     let content = reply["choices"][0]["message"]["content"].as_str().ok_or("The AI gave an empty answer")?;
     serde_json::from_str(content).map_err(|e| format!("The AI's answer couldn't be read: {e}"))
+}
+
+/// Like `ai_edit` but only ever the bundled local model, for content that must not leave the Mac.
+pub(crate) async fn ai_local(app: &AppHandle, ai: &Ai, system: &str, user: &str, schema: Value) -> Result<Value, String> {
+    let port = ai.ensure_server(app).await?;
+    let request = EditRequest { system: system.into(), user: user.into(), schema, temperature: None, max_tokens: Some(300), images: Vec::new() };
+    local_chat(ai, port, &request).await
 }
 
 #[cfg(test)]

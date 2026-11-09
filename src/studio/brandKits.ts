@@ -1,8 +1,10 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { GRADIENTS, type Background } from '../editor/model';
 import { api, type Project } from '../lib/api';
 import { DEFAULT_BRAND, type Brand, type BrandBackground, type BrandColors } from './scenes/assets';
 import { SCENE_FONTS, type SceneFont } from './scenes/fonts';
+import { hexRgb } from '../lib/color';
 
 /** A reusable brand kit, saved app-wide (Capturita/Brand/kits.json). */
 export interface BrandKit {
@@ -117,7 +119,6 @@ export async function paletteFromLogo(url: string): Promise<BrandColors> {
     return paletteFromColor(...(vivid ?? hexRgb(DEFAULT_BRAND.colors.accent)), dark);
 }
 
-const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
 
 /** A logo's most common vivid colour, and whether it is mostly dark. */
 async function readLogo(url: string): Promise<{ vivid: [number, number, number] | null; dark: boolean }> {
@@ -267,3 +268,8 @@ function hsl(h: number, s: number, l: number) {
     };
     return `#${channel(0)}${channel(8)}${channel(4)}`;
 }
+
+const isDefaultWallpaper = (background: Background) => JSON.stringify(background) === JSON.stringify(GRADIENTS[0]);
+
+export const studioBackground = (project: Project, background: Background, brand: Brand): Background =>
+    project.kind === 'studio' && isDefaultWallpaper(background) ? { type: 'color', color: brand.colors.bg } : background;

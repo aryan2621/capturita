@@ -1,4 +1,5 @@
-import { AbsoluteFill, Easing, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Easing, Img, interpolate, spring } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from './clock';
 import { Sparkles } from 'lucide-react';
 import './fonts';
 import { BrandTexture, clamp, SceneImage, sceneGradient, useExit } from './SceneBase';

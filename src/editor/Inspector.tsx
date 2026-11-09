@@ -18,7 +18,9 @@ import {
     ZoomIn,
 } from 'lucide-react';
 import { toast } from '../lib/toast';
-import { Button, ColorField, FontPicker, PositionPad, Segmented, Slider, Switch, TextArea, ToggleButton, cx } from '../components/ui';
+import { Button, ColorField, FontPicker, PositionPad, Segmented, Select, Slider, Switch, TextArea, TextInput, ToggleButton, cx } from '../components/ui';
+import { MAX_TILT, autoPadding } from './frameEffects';
+import { AnnotationToolbar, type AnnotationTools } from './AnnotationLayer';
 import { ProFeatureGate } from '../components/ProFeatureGate';
 import { api, errorMessage, fileUrl } from '../lib/api';
 import { backgroundCss } from './render';
@@ -58,6 +60,7 @@ import { TransparentExport } from '../studio/TransparentExport';
 interface InspectorProps {
     edit: Edit;
     hasCamera: boolean;
+    annotationTools: AnnotationTools;
     onChange: (change: Partial<Edit>, key: string) => void;
     selectedZoom: Zoom | null;
     hasClicks: boolean;
@@ -356,6 +359,10 @@ export function Inspector(props: InspectorProps) {
                                             onChange={props.onHideChange}
                                             onDelete={props.onHideDelete}
                                         />
+                                        <Section title='Shapes'>
+                                            <p className='text-xs text-muted'>Arrows, boxes and highlights, shown for the whole video. Pick a shape, then drag on the preview.</p>
+                                            <AnnotationToolbar tools={props.annotationTools} annotations={edit.annotations} onChange={(annotations, key) => onChange({ annotations }, key)} />
+                                        </Section>
                                     </>
                                 )}
                                 <ThumbnailSection
@@ -468,7 +475,7 @@ function ItemPanel({ title, onBack, onDelete, children }: { title: string; onBac
 
 // ---- Look ----
 
-function LookPanel({ edit, onChange, projectId, project }: InspectorProps) {
+export function LookPanel({ edit, onChange, projectId, project }: Pick<InspectorProps, 'edit' | 'onChange' | 'projectId' | 'project'>) {
     const background = edit.background;
     const input = useRef<HTMLInputElement>(null);
     const [busy, setBusy] = useState(false);
@@ -607,6 +614,9 @@ function LookPanel({ edit, onChange, projectId, project }: InspectorProps) {
                     format={(v) => percent(v / 0.25)}
                     onChange={(padding) => onChange({ padding }, 'padding')}
                 />
+                <Button size='sm' className='w-full' onClick={() => onChange({ padding: autoPadding(project.tracks.screen.width, project.tracks.screen.height) }, 'padding')} title='Balanced padding for this size: smaller captures get more room'>
+                    Auto padding
+                </Button>
                 <Slider
                     label='Rounded corners'
                     value={edit.radius}
@@ -618,6 +628,39 @@ function LookPanel({ edit, onChange, projectId, project }: InspectorProps) {
                 />
                 <Slider label='Shadow' value={edit.shadow} min={0} max={1} step={0.05} format={percent} onChange={(shadow) => onChange({ shadow }, 'shadow')} />
             </Section>
+
+            {project.kind !== 'studio' && (
+                <>
+                    <Section title='Tilt'>
+                        <Slider label='Tip forward or back' value={edit.tilt?.x ?? 0} min={-MAX_TILT} max={MAX_TILT} step={1} format={(v) => `${v}°`} onChange={(x) => onChange({ tilt: { x, y: edit.tilt?.y ?? 0 } }, 'tilt-x')} />
+                        <Slider label='Turn left or right' value={edit.tilt?.y ?? 0} min={-MAX_TILT} max={MAX_TILT} step={1} format={(v) => `${v}°`} onChange={(y) => onChange({ tilt: { x: edit.tilt?.x ?? 0, y } }, 'tilt-y')} />
+                    </Section>
+
+                    <Section title='Watermark'>
+                        <TextInput
+                            aria-label='Watermark text'
+                            placeholder='Your name or @handle'
+                            value={edit.watermark?.text ?? ''}
+                            onChange={(event) => onChange({ watermark: { corner: 'bottom-right', opacity: 0.7, ...edit.watermark, text: event.target.value } }, 'watermark-text')}
+                        />
+                        {edit.watermark?.text && (
+                            <>
+                                <Select
+                                    aria-label='Watermark corner'
+                                    value={edit.watermark.corner}
+                                    onChange={(event) => onChange({ watermark: { ...edit.watermark!, corner: event.target.value as CameraCorner } }, 'watermark-corner')}
+                                >
+                                    <option value='top-left'>Top left</option>
+                                    <option value='top-right'>Top right</option>
+                                    <option value='bottom-left'>Bottom left</option>
+                                    <option value='bottom-right'>Bottom right</option>
+                                </Select>
+                                <Slider label='Opacity' value={edit.watermark.opacity} min={0.1} max={1} step={0.05} format={percent} onChange={(opacity) => onChange({ watermark: { ...edit.watermark!, opacity } }, 'watermark-opacity')} />
+                            </>
+                        )}
+                    </Section>
+                </>
+            )}
         </div>
     );
 }

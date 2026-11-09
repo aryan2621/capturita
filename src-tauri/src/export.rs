@@ -38,11 +38,12 @@ fn free_export_path(app: &AppHandle, name: &str, ext: &str) -> Result<PathBuf, S
     Ok(path)
 }
 
-/// Starts a new export file (`mp4` or `gif`) in ~/Movies/Capturita/Exports and returns its path.
+/// Starts a new export file (`mp4`, `gif` or `png`) in ~/Movies/Capturita/Exports and returns its path.
 #[tauri::command]
 pub fn export_open(app: AppHandle, export: State<'_, Export>, name: String, ext: Option<String>) -> Result<String, String> {
     let ext = match ext.as_deref() {
         Some("gif") => "gif",
+        Some("png") => "png",
         _ => "mp4",
     };
     let path = free_export_path(&app, &name, ext)?;

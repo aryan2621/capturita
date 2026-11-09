@@ -2,17 +2,19 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { openPath } from '@tauri-apps/plugin-opener';
-import { FolderOpen, LayoutGrid, List, Plus, Search, Settings, Sparkles } from 'lucide-react';
+import { FolderOpen, Globe, LayoutGrid, List, Plus, Search, Settings, Sparkles } from 'lucide-react';
 import { toast } from '../lib/toast';
-import { api, errorMessage, type Permissions, type Project } from '../lib/api';
+import { api, errorMessage, isScreenshot, isStudio, matchesQuery, projectTitle, type Permissions, type Project } from '../lib/api';
 import { PermissionsBanner } from '../components/PermissionsBanner';
 import { SetupFlow } from '../components/SetupFlow';
 import { resumeStep, setResumeStep, setupDone, type SetupStep } from '../lib/setup';
 import { RecorderPanel } from '../components/RecorderPanel';
 import { EmptyLibrary, LibraryHeader, RecordingsList, type LibraryView } from '../components/RecordingsList';
 import { EditorView } from './EditorView';
+import { ScreenshotEditor } from '../editor/ScreenshotEditor';
 import { defaultEdit, totalDuration } from '../editor/model';
 import { loadBrandKits, setBrandKits } from '../studio/brandKits';
+import { WebCaptureDialog } from '../components/WebCaptureDialog';
 import { NewStudioDialog } from '../studio/NewStudioDialog';
 import { templateBackground, templateItems, templateKit, type StudioTemplate } from '../studio/templates';
 import { Button, IconButton, Segmented, Select, TextInput } from '../components/ui';
@@ -45,6 +47,7 @@ export function MainWindow() {
     const [view, setView] = useState<LibraryView>(loadView);
     const [query, setQuery] = useState('');
     const [sort, setSort] = useState<'newest' | 'name' | 'longest'>('newest');
+    const [kind, setKind] = useState<'all' | 'recording' | 'screenshot' | 'studio'>('all');
     const changeView = (next: LibraryView) => {
         setView(next);
         try {
@@ -72,6 +75,19 @@ export function MainWindow() {
     }, []);
 
     const [studioOpen, setStudioOpen] = useState(false);
+    const [webOpen, setWebOpen] = useState(false);
+    const analyzeScreenshot = (project: Project) => {
+        if (license.supported && !license.pro) return;
+        api.analyzeScreenshot(project.id).then(refreshRecordings, () => {});
+    };
+    const startWebCapture = () => {
+        if (license.supported && !license.pro) {
+            window.dispatchEvent(new CustomEvent('capturita-open-license'));
+            return;
+        }
+        setWebOpen(true);
+    };
+
     const startStudio = () => {
         if (license.supported && !license.pro) {
             window.dispatchEvent(new CustomEvent('capturita-open-license'));
@@ -143,6 +159,15 @@ export function MainWindow() {
                 onPermissionsChange={setPermissions}
                 visible={recorderOpen}
                 onStarted={() => setRecorderOpen(false)}
+                onScreenshot={(project) => {
+                    const window = getCurrentWindow();
+                    window.show();
+                    window.setFocus();
+                    setRecorderOpen(false);
+                    refreshRecordings();
+                    setEditing(project);
+                    analyzeScreenshot(project);
+                }}
                 onNotReady={() => {
                     // ⌘⇧R from another app: bring Capturita forward so the missing choice can be made.
                     setRecorderOpen(true);
@@ -157,6 +182,19 @@ export function MainWindow() {
             />
         </RecorderDialog>
     );
+
+    if (editing && isScreenshot(editing)) {
+        return (
+            <ScreenshotEditor
+                key={editing.id}
+                project={editing}
+                onClose={() => {
+                    setEditing(null);
+                    refreshRecordings();
+                }}
+            />
+        );
+    }
 
     if (editing) {
         return (
@@ -180,8 +218,9 @@ export function MainWindow() {
     // Same shape as the editor branch ([page, recorder]), so the recorder keeps its state when the editor opens or closes.
     const needle = query.trim().toLowerCase();
     const shown = recordings
-        .filter((r) => !needle || r.source.name.toLowerCase().includes(needle))
-        .sort((a, b) => (sort === 'name' ? a.source.name.localeCompare(b.source.name) : sort === 'longest' ? b.duration - a.duration : 0));
+        .filter((r) => kind === 'all' || (isScreenshot(r) ? 'screenshot' : isStudio(r) ? 'studio' : 'recording') === kind)
+        .filter((r) => !needle || matchesQuery(r, needle))
+        .sort((a, b) => (sort === 'name' ? projectTitle(a).localeCompare(projectTitle(b)) : sort === 'longest' ? b.duration - a.duration : 0));
 
     return (
         <>
@@ -192,6 +231,9 @@ export function MainWindow() {
                     </span>
                     <span className='text-base font-semibold tracking-tight'>Capturita</span>
                     <div className='ml-auto flex items-center gap-2'>
+                        <Button size='sm' onClick={startWebCapture} title='Screenshot a web page at a phone, tablet or desktop width'>
+                            <Globe className='h-4 w-4' /> Capture web page
+                        </Button>
                         <Button
                             size='sm'
                             onClick={startStudio}
@@ -234,10 +276,18 @@ export function MainWindow() {
                                     leading={<Search className='h-3.5 w-3.5' />}
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
-                                    placeholder='Search recordings'
-                                    aria-label='Search recordings'
+                                    placeholder='Search names, tags and text'
+                                    aria-label='Search the library'
                                     className='ml-auto w-52'
                                 />
+                                <div className='w-36'>
+                                    <Select aria-label='Show' value={kind} onChange={(e) => setKind(e.target.value as typeof kind)} className='h-8'>
+                                        <option value='all'>Everything</option>
+                                        <option value='recording'>Recordings</option>
+                                        <option value='screenshot'>Screenshots</option>
+                                        <option value='studio'>Studio videos</option>
+                                    </Select>
+                                </div>
                                 <div className='w-32'>
                                     <Select aria-label='Sort by' value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className='h-8'>
                                         <option value='newest'>Newest</option>
@@ -258,11 +308,22 @@ export function MainWindow() {
                                 </div>
                             </div>
                             <RecordingsList recordings={shown} view={view} grouped={sort === 'newest'} onOpen={setEditing} onDeleted={refreshRecordings} />
-                            {shown.length === 0 && <p className='text-sm text-muted'>Nothing matches “{query}”.</p>}
+                            {shown.length === 0 && <p className='text-sm text-muted'>{needle ? `Nothing matches “${query}”.` : 'Nothing of this kind yet.'}</p>}
                         </section>
                     )}
                 </main>
 
+                {webOpen && (
+                    <WebCaptureDialog
+                        onClose={() => setWebOpen(false)}
+                        onCaptured={(project) => {
+                            setWebOpen(false);
+                            refreshRecordings();
+                            setEditing(project);
+                            analyzeScreenshot(project);
+                        }}
+                    />
+                )}
                 {studioOpen && <NewStudioDialog onClose={() => setStudioOpen(false)} onContinue={newStudioVideo} />}
                 {settingsOpen && (
                     <SettingsDialog

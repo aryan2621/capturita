@@ -6,8 +6,8 @@ import { SCENES } from './scenes';
 import type { VideoStyle } from './styles';
 import type { SceneClip } from '../editor/model';
 
-const CRITIQUE_SYSTEM = `You review frames from the scenes of a product launch video, one picture per scene, in order. Rate each scene's frame from 1 (poor) to 5 (excellent) for how good it looks on screen: text is readable and not cut off, there is a clear focus, it is not empty or cluttered, and it uses the brand's look.
-For a frame scoring 3 or less, "problem" is one short sentence on what to change in its wording or content (shorter text, a clearer headline, fewer items). Leave "problem" empty for 4 or 5.`;
+const CRITIQUE_SYSTEM = `You review frames from the scenes of a product launch video: two pictures per scene, in order, an early one (the scene arriving) and a late one (settled). Rate each scene from 1 (poor) to 5 (excellent) for how good it looks and moves on screen: text is readable and not cut off in either picture, there is a clear focus, it is not empty or cluttered, it uses the brand's look, and the early picture already has something on screen (a scene that opens empty feels slow) while the late one adds to it (a scene whose two pictures are identical does not move).
+Each result's "index" is the scene's number from the list. For a scene scoring 3 or less, "problem" is one short sentence on what to change in its wording or content (shorter text, a clearer headline, fewer items). Leave "problem" empty for 4 or 5.`;
 
 const CRITIQUE_SCHEMA = {
     type: 'object',
@@ -19,6 +19,9 @@ const CRITIQUE_SCHEMA = {
     },
     required: ['scenes'],
 };
+
+/** Where in each scene the pictures are taken: arriving, then settled. */
+const STILL_POINTS = [0.2, 0.7];
 
 /** Weakest scenes to write again: more would change the whole draft. */
 const MAX_REDO = 2;
@@ -49,11 +52,11 @@ export async function polishDraft(
     // The scenes as they will be on the timeline: pictures placed, the style's pace and look applied.
     const items = applyDraft({ ...ctx.edit, items: [] }, usable, style, true, media).items.filter((item): item is SceneClip => item.kind === 'scene');
     ctx.onStep?.('Rendering a picture of each scene');
-    const files = await renderStills(ctx.project, items, ctx.env.brand, ctx.size.width, ctx.size.height, () => {}, new AbortController().signal);
+    const files = await renderStills(ctx.project, items, ctx.env.brand, ctx.size.width, ctx.size.height, () => {}, new AbortController().signal, STILL_POINTS);
     const images = await Promise.all(files.map(jpegBase64));
     ctx.onStep?.('Looking at the draft');
-    const list = usable.map((p, i) => `Picture ${i}: ${SCENES[p.scene].label}. ${p.purpose}`).join('\n');
-    const review = await callModel<{ scenes?: { index: number; score: number; problem: string }[] }>(CRITIQUE_SYSTEM, `${images.length} pictures, in order:\n${list}`, CRITIQUE_SCHEMA, 0.2, 1200, images);
+    const list = usable.map((p, i) => `Scene ${i} (pictures ${i * 2 + 1} and ${i * 2 + 2}): ${SCENES[p.scene].label}. ${p.purpose}`).join('\n');
+    const review = await callModel<{ scenes?: { index: number; score: number; problem: string }[] }>(CRITIQUE_SYSTEM, `${images.length} pictures, two per scene (early, then late), in order:\n${list}`, CRITIQUE_SCHEMA, 0.2, 1200, images);
     const weak = (review?.scenes ?? [])
         .filter((s) => Number.isInteger(s.index) && usable[s.index] && s.score <= 3 && s.problem?.trim() && !SCENES[usable[s.index].scene].fields.some((f) => f.type === 'segment'))
         .sort((a, b) => a.score - b.score)

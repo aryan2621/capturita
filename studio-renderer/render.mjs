@@ -65,7 +65,7 @@ function codecFor(out, alpha) {
     if (alpha && out.endsWith('.webm')) return { codec: 'vp9', pixelFormat: 'yuva420p', imageFormat: 'png', crf: 18, colorSpace: 'bt709' };
     if (alpha) return { codec: 'prores', proResProfile: '4444', pixelFormat: 'yuva444p10le', imageFormat: 'png' };
     // Limited-range BT.709, tagged like the recordings (the default writes untagged full range).
-    return { codec: 'h264', crf: 16, colorSpace: 'bt709' };
+    return { codec: 'h264', crf: 14, imageFormat: 'jpeg', jpegQuality: 100, colorSpace: 'bt709' };
 }
 
 const TYPES = { '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif', '.json': 'application/json' };
@@ -263,6 +263,49 @@ async function download(url, base) {
     }
 }
 
+async function openPage(chrome, url, { width, height, scale = 1, dark = false }) {
+    const page = await chrome.newPage();
+    await page.setViewport({ width, height, deviceScaleFactor: scale });
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }]);
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 }).catch(async (error) => {
+        // Pages that never go quiet (analytics, chat widgets) are fine once they have loaded.
+        if (!/timeout/i.test(String(error?.message))) throw error;
+    });
+    // Best effort: close a cookie banner so it isn't in every shot.
+    await page.evaluate(() => {
+        const button = [...document.querySelectorAll('button, a[role="button"]')].find((b) => /^(accept( all)?|agree|got it|allow all|ok)\b/i.test((b.textContent ?? '').trim()));
+        button?.click();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    return page;
+}
+
+const SHOT_MAX_HEIGHT = 12000;
+
+/** Chrome's first launch after its download is slow (macOS scans the new binary), so give it longer and retry once. */
+const launchChrome = (puppeteer, executablePath) =>
+    puppeteer.launch({ executablePath, headless: 'shell', timeout: 120000 }).catch((error) => {
+        if (!/timed out/i.test(String(error?.message ?? error))) throw error;
+        return puppeteer.launch({ executablePath, headless: 'shell', timeout: 120000 });
+    });
+
+/** One screenshot of a page at a chosen width, colour scheme and scale: the viewport, or the whole page. Reports {"shot": {width, height}} on stdout. */
+async function shotPage(url, file, { width, scale, dark, full }, executablePath) {
+    if (!/^https?:\/\//i.test(url)) throw new Error('Enter a web address starting with http:// or https://');
+    const { default: puppeteer } = await import('puppeteer-core');
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    const chrome = await launchChrome(puppeteer, executablePath);
+    try {
+        const height = Math.round(width * 0.625);
+        const page = await openPage(chrome, url, { width, height, scale, dark });
+        const pageHeight = full ? Math.min(await page.evaluate(() => document.documentElement.scrollHeight), SHOT_MAX_HEIGHT) : height;
+        await page.screenshot({ path: file, clip: { x: 0, y: 0, width, height: pageHeight }, captureBeyondViewport: full });
+        process.stdout.write(`${JSON.stringify({ shot: { width: Math.round(width * scale), height: Math.round(pageHeight * scale) } })}\n`);
+    } finally {
+        await chrome.close();
+    }
+}
+
 const CAPTURE_SECTIONS = 6;
 
 /**
@@ -274,20 +317,9 @@ async function capturePage(url, outDir, prefix, executablePath) {
     if (!/^https?:\/\//i.test(url)) throw new Error('Enter a web address starting with http:// or https://');
     const { default: puppeteer } = await import('puppeteer-core');
     await fs.mkdir(outDir, { recursive: true });
-    const chrome = await puppeteer.launch({ executablePath, headless: 'shell' });
+    const chrome = await launchChrome(puppeteer, executablePath);
     try {
-        const page = await chrome.newPage();
-        await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 }).catch(async (error) => {
-            // Pages that never go quiet (analytics, chat widgets) are fine once they have loaded.
-            if (!/timeout/i.test(String(error?.message))) throw error;
-        });
-        // Best effort: close a cookie banner so it isn't in every shot.
-        await page.evaluate(() => {
-            const button = [...document.querySelectorAll('button, a[role="button"]')].find((b) => /^(accept( all)?|agree|got it|allow all|ok)\b/i.test((b.textContent ?? '').trim()));
-            button?.click();
-        });
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const page = await openPage(chrome, url, { width: 1440, height: 900 });
 
         const files = { hero: `${prefix}hero.png`, sections: [], full: null, logo: null, share: null };
         await page.screenshot({ path: path.join(outDir, files.hero) });
@@ -325,7 +357,14 @@ async function capturePage(url, outDir, prefix, executablePath) {
     }
 }
 
-if (process.argv[2] === '--capture') {
+if (process.argv[2] === '--shot') {
+    const executable = await browser();
+    const options = { width: Number(argument('--width')), scale: Number(argument('--scale')), dark: argument('--scheme') === 'dark', full: argument('--full') === '1' };
+    await shotPage(process.argv[3], path.resolve(argument('--out')), options, executable).catch((error) => {
+        console.error(`Couldn't capture that page: ${error?.message ?? error}`);
+        process.exit(1);
+    });
+} else if (process.argv[2] === '--capture') {
     const executable = await browser();
     await capturePage(process.argv[3], path.resolve(argument('--out')), argument('--prefix') ?? '', executable).catch((error) => {
         console.error(`Couldn't capture that page: ${error?.message ?? error}`);

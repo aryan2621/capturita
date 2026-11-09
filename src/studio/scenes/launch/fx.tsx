@@ -1,17 +1,14 @@
 // Shared depth and "hit" effects for the hook, data and tech scenes (hooks.tsx, data.tsx, tech.tsx).
 import type { CSSProperties } from 'react';
 import { al, shortSide } from './shapes';
-import { card, seeded, type Kit } from './kit';
+import { card, enter, seeded, type Kit } from './kit';
 
 /** Semantic status colours (the brand has none for "bad" and "done"). */
 export const DANGER = '#ff6b73';
 export const OK = '#7fe3a8';
 
-/** Entry style: fades up from `dist` units below with a springy overshoot. Spread it into a style. */
-export const rise = (k: Kit, delay: number, dist = 4, damping = 13): CSSProperties => {
-    const a = k.pop(delay, damping);
-    return { opacity: Math.min(1, a * 1.6), transform: `translateY(${(1 - a) * k.u * dist}px) scale(${0.94 + 0.06 * a})` };
-};
+/** Entry style: slides up from `dist` units below on an expo-out curve, unblurring as it lands. Spread it into a style. */
+export const rise = (k: Kit, delay: number, dist = 4): CSSProperties => enter(k, delay, { y: dist });
 
 /** A raised surface with an accent edge light, for the hero card of a scene. */
 export const glass = (k: Kit, style?: CSSProperties): CSSProperties =>

@@ -1,5 +1,7 @@
 import { Aura, Stage, al, card, clamp01, easeOutQuart, glow, hitFlash, useHero, type Kit } from './hero';
 import { type Brand } from './assets';
+import { AUTHORED_FPS } from './fps';
+import { smoothPath } from '../../lib/curve';
 
 export interface ChartPoint {
     label: string;
@@ -16,10 +18,10 @@ export interface ChartProps {
     brand: Brand;
 }
 
-const START = 4 / 30;
+const START = 4 / AUTHORED_FPS;
 /** Seconds the bars or the line take to land; the scene's beat is this plus 8 frames. */
 export const CHART_BEAT = 1;
-const HIT = CHART_BEAT + 8 / 30;
+const HIT = CHART_BEAT + 8 / AUTHORED_FPS;
 
 /** Points as drawn: finite values only, at most 8. */
 export function cleanPoints(points: unknown): ChartPoint[] {
@@ -27,16 +29,6 @@ export function cleanPoints(points: unknown): ChartPoint[] {
         .filter((p) => Number.isFinite(Number(p?.value)))
         .slice(0, 8)
         .map((p) => ({ label: String(p.label ?? ''), value: Number(p.value) }));
-}
-
-/** A smooth open curve through the points (Catmull-Rom to bezier). */
-function curve(pts: [number, number][]) {
-    let d = `M${pts[0][0]},${pts[0][1]}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-        const [p0, p1, p2, p3] = [pts[Math.max(0, i - 1)], pts[i], pts[i + 1], pts[Math.min(pts.length - 1, i + 2)]];
-        d += `C${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
-    }
-    return d;
 }
 
 interface PlotProps {
@@ -71,7 +63,7 @@ export function ChartPlot({ k, kind, points, width, height, from, to, format }: 
     const barStart = (i: number) => from + (n > 1 ? (i / (n - 1)) * (to - from - 0.3) : 0);
     const reach = (i: number) => (n > 1 ? i / (n - 1) : 0);
     const dots = points.map<[number, number]>((p, i) => [x(i), y(p.value)]);
-    const lineD = n > 1 ? curve(dots) : '';
+    const lineD = n > 1 ? smoothPath(dots) : '';
     const lastX = x(n - 1);
 
     return (

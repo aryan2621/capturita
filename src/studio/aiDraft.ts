@@ -2,6 +2,7 @@
 // rules turn them into a storyboard (small local models plan poorly; the facts decide), then each
 // scene is written and checked like any AI scene (fillStep).
 
+import { HOOK_SCENES, END_SCENES, POOLS, TITLE_SCENES, pick, seedOf } from './draftPools';
 import { beatsOnTimeline, fitScenesToBeats, withSceneBeats } from '../editor/beats';
 import { canCrossfade, newId, totalDuration, type Edit, type MusicTrack, type SceneClip, type TimelineItem } from '../editor/model';
 import { api } from '../lib/api';
@@ -61,7 +62,7 @@ const FACTS_SYSTEM = `You read a product's README or description and pull out fa
 - code: only if the product is something developers call from code (a library, CLI or API): a short usage example of at most 4 lines. Never setup, build or install-from-source steps; "" otherwise.`;
 
 /** Facts from the source text, with lists tidied. */
-export async function readFacts(source: string, limit = SOURCE_LIMIT): Promise<DraftFacts> {
+async function readFacts(source: string, limit = SOURCE_LIMIT): Promise<DraftFacts> {
     const facts = await callModel<DraftFacts>(FACTS_SYSTEM, `Text:\n${source.trim().slice(0, limit)}`, FACTS_SCHEMA, 0.1, 1500);
     const filled = <T>(list: T[] | undefined, keep: (item: T) => boolean) => (Array.isArray(list) ? list.filter(keep) : []);
     return {
@@ -97,10 +98,10 @@ export function reviewDraft(scenes: { scene: string; props: Record<string, unkno
     }
     const textOnly = scenes.map((s) => TEXT_ONLY.has(s.scene));
     // The end card closes the video, so it doesn't count as a stretch of slides.
-    const inARow = textOnly.filter((on, i) => on && textOnly[i - 1] && scenes[i].scene !== 'EndCard').length;
+    const inARow = textOnly.filter((on, i) => on && textOnly[i - 1] && !END_SCENES.has(scenes[i].scene)).length;
     if (inARow) warnings.push({ message: `${inARow} text-only scene${inARow > 1 ? 's' : ''} follow another one: it will read like slides.` });
     // Title, logo and end card are text by nature: judge the scenes between them.
-    const middle = scenes.filter((s) => !['TitleReveal', 'LogoSting', 'EndCard'].includes(s.scene));
+    const middle = scenes.filter((s) => !TITLE_SCENES.has(s.scene) && !END_SCENES.has(s.scene));
     const texts = middle.filter((s) => TEXT_ONLY.has(s.scene)).length;
     if (middle.length >= 3 && texts / middle.length > 0.5) warnings.push({ message: `${texts} of the ${middle.length} scenes between the title and the end are text only. Capture the product page or add a recording to show it working.` });
     const seconds = scenes.reduce((sum, s) => sum + pacedDuration(s.scene, s.props), 0);
@@ -131,7 +132,7 @@ export const MAX_DRAFT_SCENES = 16;
  * ranked (title and end card first, then the first spotlights and the hook, …); the best `count`
  * are kept. Each purpose names the facts to use. Fewer come back when the text supports fewer.
  */
-export function storyboard(facts: DraftFacts, count: number, inputs: DraftInputs, menu = false): PlanStep[] {
+function storyboard(facts: DraftFacts, count: number, inputs: DraftInputs, menu = false): PlanStep[] {
     const step = (scene: string, purpose: string): PlanStep => ({ action: 'add', scene, target: '', placement: 'end', purpose });
     // A part of the recording `at` (0–1) of the way through: fillStep starts the scene's segment there.
     const shown = (scene: string, purpose: string, at: number): PlanStep => ({ ...step(scene, purpose), placement: 'playhead', at: at * inputs.recording });
@@ -139,11 +140,13 @@ export function storyboard(facts: DraftFacts, count: number, inputs: DraftInputs
     // Candidates in story order; `rank` decides which survive when there are more than `count` (lower stays).
     type Candidate = { rank: number; spot?: { feature: DraftFacts['features'][number] | null }; make?: () => PlanStep };
     const all: Candidate[] = [];
+    const seed = seedOf(`${facts.name}${facts.tagline}`);
+    const choose = (pool: string[], salt: number) => pick(pool, seed, salt);
     if (inputs.hasLogo) all.push({ rank: 3, make: () => step('LogoSting', `Open with the logo${facts.tagline ? `; tagline: ${facts.tagline}` : ''}.`) });
-    all.push({ rank: 0, make: () => step('TitleReveal', `Introduce ${facts.name || 'the product'}${facts.tagline ? `: ${facts.tagline}` : ''}.`) });
+    all.push({ rank: 0, make: () => step(choose(POOLS.title, 0), `Introduce ${facts.name || 'the product'}${facts.tagline ? `: ${facts.tagline}` : ''}.`) });
     // The hook: the pain it removes, or else the promise, as a punchy line.
     if (facts.problem || facts.tagline)
-        all.push({ rank: 2, make: () => step('KineticStatement', facts.problem ? `Say the problem it removes as a punchy line: ${facts.problem}` : `Turn this promise into a punchy two-line statement: ${facts.tagline}`) });
+        all.push({ rank: 2, make: () => step(choose(facts.problem ? POOLS.hookProblem : POOLS.hookPromise, 1), facts.problem ? `Say the problem it removes as a punchy line: ${facts.problem}` : `Turn this promise into a punchy two-line statement: ${facts.tagline}`) });
     // One spotlight per main feature (or per screenshot when the text lists none): the demo is the heart of a launch video.
     // With no screenshot and no recording a spotlight would show an empty picture slot: the illustrative scenes below stand in.
     const spots = !inputs.shots && !inputs.recording ? [] : facts.features.length ? facts.features.slice(0, 6) : Array.from({ length: Math.min(inputs.shots, 6) }, () => null);
@@ -154,26 +157,30 @@ export function storyboard(facts: DraftFacts, count: number, inputs: DraftInputs
     // A montage of the screens when there are enough of them: the product itself, in motion.
     if (inputs.shots >= 3) all.push({ rank: 3, make: () => step('UiCollage', `A short headline for screenshots of ${facts.name || 'the product'}${facts.tagline ? ` (${facts.tagline})` : ''}.`) });
     // The tagline as moving type, after the hook has said the problem.
-    if (facts.problem && facts.tagline) all.push({ rank: 3, make: () => step('KineticType', `Say the promise in 1–2 short lines of big moving type: ${facts.tagline}`) });
+    if (facts.problem && facts.tagline) all.push({ rank: 3, make: () => step(choose(POOLS.promise, 2), `Say the promise in 1–2 short lines of big moving type: ${facts.tagline}`) });
     // With no screens to show, an illustrative app window stands in for the product (labelled as such by the scene).
-    if (!inputs.shots && !inputs.recording && facts.features.length) all.push({ rank: 3, make: () => step('UiCard', `An illustrative app window for ${facts.name || 'the product'}: its title, then switches and rows named after these features, no numbers: ${list(facts.features.slice(0, 3).map((f) => f.title))}.`) });
-    if (facts.steps.length >= 2) all.push({ rank: 4, make: () => step('HowItWorks', `Show these steps in order: ${list(facts.steps.map((st) => `${st.title}: ${st.text}`))}.`) });
+    if (!inputs.shots && !inputs.recording && facts.features.length) all.push({ rank: 3, make: () => step(choose(POOLS.demo, 3), `An illustrative product demo for ${facts.name || 'the product'}, with labels named after these features and no numbers: ${list(facts.features.slice(0, 3).map((f) => f.title))}.`) });
+    if (facts.steps.length >= 2) all.push({ rank: 4, make: () => step(choose(POOLS.steps, 4), `Show these steps in order: ${list(facts.steps.map((st) => `${st.title}: ${st.text}`))}.`) });
     // With no screens, the feature recap is the 3D ring of chips; otherwise the card grid.
-    if (facts.features.length >= 3 && !inputs.shots && !inputs.recording) all.push({ rank: 4, make: () => step('FeatureOrbit', `Chips for exactly these features, each at most 3 words: ${list(facts.features.slice(0, 8).map((f) => f.title))}.`) });
-    else if (facts.features.length >= 3) all.push({ rank: 4, make: () => step('FeatureGrid', `Recap every feature: ${list(facts.features.map((f) => `${f.title}: ${f.text}`))}.`) });
+    if (facts.features.length >= 3 && !inputs.shots && !inputs.recording) all.push({ rank: 4, make: () => step(choose(POOLS.features, 5), `Recap exactly these features, each title at most 3 words: ${list(facts.features.slice(0, 8).map((f) => `${f.title}: ${f.text}`))}.`) });
+    else if (facts.features.length >= 3) all.push({ rank: 4, make: () => step(choose(POOLS.features, 5), `Recap every feature: ${list(facts.features.map((f) => `${f.title}: ${f.text}`))}.`) });
     // One figure is a single big number; several are counters side by side.
-    if (facts.numbers.length === 1) all.push({ rank: 3, make: () => step('BigNumber', `Show exactly this figure, as written: ${facts.numbers[0].prefix}${facts.numbers[0].value}${facts.numbers[0].suffix} ${facts.numbers[0].label}.`) });
-    else if (facts.numbers.length) all.push({ rank: 3, make: () => step('StatCounter', `Show exactly these numbers: ${list(facts.numbers.map((n) => `${n.prefix}${n.value}${n.suffix} ${n.label}`))}.`) });
-    if (facts.quote.text) all.push({ rank: 4, make: () => step('Testimonial', `Quote: "${facts.quote.text}" by ${facts.quote.name}${facts.quote.role ? `, ${facts.quote.role}` : ''}.`) });
+    if (facts.numbers.length === 1) all.push({ rank: 3, make: () => step(choose(POOLS.oneNumber, 6), `Show exactly this figure, as written: ${facts.numbers[0].prefix}${facts.numbers[0].value}${facts.numbers[0].suffix} ${facts.numbers[0].label}.`) });
+    else if (facts.numbers.length) all.push({ rank: 3, make: () => step(choose(POOLS.numbers, 6), `Show exactly these numbers: ${list(facts.numbers.map((n) => `${n.prefix}${n.value}${n.suffix} ${n.label}`))}.`) });
+    if (facts.quote.text) all.push({ rank: 4, make: () => step(choose(POOLS.quote, 7), `Quote: "${facts.quote.text}" by ${facts.quote.name}${facts.quote.role ? `, ${facts.quote.role}` : ''}.`) });
     if (facts.pricing.length >= 2) all.push({ rank: 5, make: () => step('Pricing', `Show these plans: ${list(facts.pricing.map((p) => `${p.name} ${p.price} ${p.period}`))}. The text doesn't say what each plan includes, so leave every plan's features empty.`) });
     // Code with features to show becomes an app window; code alone just types. A CLI cue without code gives neither (no invented code).
     if (facts.code && facts.features.length) all.push({ rank: 6, make: () => step('CodeToUi', `Type this example, then turn it into an illustrative app window titled ${facts.name || 'the product'} whose switches and rows are named after these features, no numbers: ${list(facts.features.slice(0, 3).map((f) => f.title))}. Code: ${facts.code}`) });
-    else if (facts.code) all.push({ rank: 6, make: () => step('CodeTyping', `Type this example: ${facts.code}`) });
+    else if (facts.code) all.push({ rank: 6, make: () => step(choose(POOLS.codeOnly, 8), `Type this example: ${facts.code}`) });
     // Opt-in: particles only for a product about networks or connecting things, never by default.
     if (NETWORK_CUE.test(toneText(facts))) all.push({ rank: 6, make: () => step('NetworkField', `A heading and one-line subtitle about what it connects, from the text: ${facts.tagline || facts.name}.`) });
     // Only on the menu the planner picks from: an alternative to the KineticStatement hook, never planned beside it.
     if (menu && facts.tagline) all.push({ rank: 7, make: () => step('Text3D', `The product's name or promise as 1–2 short rows of 3D title: ${facts.name || facts.tagline}.`) });
-    all.push({ rank: 0, make: () => step('EndCard', `Close with: ${facts.cta || 'Try it today'}${facts.url ? `, at ${facts.url}` : ''}.`) });
+    if (!inputs.shots && !inputs.recording && facts.features.length) all.push({ rank: 2, make: () => step(choose(POOLS.reveal, 10), `Reveal ${facts.name || 'the product'} on a device or screen${facts.tagline ? `: ${facts.tagline}` : ''}. Headline names the benefit in a few words.`) });
+    if (AI_CUE.test(toneText(facts))) all.push({ rank: 4, make: () => step(choose(POOLS.ai, 11), `Show the AI part of ${facts.name || 'the product'} working, using only what the text says: ${facts.tagline || facts.name}.`) });
+    if (INTEGRATION_CUE.test(toneText(facts))) all.push({ rank: 5, make: () => step(choose(POOLS.integrations, 12), `Show what ${facts.name || 'the product'} connects with, using only the names in the text: ${facts.tagline || facts.name}.`) });
+    all.push({ rank: 8, make: () => step(choose(POOLS.interlude, 13), `A breathing moment of shapes with a short line from the text: ${facts.tagline || facts.name}.`) });
+    all.push({ rank: 0, make: () => step(choose(facts.url ? POOLS.closerWithUrl : POOLS.closer, 9), `Close with: ${facts.cta || 'Try it today'}${facts.url ? `, at ${facts.url}` : ''}.`) });
 
     const kept = new Set([...all].sort((a, b) => a.rank - b.rank).slice(0, Math.max(2, count)));
     const chosen = all.filter((c) => kept.has(c));
@@ -193,13 +200,13 @@ export function storyboard(facts: DraftFacts, count: number, inputs: DraftInputs
 }
 
 /** Scenes that are only text and shapes: two in a row is what makes a video feel like slides. */
-const TEXT_ONLY = new Set(['NetworkField', 'Text3D', 'TitleReveal', 'KineticStatement', 'KineticType', 'BigNumber', 'LogoSting', 'FeatureGrid', 'HowItWorks', 'StatCounter', 'Testimonial', 'Pricing', 'CodeTyping', 'EndCard']);
+const TEXT_ONLY = new Set(['NetworkField', 'Text3D', 'KineticStatement', 'KineticType', 'BigNumber', 'FeatureGrid', 'HowItWorks', 'StatCounter', 'Testimonial', 'Pricing', 'CodeTyping', ...TITLE_SCENES, ...END_SCENES, ...POOLS.hookPromise, ...POOLS.promise]);
 
 /**
  * Moves a picture scene (a spotlight or recording scene) between two text-only scenes in a row,
  * when there is one later on. The first scene and the end card stay where they are.
  */
-export function spreadTextScenes(steps: PlanStep[]): PlanStep[] {
+function spreadTextScenes(steps: PlanStep[]): PlanStep[] {
     const out = [...steps];
     for (let i = 1; i < out.length - 1; i++) {
         if (!TEXT_ONLY.has(out[i].scene) || !TEXT_ONLY.has(out[i - 1].scene)) continue;
@@ -210,23 +217,23 @@ export function spreadTextScenes(steps: PlanStep[]): PlanStep[] {
     return out;
 }
 
-const PLAN_ARC_SYSTEM = `You direct a product launch video made of scenes. From the numbered menu, choose scenes and put them in the story arc: a hook (the pain or the promise, in six words or fewer), the problem, the reveal (the logo or the product), up to three proofs (product shots, numbers, a quote), then the call to action (the end card). Rules:
+const PLAN_ARC_SYSTEM = `You direct a product launch video made of scenes. From the numbered menu, choose scenes and put them in the story arc: a hook (the pain or the promise, in six words or fewer), the tension (what is broken today), the reveal (the logo or the product, the moment the video turns), up to three proofs that build (product shots first, then numbers or a quote), a payoff line that states the one big benefit, then the call to action (the end card). Vary the rhythm: quick text beats, then a product shot that holds. Rules:
 - Pick at most the number of scenes you are told; drop the weakest ones.
 - Never pick the same scene kind twice in a row, and never put two text-only scenes (title, statement, recap, numbers, quote, pricing, code) back to back when a product shot (spotlight or recording scene) can sit between them.
-- Fewer kinds read as better editing: use at most four different scene kinds, and prefer coming back to a kind later (with new text, never twice in a row) over adding another kind.
+- Prefer coming back to a kind later (with new text, never twice in a row) over adding a kind that carries no new idea.
 - Never open on the logo alone: the first scene must say what is launching.
 - Start with the product's title or its logo, and end with the end card.
 - For each pick, "role" is a short phrase for what that scene does in the story ("hook", "first proof it works", "why it matters").
 - "look" is the video's look, chosen from the tone of the text: developer tools suit neon-tech, consumer products apple-clean or vapor, a serious or editorial brand editorial.`;
 
 /** Local guess at the tone when Claude doesn't plan: code and developer words mean a developer tool. */
-export function lookFor(facts: DraftFacts): string {
+function lookFor(facts: DraftFacts): string {
     const words = [facts.tagline, facts.problem, ...facts.features.map((f) => `${f.title} ${f.text}`)].join(' ');
     return facts.code || /\b(api|cli|sdk|developers?|open[- ]source|terminal|git|deploy)\b/i.test(words) ? 'neon-tech' : 'apple-clean';
 }
 
 /** Moves a later scene up between two of the same kind (the model or the rules can repeat one); the end card stays last. */
-export function separateRepeats(steps: PlanStep[]): PlanStep[] {
+function separateRepeats(steps: PlanStep[]): PlanStep[] {
     const out = [...steps];
     for (let i = 1; i < out.length - 1; i++) {
         if (out[i].scene !== out[i - 1].scene) continue;
@@ -238,14 +245,14 @@ export function separateRepeats(steps: PlanStep[]): PlanStep[] {
 }
 
 /** Scenes whose purpose copies exact facts, so the plan's wording must not change them. */
-const EXACT_SCENES = new Set(['CodeToUi', 'StatCounter', 'BigNumber', 'FeatureOrbit', 'Testimonial', 'Pricing', 'CodeTyping', 'FeatureGrid', 'HowItWorks', 'EndCard']);
+const EXACT_SCENES = new Set(['CodeToUi', 'Pricing', ...POOLS.numbers, ...POOLS.oneNumber, ...POOLS.quote, ...POOLS.codeOnly, ...POOLS.features, ...POOLS.steps, ...END_SCENES]);
 
 /**
  * Claude's version of the storyboard: it picks and orders scenes from what the facts allow (the
  * menu is the rule-based storyboard with every scene), so scene names and facts stay valid. The
  * caller falls back to `storyboard` when this throws.
  */
-export async function planStoryboard(facts: DraftFacts, count: number, inputs: DraftInputs): Promise<{ steps: PlanStep[]; look: string }> {
+async function planStoryboard(facts: DraftFacts, count: number, inputs: DraftInputs): Promise<{ steps: PlanStep[]; look: string }> {
     const menu = storyboard(facts, MAX_DRAFT_SCENES, inputs, true);
     const schema = {
         type: 'object',
@@ -266,20 +273,20 @@ export async function planStoryboard(facts: DraftFacts, count: number, inputs: D
     const picks = (Array.isArray(order) ? order : []).filter((o) => Number.isInteger(o.pick) && menu[o.pick] && !seen.has(o.pick) && seen.add(o.pick)).slice(0, count);
     // An empty or invalid answer is no plan: the caller falls back to the rules.
     if (picks.length < Math.min(2, menu.length - 1)) throw new Error('The plan was too short');
-    const end = menu.findIndex((step) => step.scene === 'EndCard');
+    const end = menu.findIndex((step) => END_SCENES.has(step.scene));
     const withEnd = [...picks.filter((o) => o.pick !== end), ...(end >= 0 ? [{ pick: end, role: '' }] : [])];
     // The title always opens unless the logo does.
-    const title = menu.findIndex((step) => step.scene === 'TitleReveal');
-    if (title >= 0 && !withEnd.some((o) => menu[o.pick].scene === 'TitleReveal' || menu[o.pick].scene === 'LogoSting')) withEnd.unshift({ pick: title, role: '' });
+    const title = menu.findIndex((step) => POOLS.title.includes(step.scene));
+    if (title >= 0 && !withEnd.some((o) => TITLE_SCENES.has(menu[o.pick].scene))) withEnd.unshift({ pick: title, role: '' });
     // Text3D and the kinetic statement are two takes on the same hook.
-    const hooks = withEnd.filter((o) => ['Text3D', 'KineticStatement'].includes(menu[o.pick].scene));
+    const hooks = withEnd.filter((o) => menu[o.pick].scene === 'Text3D' || HOOK_SCENES.has(menu[o.pick].scene));
     if (hooks.length > 1) withEnd.splice(withEnd.indexOf(hooks.find((o) => menu[o.pick].scene === 'Text3D')!), 1);
     const steps = withEnd.map(({ pick, role }) => ({ ...menu[pick], purpose: role.trim() && !EXACT_SCENES.has(menu[pick].scene) ? `${menu[pick].purpose} Story role: ${role.trim()}.` : menu[pick].purpose }));
     return { steps: separateRepeats(spreadTextScenes(steps)), look: STYLES.some((st) => st.id === reply.look) ? reply.look! : lookFor(facts) };
 }
 
 /** A line cut to at most `max` words: its first clause when that fits, else its first words. Never empty. */
-export function trimLine(line: string, max: number): string {
+function trimLine(line: string, max: number): string {
     const count = (t: string) => t.split(/\s+/).filter(Boolean).length;
     if (count(line) <= max) return line;
     const clause = line.split(/[,;:.!?]\s|\s[–—-]\s/)[0].trim();
@@ -287,10 +294,10 @@ export function trimLine(line: string, max: number): string {
     return cut.replace(/[\s,;:–—-]+$/, '').replace(/\s+(and|or|the|a|an|of|to|with|for|in|on)$/i, '') || cut;
 }
 
-/** Trims every short text of a written scene (the hook to 6 words, the rest to 7); scenes that copy exact facts are left alone. */
-export function limitLines(proposal: SceneProposal, hook: boolean): SceneProposal {
+/** Trims every short text of a written scene (the hook to 6 words, the rest to 9); scenes that copy exact facts are left alone. */
+function limitLines(proposal: SceneProposal, hook: boolean): SceneProposal {
     if (EXACT_SCENES.has(proposal.scene)) return proposal;
-    const max = hook ? 6 : 7;
+    const max = hook ? 6 : 9;
     const props = { ...proposal.props };
     const changes = proposal.changes.map((c) => ({ ...c }));
     const trim = (value: unknown) => {
@@ -311,10 +318,11 @@ export function limitLines(proposal: SceneProposal, hook: boolean): SceneProposa
     return { ...proposal, props, changes };
 }
 
-/** A scene's length kept in a launch video's rhythm: 1.5–3 s (CodeToUi 6–9 s), the reveal (first title or logo) 2–4 s, the end card at least 3 s. */
-export function clampDuration(scene: string, seconds: number, reveal: boolean): number {
+/** A scene's length kept in a launch video's rhythm: quick text beats 1.2–3 s, product shots held 2.5–5.5 s, CodeToUi 6–9 s, the reveal (first title or logo) 2–4 s, the end card 3–5 s. */
+function clampDuration(scene: string, seconds: number, reveal: boolean): number {
     // CodeToUi types, holds, then morphs: it needs most of its default 8.5 s.
-    const [min, max] = scene === 'EndCard' ? [3, 5] : scene === 'CodeToUi' ? [6, 9] : reveal ? [2, 4] : [1.5, 3];
+    const own = SCENES[scene].defaultDuration;
+    const [min, max] = isLaunch(scene) ? [own * 0.8, own * 1.2] : scene === 'EndCard' ? [3, 5] : scene === 'CodeToUi' ? [6, 9] : reveal ? [2, 4] : VISUAL_SCENES.has(scene) ? [2.5, 5.5] : [1.2, 3];
     return Math.min(max, Math.max(min, seconds));
 }
 
@@ -339,8 +347,8 @@ export async function draftVideo(source: string, count: number, ctx: SceneAiCont
     const proposals: SceneProposal[] = [];
     for (const [i, step] of steps.entries()) {
         ctx.onStep?.(`Writing ${SCENES[step.scene].label.toLowerCase()} (${i + 1} of ${steps.length})`);
-        const written = await fillStep(step, 'Write this scene of the product launch video. Every line at most 7 words; the hook at most 6.', factsCtx, []);
-        proposals.push(limitLines(written, step.scene === 'KineticStatement' && !proposals.some((p) => p.scene === 'KineticStatement')));
+        const written = await fillStep(step, 'Write this scene of the product launch video. Every line at most 9 words; the hook at most 6. Write like a launch tagline, not a feature label.', factsCtx, []);
+        proposals.push(limitLines(written, HOOK_SCENES.has(step.scene) && !proposals.some((p) => HOOK_SCENES.has(p.scene))));
     }
     return { facts, proposals, look };
 }
@@ -362,12 +370,15 @@ export interface DraftMedia {
 const SHOT_SCENES = new Set(['ScreenshotShowcase', 'Showcase3D']);
 
 /** Scenes that are mostly the product on screen: they need time for it however few the words. */
+const isLaunch = (scene: string) => scene.startsWith('Launch');
+const AI_CUE = /\b(ai|assistant|prompt|agents?|chat|llm|copilot|model)\b/i;
+const INTEGRATION_CUE = /\b(integrat\w*|connects?|plugins?|works with|api)\b/i;
 const VISUAL_SCENES = new Set(['ScreenshotShowcase', 'Showcase3D', 'DeviceShowcase', 'FeatureCallout', 'UiCollage', 'UiCard']);
 /** How many words a viewer reads in a second, comfortably. */
 const WORDS_PER_SECOND = 2.5;
 
 /** A scene's length from its words: time to read them plus a beat, within 0.6–1.4× its default. */
-export function pacedDuration(scene: string, props: Record<string, unknown>): number {
+function pacedDuration(scene: string, props: Record<string, unknown>): number {
     const { defaultDuration, fields } = SCENES[scene];
     const words = (value: unknown) => (typeof value === 'string' ? value.split(/\s+/).filter(Boolean).length : 0);
     let count = 0;
@@ -378,7 +389,7 @@ export function pacedDuration(scene: string, props: Record<string, unknown>): nu
         }
     }
     const reading = 1.5 + count / WORDS_PER_SECOND;
-    const seconds = VISUAL_SCENES.has(scene) ? Math.max(defaultDuration * 0.8, reading) : Math.min(defaultDuration * 1.4, Math.max(defaultDuration * 0.6, reading));
+    const seconds = VISUAL_SCENES.has(scene) || isLaunch(scene) ? Math.max(defaultDuration * 0.8, reading) : Math.min(defaultDuration * 1.4, Math.max(defaultDuration * 0.6, reading));
     return Math.round(seconds * 10) / 10;
 }
 
@@ -431,7 +442,7 @@ export function applyDraft(edit: Edit, proposals: SceneProposal[], style: VideoS
             return { kind: 'scene', id: newId(), scene: p.scene, props, duration: pacedDuration(p.scene, props), ai: p.props };
         });
     // The style sets the pace on top of each scene's own length (applyStyle alone would reset it to the default).
-    const reveal = made.findIndex((m) => m.scene === 'TitleReveal' || m.scene === 'LogoSting');
+    const reveal = made.findIndex((m) => TITLE_SCENES.has(m.scene));
     const styled = applyStyle(made, style).map((item, i) => (item.kind === 'scene' ? { ...item, duration: clampDuration(item.scene, Math.round(made[i].duration * style.pace * 10) / 10, i === reveal) } : item));
     const audio = media.music ? { ...edit.audio, music: media.music } : edit.audio;
     if (replace) return { ...edit, audio, items: fitScenesToBeats(styled, beatsOnTimeline(media.music, totalDuration(styled))) };

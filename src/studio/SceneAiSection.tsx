@@ -11,6 +11,7 @@ import { capturePage } from './capturePage';
 import { polishDraft } from './polish';
 import { importSfx, sfxNeeded, withTransitionSounds } from './sfx';
 import { importMusicTrack } from '../editor/MusicPanel';
+import { defaultSong } from './music';
 import { sceneLabel } from './scenes';
 import type { SceneEnv } from './scenes/assets';
 import { shuffleStyle, STYLES, type VideoStyle } from './styles';
@@ -188,10 +189,11 @@ export function SceneAiSection({
         const picked = result.proposals.filter((p) => chosen.has(p.id));
         const style = pickedStyle;
         let music = null;
-        if (result.draft && song) {
+        const file = song ?? (edit.audio.music ? null : await defaultSong());
+        if (result.draft && file) {
             setBusy('Adding the music');
             try {
-                music = await importMusicTrack(project, song, edit.audio.music);
+                music = await importMusicTrack(project, file, edit.audio.music);
             } catch (error) {
                 toast.error(errorMessage(error));
             } finally {

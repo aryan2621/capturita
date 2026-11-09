@@ -1,6 +1,7 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { HideRegion, NormalizedRect } from './model';
 import { screenRectToFrame, type Rect } from './render';
+import { clamp } from '../lib/math';
 
 /** Smallest hide region, as a fraction of the recorded screen. */
 const MIN_SIZE = 0.01;
@@ -76,4 +77,3 @@ export function HideHandle({ hide, view, onChange }: { hide: HideRegion; view: {
     );
 }
 
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));

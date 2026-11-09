@@ -6,8 +6,8 @@ import type { Edit, SoundCue, TimelineItem, Transition } from '../editor/model';
 
 const FILES = import.meta.glob('../../studio-assets/sfx/*.wav', { query: '?url', import: 'default', eager: true }) as Record<string, string>;
 
-/** Which sound a transition gets: movement sounds like movement; soft fades stay silent. */
-export const TRANSITION_SFX: Partial<Record<Transition['type'], string>> = { push: 'whoosh', slide: 'whoosh', wipe: 'swoosh', zoom: 'pop', whip: 'whoosh', circle: 'pop', diagonal: 'swoosh', flash: 'impact', flood: 'swoosh' };
+/** Which sound a transition gets: movement sounds like movement; only a plain crossfade stays silent. */
+const TRANSITION_SFX: Partial<Record<Transition['type'], string>> = { glide: 'swoosh', blur: 'swoosh', dip: 'swoosh', push: 'whoosh', slide: 'whoosh', wipe: 'swoosh', zoom: 'pop', whip: 'whoosh', circle: 'pop', diagonal: 'swoosh', flash: 'impact', flood: 'swoosh' };
 
 /** Sound names (`whoosh`) that the transitions of these items would use. */
 export const sfxNeeded = (items: TimelineItem[]) => [...new Set(items.flatMap((item) => (item.transition ? [TRANSITION_SFX[item.transition.type]] : [])).filter((n): n is string => !!n))];

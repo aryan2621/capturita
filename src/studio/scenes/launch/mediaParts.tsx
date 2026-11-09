@@ -1,14 +1,13 @@
 // Shared chrome for the product-media scenes (media.tsx): one device frame, window, ghost UI, placement and light effect each.
 import type { CSSProperties, ReactNode } from 'react';
-import { Screen, Win, seeded, type Kit, type LaunchProps } from './kit';
+import { Screen, Win, pulse, seeded, type Kit, type LaunchProps } from './kit';
+export { pulse };
 import { useVideoConfig } from 'remotion';
 import { HitFx, variantFor } from '../hitFx';
 import { lerp } from './shapes';
 
-export const inOut = (x: number) => {
-    const t = Math.max(0, Math.min(1, x));
-    return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
-};
+import { easeInOutCubic as inOut } from '../../../lib/math';
+export { inOut };
 
 // ---- placement ------------------------------------------------------------------------------
 
@@ -43,14 +42,17 @@ export const Glare = () => <div style={{ position: 'absolute', inset: 0, pointer
 /** Layered soft shadow; `lift` raises the object off the ground. */
 export const depthShadow = (k: Kit, lift = 1) => `0 ${k.u * 1.2 * lift}px ${k.u * 3}px #0007, 0 ${k.u * 6 * lift}px ${k.u * 16 * lift}px #000a`;
 /** A soft contact shadow under the bottom edge of its (relative) parent. */
-export const Ground = ({ k, o = 1 }: { k: Kit; o?: number }) => (
+const Ground = ({ k, o = 1 }: { k: Kit; o?: number }) => (
     <div style={{ position: 'absolute', left: '6%', right: '6%', bottom: -k.u * 1.4, height: k.u * 3, borderRadius: '50%', background: 'radial-gradient(#000c, transparent 70%)', opacity: o, pointerEvents: 'none' }} />
 );
-/** The "hit": the scene's own accent (glow, sweep, sparks, flash or nothing) at a point, sized by `r`. */
-export const Hit = ({ k, x, y, r, t0 }: { k: Kit; x: number; y: number; r: number; t0: number }) => (
+/** The accent for a scene's key moment at (x, y) px, `size` px reach, over `dur` seconds from `t0`: the look is fixed per scene `name` (or nothing). */
+export const HitAt = ({ k, name, x, y, t0, size, dur = 0.7, seed }: { k: Kit; name: string; x: number; y: number; t0: number; size: number; dur?: number; seed?: number }) => (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        <HitFx variant={variantFor(useVideoConfig().id)} t={k.ramp(t0, t0 + 0.6)} x={x} y={y} size={r} color={k.c.accent} seed={Math.round(x + y)} />
+        <HitFx variant={variantFor(name)} t={k.ramp(t0, t0 + dur)} x={x} y={y} size={size} color={k.c.accent} seed={seed} />
     </div>
+);
+export const Hit = ({ k, x, y, r, t0 }: { k: Kit; x: number; y: number; r: number; t0: number }) => (
+    <HitAt k={k} name={useVideoConfig().id} x={x} y={y} t0={t0} size={r} dur={0.6} seed={Math.round(x + y)} />
 );
 
 // ---- devices and windows --------------------------------------------------------------------
@@ -140,6 +142,3 @@ export const Ui = ({ p, k, i = 0, label = '', side = true }: { p: LaunchProps; k
     const real = (p.images ?? []).flatMap((x, n) => (x?.image ? [n] : []));
     return <Screen p={p} k={k} index={real.length ? real[i % real.length] : i} fallback={<MockApp k={k} label={label} seed={i} side={side} />} />;
 };
-
-/** 1 at time `t0`, cooling to 0 (a flash that fades); 0 before it. */
-export const pulse = (k: Kit, t0: number, rate = 3) => (k.s < t0 ? 0 : Math.exp(-(k.s - t0) * rate));

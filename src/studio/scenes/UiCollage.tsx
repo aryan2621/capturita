@@ -1,4 +1,5 @@
-import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { AbsoluteFill } from 'remotion';
+import { useVideoConfig } from './clock';
 import './fonts';
 import { BrandTexture, Depth, SceneImage, sceneGradient, useExit } from './SceneBase';
 import { frameLayout } from './layout';

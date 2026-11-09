@@ -1,10 +1,13 @@
 import { noise2D } from '@remotion/noise';
 import { useContext, useMemo, type ComponentType, type ReactNode } from 'react';
-import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { LightLeak } from '@remotion/light-leaks';
+import { AbsoluteFill, interpolate, Sequence, useVideoConfig as useRenderConfig } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from './clock';
 import type { Brand, BrandColors } from './assets';
 import type { SceneFont } from './fonts';
 import { useBeatPulse } from './beat';
-import { CalmContext, useTimelineFrame } from './SceneBase';
+import { CalmContext, clamp, useTimelineFrame } from './SceneBase';
+import { easeOutCubic } from '../../lib/math';
 
 /** A 128px tile of film grain, made once from a fixed seed so every render matches. */
 function grainTile() {
@@ -24,6 +27,9 @@ function grainTile() {
     return canvas.toDataURL('image/png');
 }
 
+/** Frames at the end of a scene where a light leak flares as the cut arrives. */
+const LEAK_SECONDS = 0.8;
+
 export type AtmosphereKind = 'filmic' | 'neon' | 'haze' | 'print';
 
 /** Strength of each layer per kind: two leak opacities, vignette darkness, grain opacity, and whether the leaks are brand-accent only. */
@@ -35,10 +41,12 @@ const KINDS: Record<AtmosphereKind, { leaks: [number, number]; vignette: number;
 };
 
 /** Light over the whole frame: a vignette, two soft leaks of brand colour, and grain. Screen-fixed. */
-function Atmosphere({ brand, kind }: { brand: Brand; kind: AtmosphereKind }) {
+function Atmosphere({ brand, kind, leak }: { brand: Brand; kind: AtmosphereKind; leak?: boolean }) {
     const k = KINDS[kind];
     const frame = useTimelineFrame();
     const { width, height, fps } = useVideoConfig();
+    const render = useRenderConfig();
+    const leakFrames = Math.round(LEAK_SECONDS * render.fps);
     const tile = useMemo(grainTile, []);
     const pulse = useBeatPulse(0.3);
     const calm = useContext(CalmContext);
@@ -66,6 +74,13 @@ function Atmosphere({ brand, kind }: { brand: Brand; kind: AtmosphereKind }) {
                     }}
                 />
             ))}
+            {leak && render.durationInFrames > leakFrames * 2 && (
+                <Sequence from={render.durationInFrames - leakFrames} durationInFrames={leakFrames} layout='none'>
+                    <AbsoluteFill style={{ mixBlendMode: 'screen', opacity: 0.4 }}>
+                        <LightLeak seed={Math.round(brand.colors.accent.length * 7 + render.durationInFrames) % 12} />
+                    </AbsoluteFill>
+                </Sequence>
+            )}
             <AbsoluteFill style={{ background: `radial-gradient(120% 120% at 50% 50%, transparent 55%, rgba(0,0,0,${k.vignette}) 100%)` }} />
             {k.veil && <AbsoluteFill style={{ background: `rgba(255,255,255,${k.veil})` }} />}
             {tile && (
@@ -94,7 +109,7 @@ export function withAtmosphere(Scene: ComponentType<Record<string, unknown>>): C
         return (
             <>
                 <Scene {...props} />
-                <Atmosphere brand={props.brand as Brand} kind={kind} />
+                <Atmosphere brand={props.brand as Brand} kind={kind} leak={props.leak === true} />
             </>
         );
     };
@@ -145,8 +160,7 @@ export function withLook(Scene: ComponentType<Record<string, unknown>>): Compone
 /** A look's entrance, laid over whatever the scene does itself: a quick punch in, or a fade with a small rise. */
 function Entrance({ kind, backdrop, children }: { kind: 'snap' | 'ease'; backdrop?: string; children: ReactNode }) {
     const frame = useCurrentFrame();
-    const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
-    const p = interpolate(frame, [0, kind === 'snap' ? 6 : 14], [0, 1], { ...clamp, easing: (x) => 1 - Math.pow(1 - x, 3) });
+    const p = interpolate(frame, [0, kind === 'snap' ? 6 : 14], [0, 1], { ...clamp, easing: easeOutCubic });
     const transform = `translateY(${(1 - p) * 2}%)`;
     // The brand colour stays solid under the fade: without it the editor's wallpaper (pink by default) shows through at every cut.
     return (

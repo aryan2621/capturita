@@ -2,6 +2,7 @@
 // `variantFor(sceneName)` gives each scene a fixed one, spread across the set.
 import type { CSSProperties } from 'react';
 import { seeded } from './launch/kit';
+import { easeOutCubic } from '../../lib/math';
 
 export type HitVariant = 'glow' | 'sweep' | 'sparks' | 'flash' | 'none';
 
@@ -14,8 +15,6 @@ export function variantFor(key: string): HitVariant {
     return VARIANTS[h % VARIANTS.length];
 }
 
-const ease = (t: number) => 1 - (1 - t) ** 3;
-
 /**
  * Draws one hit accent over its (positioned) parent. `t` is 0→1 progress through the effect (0 or 1 draws nothing),
  * `x`/`y` its centre in px, `size` its reach in px. Pointer-transparent.
@@ -25,7 +24,7 @@ export function HitFx({ variant, t, x, y, size, color, seed = 1 }: { variant: Hi
     const fade = 1 - t;
     const fill: CSSProperties = { position: 'absolute', pointerEvents: 'none' };
     if (variant === 'glow') {
-        const r = size * (0.55 + 0.35 * ease(t));
+        const r = size * (0.55 + 0.35 * easeOutCubic(t));
         return <div style={{ ...fill, left: x - r, top: y - r, width: r * 2, height: r * 2, borderRadius: '50%', background: `radial-gradient(circle, ${color}66, transparent 65%)`, opacity: fade }} />;
     }
     if (variant === 'flash') {
@@ -33,7 +32,7 @@ export function HitFx({ variant, t, x, y, size, color, seed = 1 }: { variant: Hi
         return <div style={{ ...fill, left: x - r, top: y - r, width: r * 2, height: r * 2, background: `radial-gradient(circle, ${color}44, transparent 70%)`, opacity: fade * fade }} />;
     }
     if (variant === 'sweep') {
-        const run = ease(t);
+        const run = easeOutCubic(t);
         return (
             <div style={{ ...fill, left: x - size, top: y - size, width: size * 2, height: size * 2, overflow: 'hidden', opacity: Math.min(1, fade * 2) }}>
                 <div style={{ position: 'absolute', top: -size * 0.4, bottom: -size * 0.4, width: size * 0.45, left: run * size * 2.4 - size * 0.5, transform: 'skewX(-18deg)', background: `linear-gradient(90deg, transparent, ${color}88, transparent)` }} />
@@ -46,7 +45,7 @@ export function HitFx({ variant, t, x, y, size, color, seed = 1 }: { variant: Hi
         <div style={{ ...fill, left: x, top: y, width: 0, height: 0, opacity: fade }}>
             {Array.from({ length: count }, (_, i) => {
                 const angle = (i / count) * Math.PI * 2 + seeded(seed + i) * 0.5;
-                const reach = size * (0.35 + 0.65 * seeded(seed * 3 + i)) * ease(t);
+                const reach = size * (0.35 + 0.65 * seeded(seed * 3 + i)) * easeOutCubic(t);
                 const len = size * 0.12 * (1 - t * 0.6);
                 return <div key={i} style={{ position: 'absolute', left: Math.cos(angle) * reach, top: Math.sin(angle) * reach, width: len, height: Math.max(1.5, size * 0.018), borderRadius: 4, background: color, transform: `rotate(${angle}rad)`, transformOrigin: '0 50%' }} />;
             })}

@@ -1,11 +1,12 @@
-import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { AbsoluteFill } from 'remotion';
+import { useVideoConfig } from './clock';
 import './fonts';
 import { BrandTexture, Depth, SceneImage, sceneGradient, useExit } from './SceneBase';
 import { frameLayout } from './layout';
 import { Copy, Cursor, DeviceFrame, Landing, Ring, bowed, fitScreen, inOut, useTiming, type FrameKind } from './deviceParts';
 import { bodyFont, type Brand, type SceneAssets } from './assets';
 
-export type ScreenshotDevice = 'phone' | 'tablet' | 'laptop' | 'browser';
+type ScreenshotDevice = 'phone' | 'tablet' | 'laptop' | 'browser';
 
 export interface ScreenshotShowcaseProps {
     image: string;

@@ -1,13 +1,14 @@
 import { useBeatSnap } from './beat';
 import qrcode from 'qrcode-generator';
 import { useMemo } from 'react';
-import { AbsoluteFill, Img, random, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, random } from 'remotion';
+import { useVideoConfig } from './clock';
 import './fonts';
 import { BrandTexture, Depth, useExit } from './SceneBase';
 import { Cursor, Glow, Sweep, bowed, easeOut, inOut, useTiming } from './deviceParts';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
-export type SocialNetwork = 'x' | 'github' | 'linkedin' | 'youtube' | 'instagram';
+type SocialNetwork = 'x' | 'github' | 'linkedin' | 'youtube' | 'instagram';
 
 export interface EndCardProps {
     headline: string;

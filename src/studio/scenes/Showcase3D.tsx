@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AbsoluteFill, continueRender, delayRender, useVideoConfig } from 'remotion';
+import { AbsoluteFill, continueRender, delayRender } from 'remotion';
+import { useVideoConfig } from './clock';
 import { ThreeCanvas } from '@remotion/three';
+import { Environment, Lightformer } from '@react-three/drei';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import './fonts';
@@ -9,8 +11,8 @@ import { frameLayout } from './layout';
 import { Copy, Glow, easeOut, useTiming } from './deviceParts';
 import { assetUrl, bodyFont, displayFont, type Brand, type SceneAssets } from './assets';
 
-export type Showcase3DSubject = 'phone' | 'laptop' | 'logo';
-export type Showcase3DMotion = 'spin' | 'tilt' | 'orbit';
+type Showcase3DSubject = 'phone' | 'laptop' | 'logo';
+type Showcase3DMotion = 'spin' | 'tilt' | 'orbit';
 
 export interface Showcase3DProps {
     subject: Showcase3DSubject;
@@ -300,7 +302,12 @@ export function Showcase3D({ subject, image, motion, headline, detail, transpare
             </Depth>
             <div style={{ position: 'absolute', right: 0, top: 0, width: canvasW, height: canvasH }}>
                 <ThreeCanvas width={canvasW} height={canvasH} camera={{ fov: 30, position: [0, 0, 5.2] }} gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}>
-                    <ambientLight intensity={0.55} />
+                    <Environment resolution={256}>
+                        <Lightformer form='rect' intensity={3} position={[0, 4, 3]} scale={[8, 2.5, 1]} />
+                        <Lightformer form='rect' intensity={2} color={colors.accent} position={[-4, 0.5, 1]} rotation-y={Math.PI / 2} scale={[5, 2, 1]} />
+                        <Lightformer form='ring' intensity={1.5} position={[3.5, -1, 2]} scale={2.5} />
+                    </Environment>
+                    <ambientLight intensity={0.35} />
                     <directionalLight position={[2.5, 3, 4]} intensity={2.2} />
                     <directionalLight position={[-2.5, 1.5, -3]} intensity={2.4} color={colors.accent} />
                     <pointLight position={[-3, -1, 2]} intensity={6} color={colors.accent} />

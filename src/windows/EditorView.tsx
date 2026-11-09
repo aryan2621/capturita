@@ -31,6 +31,7 @@ import { api, errorMessage, fileUrl, formatDuration, isStudio, type CursorData, 
 import { Button, IconButton, Popover, RangeInput, Segmented, Spinner, TextInput, cx } from '../components/ui';
 import { CropOverlay } from '../editor/CropOverlay';
 import { ExportDialog } from '../editor/ExportDialog';
+import { AnnotationLayer, useAnnotationTools } from '../editor/AnnotationLayer';
 import { useLicense } from '../lib/license';
 import { ShortcutsSheet } from '../editor/ShortcutsSheet';
 import { Inspector } from '../editor/Inspector';
@@ -84,7 +85,7 @@ import { exportSize } from '../editor/export';
 import { SceneLayer, type SceneLayerHandle } from '../studio/SceneLayer';
 import { canBeOverlay, canBeScene, needsRecording, SCENES } from '../studio/scenes';
 import type { Segment, TargetRect } from '../studio/scenes/assets';
-import { useProjectBrand } from '../studio/brandKits';
+import { studioBackground, useProjectBrand } from '../studio/brandKits';
 import { initialSceneProps, previewAssets, recordingInfo } from '../studio/sceneEnv';
 import { TargetPicker } from '../studio/TargetPicker';
 import { LayerHandles } from '../studio/LayerHandles';
@@ -178,6 +179,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     // The timeline is never empty (positionAt needs an item), even before edit.json loads.
     const history = useHistory<Edit>(studio ? { ...defaultEdit(project), items: studioStarter() } : defaultEdit(project));
     const edit = history.value;
+    const annotationTools = useAnnotationTools();
     const [loaded, setLoaded] = useState(false);
     const [cursor, setCursor] = useState<CursorData | null>(null);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -408,6 +410,8 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     /** Scenes are laid out at the size of a 1080p export, and scaled to the preview. */
     const sceneSize = exportSize(edit, project, 1080);
     const brand = useProjectBrand(project, edit.brandKit);
+    const brandRef = useRef(brand);
+    brandRef.current = brand;
     const sceneEnv = useMemo(
         () => ({
             brand,
@@ -491,7 +495,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                     target.height = canvas.height;
                 }
                 const targetCtx = target === canvas ? ctx : target.getContext('2d')!;
-                if (!position.recording || transitioning) fillBackground(ctx, current.background, canvas.width, canvas.height, project);
+                if (!position.recording || transitioning) fillBackground(ctx, studioBackground(project, current.background, brandRef.current), canvas.width, canvas.height, project);
                 if (position.recording)
                     drawFrame(targetCtx, canvas.width, canvas.height, {
                         edit: current,
@@ -721,6 +725,8 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
     };
     /** Only one thing (clip, zoom, text, hidden area, caption or overlay) is selected at a time. */
     const select = (kind: 'clip' | 'zoom' | 'text' | 'hide' | 'caption' | 'overlay' | 'audio', id: string | null) => {
+        annotationTools.setSelectedId(null);
+        annotationTools.setTool(null);
         setSelectedOverlayId(kind === 'overlay' ? id : null);
         setSelectedAudioId(kind === 'audio' ? id : null);
         setSelectedId(kind === 'clip' ? id : null);
@@ -879,6 +885,11 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
         toast.success('Zooms re-created from your clicks');
     };
     const deleteSelected = () => {
+        if (annotationTools.selectedId) {
+            change({ annotations: edit.annotations.filter((a) => a.id !== annotationTools.selectedId) }, 'annotation-delete');
+            annotationTools.setSelectedId(null);
+            return;
+        }
         if (selectedHide) {
             deleteHide(selectedHide.id);
             return;
@@ -1169,6 +1180,18 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                                 />
                             )}
                             {cropFrame && <CropOverlay frame={cropFrame} crop={edit.crop} onChange={(crop) => change({ crop }, 'crop')} />}
+                            {!cropping && (annotationTools.tool || annotationTools.selectedId) && (
+                                <AnnotationLayer
+                                    annotations={edit.annotations}
+                                    selectedId={annotationTools.selectedId}
+                                    tool={annotationTools.tool}
+                                    color={annotationTools.color}
+                                    view={screenView(edit, project, cursor, sourceTime, frameWidth, frameHeight)}
+                                    onChange={(annotations, key) => change({ annotations }, key)}
+                                    onSelect={annotationTools.setSelectedId}
+                                    onToolUsed={() => annotationTools.setTool(null)}
+                                />
+                            )}
                             {!cropping && selectedHide && hideActive(selectedHide, sourceTime) && (
                                 <HideHandle
                                     hide={selectedHide}
@@ -1556,6 +1579,7 @@ export function EditorView({ project, onClose }: { project: Project; onClose: ()
                     <Inspector
                         edit={edit}
                         hasCamera={!!project.tracks.camera}
+                        annotationTools={annotationTools}
                         onChange={change}
                         selectedZoom={selectedZoom}
                         hasClicks={(cursor?.clicks.length ?? 0) > 0}

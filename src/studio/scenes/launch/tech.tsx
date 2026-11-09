@@ -25,7 +25,7 @@ function TerminalFrame({ p, k, title, hit, children, height = 40 }: { p: LaunchP
 }
 
 const Prompt = ({ k, mark = '❯' }: { k: Kit; mark?: string }) => <span style={{ color: k.c.accent }}>{mark} </span>;
-const Success = ({ k, at, children }: { k: Kit; at: number; children: ReactNode }) => <div style={{ color: OK, ...rise(k, at, 2, 12) }}>✓ {children}</div>;
+const Success = ({ k, at, children }: { k: Kit; at: number; children: ReactNode }) => <div style={{ color: OK, ...rise(k, at, 2) }}>✓ {children}</div>;
 
 export function TerminalSession(p: LaunchProps) {
     const k = useKit(p);

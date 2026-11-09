@@ -3,8 +3,9 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Headline, Kicker, Rule, Stage, Sub, easeOut, seeded, useKit, type Kit, type LaunchProps } from './kit';
 
 export const TAU = Math.PI * 2;
-export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-export const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+import { clamp01, lerp } from '../../../lib/math';
+import { smoothPath } from '../../../lib/curve';
+export { clamp01, lerp };
 export const polar = (cx: number, cy: number, r: number, a: number): [number, number] => [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
 /** A #rrggbb brand colour at some opacity. */
 export const al = (colour: string, a: number) => `${colour}${Math.round(clamp01(a) * 255).toString(16).padStart(2, '0')}`;
@@ -50,16 +51,8 @@ export function Lockup({ k, p, t0 = 1, place = 'side', maxW, size = 5.2 }: { k: 
 
 // ---------------------------------------------------------------------------------------------
 
-/** A closed smooth path through points at the given radii around a centre (Catmull-Rom to bezier). */
 function blobPath(cx: number, cy: number, R: number, radii: number[], rot: number) {
-    const n = radii.length;
-    const pts = radii.map((r, i) => polar(cx, cy, R * r, rot + (i / n) * TAU));
-    let d = `M${pts[0][0]},${pts[0][1]}`;
-    for (let i = 0; i < n; i++) {
-        const [p0, p1, p2, p3] = [pts[(i - 1 + n) % n], pts[i], pts[(i + 1) % n], pts[(i + 2) % n]];
-        d += `C${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
-    }
-    return `${d}Z`;
+    return smoothPath(radii.map((r, i) => polar(cx, cy, R * r, rot + (i / radii.length) * TAU)), true);
 }
 
 const BLOBS = [

@@ -5,6 +5,7 @@ mod export;
 mod google;
 mod helper;
 mod license;
+mod library;
 mod recording;
 mod sounds;
 mod studio;
@@ -16,6 +17,8 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 pub fn run() {
     // ⌘⇧R starts and stops a recording from anywhere.
     let record_shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyR);
+    // ⌘⇧S picks an area and saves a screenshot of it.
+    let screenshot_shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyS);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -23,8 +26,13 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, shortcut, event| {
-                    if event.state() == ShortcutState::Pressed && shortcut == &record_shortcut {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    if shortcut == &record_shortcut {
                         recording::toggle_from_shortcut(app);
+                    } else if shortcut == &screenshot_shortcut {
+                        recording::screenshot_from_shortcut(app);
                     }
                 })
                 .build(),
@@ -39,6 +47,9 @@ pub fn run() {
         .setup(move |app| {
             if let Err(error) = app.global_shortcut().register(record_shortcut) {
                 eprintln!("Could not register the ⌘⇧R shortcut: {error}");
+            }
+            if let Err(error) = app.global_shortcut().register(screenshot_shortcut) {
+                eprintln!("Could not register the ⌘⇧S shortcut: {error}");
             }
             // Give the AI model's memory back when it hasn't been used for a while.
             let handle = app.handle().clone();
@@ -57,6 +68,8 @@ pub fn run() {
             recording::stop_recording,
             recording::cancel_recording,
             recording::list_recordings,
+            recording::take_screenshot,
+            library::analyze_screenshot,
             recording::create_studio_project,
             recording::delete_recording,
             recording::load_edit,
@@ -113,6 +126,7 @@ pub fn run() {
             sounds::speech_voices,
             sounds::speak,
             studio::studio_capture_url,
+            studio::capture_webpage,
             studio::studio_render_cancel,
             google::google_status,
             google::google_save_client,

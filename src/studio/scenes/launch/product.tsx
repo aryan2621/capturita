@@ -1,23 +1,17 @@
 // Product reveals and UI-demo scenes. Each one is layered (accent aura, depth, spring entrances) with the headline lockup part of the composition.
 import type { CSSProperties, ReactNode } from 'react';
 import { HitFx, variantFor } from '../hitFx';
-import { Check, Cursor, Pill, Screen, Stage, Win, card, easeOut, listOf, typed, useKit, type Kit, type LaunchProps } from './kit';
+import { Check, Cursor, Pill, Screen, Stage, Win, card, easeOut, enter, listOf, typed, useKit, type Kit, type LaunchProps } from './kit';
 import { Aura, Canvas, Lockup, TAU, al, clamp01, lerp, shortSide } from './shapes';
+import { easeOutBack } from '../../../lib/math';
 
 // ---- motion helpers shared with story.tsx ----
 
-/** Spring entrance from `t0`: fades in, rises `y` units and (optionally) grows by `scale`. */
-export const enter = (k: Kit, t0 = 0, { y = 3, scale = 0, damping = 13 } = {}): CSSProperties => {
-    const a = k.pop(t0, damping);
-    return { opacity: Math.min(1, a * 1.6), transform: `translateY(${(1 - a) * k.u * y}px) scale(${1 - (1 - a) * scale})` };
-};
-
 type Pt = [number, number];
-const backOut = (t: number) => 1 + 2.2 * (clamp01(t) - 1) ** 3 + 1.2 * (clamp01(t) - 1) ** 2;
 /** A cursor-like move between two percent points: eased with a slight overshoot and a curved path (`arc` percent of lift). */
 export const glide = (k: Kit, t0: number, t1: number, [x0, y0]: Pt, [x1, y1]: Pt, arc = 6): Pt => {
     const t = k.ramp(t0, t1);
-    const e = backOut(t);
+    const e = easeOutBack(t);
     return [lerp(x0, x1, e), lerp(y0, y1, e) - Math.sin(t * Math.PI) * arc];
 };
 
@@ -171,7 +165,7 @@ export function WindowFan(p: LaunchProps) {
     const k = useKit(p);
     const wins = listOf(p.items, [], 5);
     const mid = (wins.length - 1) / 2;
-    const w = k.u * (k.stacked ? 46 : 40);
+    const w = k.u * (k.stacked ? 46 : 33);
     return (
         <Stage p={p}>
             <Slot k={k}>
@@ -205,7 +199,7 @@ function DemoFrame({ p, k, title, children, width = 66, height = 0.6 }: { p: Lau
     return (
         <Stage p={p}>
             <Aura k={k} x={k.width / 2} y={k.height * (0.07 + h / 2)} r={shortSide(k) * 0.9} a={0.24} scale={k.pop(0, 14)} />
-            <div style={{ position: 'absolute', left: `${(100 - w) / 2}%`, top: k.stacked ? '7%' : '6%', width: `${w}%`, height: k.height * h, ...enter(k, 0, { y: 4, scale: 0.06, damping: 12 }) }}>
+            <div style={{ position: 'absolute', left: `${(100 - w) / 2}%`, top: k.stacked ? '7%' : '6%', width: `${w}%`, height: k.height * h, ...enter(k, 0, { y: 4, scale: 0.06 }) }}>
                 <Win k={k} title={title} width="100%" height="100%">{children}</Win>
                 <div style={{ position: 'absolute', inset: 0, borderRadius: k.u * 1.8, pointerEvents: 'none', background: `linear-gradient(105deg, transparent ${sheen - 12}%, ${al(k.c.text, 0.08)} ${sheen}%, transparent ${sheen + 12}%)` }} />
             </div>

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { AbsoluteFill } from 'remotion';
+import { useVideoConfig } from './clock';
 import { fontStack, useFontsReady } from './fonts';
 import { BrandTexture, Depth, sceneGradient, useExit } from './SceneBase';
 import { Landing, Lights, Sweep, useTiming } from './deviceParts';

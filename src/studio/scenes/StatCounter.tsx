@@ -5,7 +5,7 @@ import { fitSize } from './text';
 import type { Brand } from './assets';
 
 export type StatFormat = 'int' | 'compact' | 'percent' | 'currency';
-export type StatChart = 'none' | 'bars' | 'line' | 'progress';
+type StatChart = 'none' | 'bars' | 'line' | 'progress';
 
 export interface Stat {
     value: number;
@@ -31,7 +31,7 @@ const STAGGER = 0.12;
 const FIRST = 0.1;
 
 /** A number as its format shows it. Percent takes the number itself (98 → 98%). */
-export function formatStat(value: number, format: StatFormat, final: number) {
+function formatStat(value: number, format: StatFormat, final: number) {
     const fraction = Number.isInteger(final) ? 0 : Math.min(2, String(final).split('.')[1]?.length ?? 0);
     switch (format) {
         case 'compact':

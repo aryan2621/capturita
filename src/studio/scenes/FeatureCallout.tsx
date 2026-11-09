@@ -1,4 +1,5 @@
-import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { AbsoluteFill } from 'remotion';
+import { useVideoConfig } from './clock';
 import './fonts';
 import { BrandTexture, Depth, useExit } from './SceneBase';
 import { frameLayout, type FrameLayout } from './layout';
@@ -6,7 +7,7 @@ import { Sweep, easeOut, useTiming, type Pt } from './deviceParts';
 import { bodyFont, displayFont, type Brand, type RecordingInfo, type SceneAssets, type Segment, type TargetRect } from './assets';
 import { RecordingVideo } from './RecordingVideo';
 
-export type CalloutMotion = 'still' | 'play';
+type CalloutMotion = 'still' | 'play';
 
 export interface FeatureCalloutProps {
     segment: Segment;

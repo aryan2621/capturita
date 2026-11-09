@@ -47,51 +47,12 @@ final class Recorder: NSObject {
         let systemAudio = args.bool("systemAudio") ?? true
         let microphoneID = args.string("microphoneId")
         let echoCancellation = args.bool("echoCancellation") ?? true
-
-        // Windows on other Spaces can be recorded too, so look them up among all windows.
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
-        // Capturita normally keeps itself out of recordings. With CAPTURITA_KEEP_WINDOW set (filming
-        // Capturita itself, e.g. for its demo video) its windows are recorded too.
-        let filmSelf = ProcessInfo.processInfo.environment["CAPTURITA_KEEP_WINDOW"] != nil
-        let excludedApps = filmSelf ? [] : content.applications.filter { Sources.ownProcessIDs.contains($0.processID) }
-
-        let filter: SCContentFilter
-        let configuration = SCStreamConfiguration()
-        /// The captured area in global points (top-left origin), used to place the cursor.
-        let area: CGRect
-        var pixelSize: CGSize
-
-        switch sourceArgs.string("type") ?? "display" {
-        case "window":
-            guard let windowID = sourceArgs.number("windowId").map({ CGWindowID($0) }),
-                  let window = content.windows.first(where: { $0.windowID == windowID })
-            else { throw RecorderError("That window is no longer available") }
-            filter = SCContentFilter(desktopIndependentWindow: window)
-            area = window.frame
-            pixelSize = CGSize(width: filter.contentRect.width * CGFloat(filter.pointPixelScale),
-                               height: filter.contentRect.height * CGFloat(filter.pointPixelScale))
-            source = ["type": "window", "name": [window.owningApplication?.applicationName, window.title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " — ")]
-        default:
-            let displayID = sourceArgs.number("displayId").map { CGDirectDisplayID($0) } ?? CGMainDisplayID()
-            guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
-                throw RecorderError("That display is no longer available")
-            }
-            filter = SCContentFilter(display: display, excludingApplications: excludedApps, exceptingWindows: [])
-            let scale = CGFloat(filter.pointPixelScale)
-            let bounds = CGDisplayBounds(displayID)
-            if let region = rect(from: sourceArgs.dict("rect")) {
-                configuration.sourceRect = region
-                area = region.offsetBy(dx: bounds.minX, dy: bounds.minY)
-                pixelSize = CGSize(width: region.width * scale, height: region.height * scale)
-                source = ["type": "area", "name": Sources.screen(for: displayID)?.localizedName ?? "Display"]
-            } else {
-                area = bounds
-                pixelSize = CGSize(width: CGFloat(display.width) * scale, height: CGFloat(display.height) * scale)
-                source = ["type": "display", "name": Sources.screen(for: displayID)?.localizedName ?? "Display"]
-            }
-        }
-
-        pixelSize = Recorder.encodableSize(pixelSize)
+        let target = try await CaptureTarget.resolve(sourceArgs)
+        let filter = target.filter
+        let configuration = target.configuration
+        let area = target.area
+        let pixelSize = Recorder.encodableSize(target.pixelSize)
+        source = target.source
         screenSize = pixelSize
         source["area"] = rectJSON(area)
 

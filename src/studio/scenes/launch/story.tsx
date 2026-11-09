@@ -1,7 +1,7 @@
 // Typography, social proof and call-to-action scenes: layered, spring-driven, with the headline integrated in each composition.
 import { SceneImage } from '../SceneBase';
-import { Check, Col, Cursor, Headline, Kicker, Pill, Rule, Stage, Sub, Win, card, easeOut, listOf, mono, seeded, typed, useKit, type LaunchProps } from './kit';
-import { Hit, Slot, enter, glide } from './product';
+import { Check, Col, Cursor, Headline, Kicker, Pill, Rule, Stage, Sub, Win, card, easeOut, enter, listOf, mono, seeded, typed, useKit, type LaunchProps } from './kit';
+import { Hit, Slot, glide } from './product';
 import { Aura, Lockup, TAU, al, clamp01, glow, shortSide } from './shapes';
 
 /** Time since `t0` as a 0→1 flash that decays: the glow after a "hit". */

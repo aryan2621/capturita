@@ -20,7 +20,7 @@ export const easeInOut = (t: number) => {
 };
 /** 1 at `t0`, decaying to 0: the flash that follows a hit. */
 export const kick = (k: Kit, t0: number, rate = 5) => (k.s < t0 ? 0 : Math.exp(-(k.s - t0) * rate));
-export const blink = (k: Kit) => (Math.floor(k.s * 2.2) % 2 ? 0 : 1);
+const blink = (k: Kit) => (Math.floor(k.s * 2.2) % 2 ? 0 : 1);
 
 export interface Zone {
     w: number;

@@ -15,7 +15,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::recording::{project_dir, recordings_root};
@@ -212,23 +212,20 @@ pub async fn studio_capture_url(app: AppHandle, url: String, project: String) ->
     let images = project_dir(&app, &project)?.join("images");
     std::fs::create_dir_all(&images).map_err(|e| e.to_string())?;
     let prefix = format!("capture-{}-", chrono::Local::now().timestamp_millis());
-    let renderer = renderer(&app)?;
+    let args = vec!["--capture".into(), url.as_str().into(), "--out".into(), images.into_os_string(), "--prefix".into(), prefix.into()];
+    run_capture(&app, args, "capture").await
+}
+
+/// Runs the renderer's page capture with `args` and returns the JSON object it reports under `key`.
+async fn run_capture(app: &AppHandle, args: Vec<std::ffi::OsString>, key: &'static str) -> Result<Value, String> {
+    let renderer = renderer(app)?;
     let node = find_node()?;
-    let work = work_dir(&app, &renderer)?;
+    let work = work_dir(app, &renderer)?;
     let script = renderer.dir.join("render.mjs");
-    let output = tauri::async_runtime::spawn_blocking(move || {
-        Command::new(node)
-            .arg(script)
-            .args(["--capture", url.as_str(), "--out"])
-            .arg(images)
-            .args(["--prefix", &prefix])
-            .current_dir(work)
-            .stdin(Stdio::null())
-            .output()
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| format!("Could not start the page capture: {e}"))?;
+    let output = tauri::async_runtime::spawn_blocking(move || Command::new(node).arg(script).args(args).current_dir(work).stdin(Stdio::null()).output())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| format!("Could not start the page capture: {e}"))?;
     let errors = String::from_utf8_lossy(&output.stderr);
     let last = |count: usize| errors.lines().filter(|l| !l.trim().is_empty()).rev().take(count).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n");
     if !output.status.success() {
@@ -237,8 +234,46 @@ pub async fn studio_capture_url(app: AppHandle, url: String, project: String) ->
     String::from_utf8_lossy(&output.stdout)
         .lines()
         .filter_map(|line| serde_json::from_str::<Value>(line).ok())
-        .find_map(|v| v.get("capture").cloned())
+        .find_map(|v| v.get(key).cloned())
         .ok_or_else(|| "The page capture returned nothing".to_string())
+}
+
+/// Screenshots a web page at `width` CSS pixels (light or dark, viewport or whole page) and saves it as a screenshot project.
+#[tauri::command]
+pub async fn capture_webpage(app: AppHandle, url: String, width: u32, dark: bool, full: bool) -> Result<Value, String> {
+    crate::license::require_pro()?;
+    let parsed = reqwest::Url::parse(url.trim()).map_err(|_| "That isn't a web address".to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err("Enter a web address starting with http:// or https://".into());
+    }
+    let id = chrono::Local::now().format("Screenshot %Y-%m-%d at %H.%M.%S").to_string();
+    let dir = recordings_root(&app)?.join(&id);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let scale = if width < 600 { 3 } else { 2 };
+    let args = vec![
+        "--shot".into(),
+        parsed.as_str().into(),
+        "--out".into(),
+        dir.join("screenshot.png").into_os_string(),
+        "--width".into(),
+        width.clamp(240, 3840).to_string().into(),
+        "--scale".into(),
+        scale.to_string().into(),
+        "--scheme".into(),
+        (if dark { "dark" } else { "light" }).into(),
+        "--full".into(),
+        (if full { "1" } else { "0" }).into(),
+    ];
+    let shot = match run_capture(&app, args, "shot").await {
+        Ok(shot) => shot,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err(error);
+        }
+    };
+    let host = parsed.host_str().unwrap_or("Web page");
+    let source = json!({ "type": "display", "name": host, "area": { "x": 0, "y": 0, "width": width, "height": shot["height"] } });
+    crate::recording::write_screenshot_project(&dir, &id, source, &shot["width"], &shot["height"])
 }
 
 #[tauri::command]

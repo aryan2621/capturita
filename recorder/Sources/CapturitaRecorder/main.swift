@@ -77,6 +77,13 @@ final class Controller {
             return ["visible": false]
         case "start":
             return try await start(args)
+        case "screenshot":
+            return try await CaptureTarget.screenshot(args)
+        case "scrollScreenshot":
+            return try await CaptureTarget.scrollingScreenshot(args)
+        case "ocr":
+            guard let path = args.string("path") else { throw RecorderError("Missing image") }
+            return try await TextRecognizer.recognize(path: path)
         case "cancelCountdown":
             countdownCancelled = true
             return NSNull()

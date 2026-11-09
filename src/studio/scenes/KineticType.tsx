@@ -3,8 +3,9 @@ import { KineticFrame, Mask, accentSet, bare, csv, wordStyle } from './kinetic';
 import { al, hitFlash, useHero, type Kit } from './hero';
 import { fitSize } from './text';
 import type { Brand } from './assets';
+import { AUTHORED_FPS as FPS } from './fps';
 
-export type KineticTypeMode = 'mask-slide' | 'scale-slam' | 'split-letters' | 'word-swap' | 'marquee';
+type KineticTypeMode = 'mask-slide' | 'scale-slam' | 'split-letters' | 'word-swap' | 'marquee';
 const MODES: KineticTypeMode[] = ['mask-slide', 'scale-slam', 'split-letters', 'word-swap', 'marquee'];
 
 export interface KineticTypeProps {
@@ -19,7 +20,6 @@ export interface KineticTypeProps {
     brand: Brand;
 }
 
-const FPS = 30;
 const FIRST = 2; // frames before the first word moves
 const LAND = 10; // frames a word takes to land
 const SWAP_FRAMES = 24;

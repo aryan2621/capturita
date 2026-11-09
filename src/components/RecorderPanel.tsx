@@ -2,13 +2,14 @@ import { loadCountdown } from '../lib/countdown';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { AppWindow, Camera, CameraOff, Check, ChevronRight, Crop, Mic, MicOff, Monitor, RefreshCw, Volume2, VolumeX, X } from 'lucide-react';
+import { AppWindow, Camera, CameraOff, Check, ChevronRight, Crop, Mic, MicOff, Monitor, RefreshCw, ScrollText, Volume2, VolumeX, X } from 'lucide-react';
 import { toast } from '../lib/toast';
 import {
     api,
     errorMessage,
     type Display,
     type Permissions,
+    type Project,
     type RecordingOptions,
     type Rect,
     type SourceList,
@@ -62,6 +63,7 @@ export function RecorderPanel({
     visible = true,
     onStarted,
     onNotReady,
+    onScreenshot,
     onClose,
 }: {
     /** Whether the panel is on screen; sources are only refreshed on focus while it is. */
@@ -72,6 +74,7 @@ export function RecorderPanel({
     onStarted?: () => void;
     /** Recording was asked for (⌘⇧R) but something is missing, like a window to record. */
     onNotReady?: () => void;
+    onScreenshot?: (project: Project) => void;
     onClose?: () => void;
 }) {
     const [settings, setSettings] = useState<Settings>(loadSettings);
@@ -227,6 +230,39 @@ export function RecorderPanel({
         }
     };
 
+    const captureStill = async (source: RecordingOptions['source'], scrolling = false) => {
+        setBusy(true);
+        try {
+            onScreenshot?.(await api.takeScreenshot(source, scrolling));
+        } catch (error) {
+            toast.error(errorMessage(error));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const takeScreenshot = async (scrolling = false) => {
+        const options = buildOptions();
+        if (typeof options === 'string') {
+            toast.error(options);
+            return;
+        }
+        await captureStill(options.source, scrolling);
+    };
+
+    const instantScreenshot = async () => {
+        if (!displayId || permissions?.screen !== 'granted') {
+            onNotReady?.();
+            return;
+        }
+        try {
+            const picked = await api.pickArea(displayId);
+            if (!picked.cancelled && picked.rect) await captureStill({ type: 'display', displayId, rect: picked.rect });
+        } catch (error) {
+            toast.error(errorMessage(error));
+        }
+    };
+
     // ⌘⇧R from anywhere: Rust forwards it here because this window owns the settings.
     const startRef = useRef(startRecording);
     startRef.current = startRecording;
@@ -239,6 +275,15 @@ export function RecorderPanel({
             }
             startRef.current();
         });
+        return () => {
+            unlisten.then((fn) => fn());
+        };
+    }, []);
+
+    const screenshotRef = useRef(instantScreenshot);
+    screenshotRef.current = instantScreenshot;
+    useEffect(() => {
+        const unlisten = listen('shortcut-screenshot', () => screenshotRef.current());
         return () => {
             unlisten.then((fn) => fn());
         };
@@ -529,8 +574,24 @@ export function RecorderPanel({
                         </span>
                         Start recording
                     </Button>
+                    <Button variant='secondary' className='h-9 w-full' onClick={() => takeScreenshot()} disabled={!screenGranted || busy || !ready}>
+                        <Camera className='h-4 w-4' />
+                        Take screenshot
+                    </Button>
+                    {settings.mode === 'window' && (
+                        <Button
+                            variant='secondary'
+                            className='h-9 w-full'
+                            onClick={() => takeScreenshot(true)}
+                            disabled={!screenGranted || busy || !ready}
+                            title='Scrolls the window by itself and joins the pieces. Needs Accessibility permission.'
+                        >
+                            <ScrollText className='h-4 w-4' />
+                            Scrolling screenshot
+                        </Button>
+                    )}
                     <p className='flex items-center justify-center gap-1.5 text-[11px] text-subtle'>
-                        <kbd className='rounded border border-line bg-panel px-1 font-mono'>⌘⇧R</kbd> from any app ·{' '}
+                        <kbd className='rounded border border-line bg-panel px-1 font-mono'>⌘⇧R</kbd> from any app · <kbd className='rounded border border-line bg-panel px-1 font-mono'>⌘⇧S</kbd> screenshot ·{' '}
                         {loadCountdown() ? `${loadCountdown()}-second countdown` : 'no countdown'}
                     </p>
                 </div>

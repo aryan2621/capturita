@@ -1,5 +1,8 @@
 import type { CursorData, Project } from '../lib/api';
 import type { CursorAnimation, ScreenAnimation } from './motion';
+import { normalizeAnnotations, type Annotation } from './annotations';
+import type { Tilt, Watermark } from './frameEffects';
+import { clamp01, easeOutBack, easeOutCubic, easeOutQuart, smoothstep } from '../lib/math';
 
 /**
  * Everything the user changes in the editor. Saved as edit.json next to the recording;
@@ -34,6 +37,10 @@ export interface Edit {
     overlays: OverlayClip[];
     /** Parts of the screen hidden for privacy (pixelated, blurred or covered). */
     hides: HideRegion[];
+    annotations: Annotation[];
+    watermark?: Watermark;
+    /** Degrees the whole frame is turned in 3D: x tips it forward or back, y turns it left or right. */
+    tilt?: Tilt;
     captions: Captions;
     audio: AudioMix;
     /** The brand kit motion scenes use (an id from the app-wide kits), or absent for the default look. */
@@ -119,7 +126,7 @@ export interface Captions {
     fillers?: CaptionWord[];
 }
 
-export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
+const DEFAULT_CAPTION_STYLE: CaptionStyle = {
     font: 'system',
     size: 0.05,
     color: '#ffffff',
@@ -246,7 +253,7 @@ export interface Ducking {
     underRecording: boolean;
 }
 
-export const DEFAULT_DUCKING: Ducking = { enabled: true, amount: -12, attack: 0.08, release: 0.4, underRecording: false };
+const DEFAULT_DUCKING: Ducking = { enabled: true, amount: -12, attack: 0.08, release: 0.4, underRecording: false };
 
 /** A sound played automatically: at a transition's midpoint, or at a scene's beat. */
 export interface SoundCue {
@@ -295,7 +302,7 @@ export interface Zoom {
     instant?: boolean;
 }
 
-export interface Motion {
+interface Motion {
     /** Feel of zooms and pans. */
     screen: ScreenAnimation;
     /** 0 (off) to 1: blur along fast camera and cursor movement. */
@@ -387,7 +394,7 @@ export type Background =
 
 export type CameraCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
-export interface CameraLayout {
+interface CameraLayout {
     visible: boolean;
     corner: CameraCorner;
     /** Diameter as a fraction of the shorter side of the frame. */
@@ -398,7 +405,7 @@ export interface CameraLayout {
 }
 
 export type CursorShape = 'arrow' | 'hand' | 'dot';
-export type ClickStyle = 'ripple' | 'pulse' | 'none';
+type ClickStyle = 'ripple' | 'pulse' | 'none';
 
 export interface CursorStyle {
     visible: boolean;
@@ -459,7 +466,7 @@ export const CLICK_COLORS = ['#d97757', '#ffffff', '#1f1f1f', '#7c5cff', '#2f9bf
 
 export const MIN_CLIP = 0.2;
 export const MIN_ZOOM = 0.5;
-export const DEFAULT_ZOOM_SCALE = 1.8;
+const DEFAULT_ZOOM_SCALE = 1.8;
 
 export const newId = () => Math.random().toString(36).slice(2, 10);
 
@@ -496,6 +503,7 @@ export function defaultEdit(project: Project): Edit {
         texts: [],
         overlays: [],
         hides: [],
+        annotations: [],
         captions: { visible: true, language: 'auto', style: DEFAULT_CAPTION_STYLE, items: [] },
         audio: { system: { volume: 1, muted: false }, microphone: { volume: 1, muted: false }, fadeIn: 0, fadeOut: 0, music: null, voiceovers: [], effects: [], ducking: DEFAULT_DUCKING },
     };
@@ -529,6 +537,7 @@ export function normalizeEdit(project: Project, raw: unknown): Edit {
         const ai = o.ai && typeof o.ai === 'object' ? { ai: o.ai } : {};
         return [{ id: o.id ?? newId(), scene: o.scene, props, start: Math.max(0, Number(o.start) || 0), duration: Number(o.duration), ...(sound ? { sound } : {}), ...ai }];
     });
+    edit.annotations = normalizeAnnotations(edit.annotations);
     edit.hides = Array.isArray(edit.hides) ? edit.hides.filter((h) => h.end - h.start >= MIN_ZOOM / 2) : [];
     edit.captions = {
         ...base.captions,
@@ -632,7 +641,7 @@ function normalizeItem(raw: unknown, duration: number): TimelineItem[] {
     return [{ kind: 'recording', id: item.id ?? newId(), start, end, speed: item.speed || 1, transition }];
 }
 
-export function sourceDuration(project: Project) {
+function sourceDuration(project: Project) {
     return project.duration;
 }
 
@@ -640,7 +649,7 @@ export function sourceDuration(project: Project) {
 
 export const isRecording = (item: TimelineItem): item is Clip => item.kind === 'recording';
 
-export const clipLength = (clip: Clip) => (clip.end - clip.start) / clip.speed;
+const clipLength = (clip: Clip) => (clip.end - clip.start) / clip.speed;
 
 export const itemLength = (item: TimelineItem) => (item.kind === 'scene' ? item.duration : clipLength(item));
 
@@ -682,7 +691,7 @@ export function totalDuration(items: TimelineItem[]) {
 }
 
 /** A scene on screen at some output time. */
-export interface ScenePosition {
+interface ScenePosition {
     index: number;
     item: SceneClip;
     /** Seconds into the scene. */
@@ -728,7 +737,7 @@ export interface Dip {
     radius?: number;
 }
 
-export const IDENTITY_FX: LayerFx = { opacity: 1, x: 0, y: 0, scale: 1, clip: null, blur: 0 };
+const IDENTITY_FX: LayerFx = { opacity: 1, x: 0, y: 0, scale: 1, clip: null, blur: 0 };
 export const isIdentityFx = (fx: LayerFx) => fx.opacity >= 1 && fx.x === 0 && fx.y === 0 && fx.scale === 1 && !fx.clip && !fx.mask && fx.blur <= 0 && !fx.dim;
 
 const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
@@ -736,7 +745,6 @@ const easeInOutQuint = (x: number) => (x < 0.5 ? 16 * x ** 5 : 1 - (-2 * x + 2) 
 const easeInQuint = (x: number) => x ** 5;
 const easeOutQuint = (x: number) => 1 - (1 - x) ** 5;
 const easeInQuart = (x: number) => x ** 4;
-const easeOutQuart = (x: number) => 1 - (1 - x) ** 4;
 const easeInOutExpo = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x < 0.5 ? 2 ** (20 * x - 10) / 2 : (2 - 2 ** (-20 * x + 10)) / 2);
 const smooth = (from: number, to: number, x: number) => {
     const t = clamp01((x - from) / (to - from));
@@ -781,7 +789,7 @@ export function layerFilter(fx: LayerFx, shortSide: number, withBlur = true) {
  * depth (the layer underneath drifts and dims), so a join reads as a camera move, not a slide change.
  * A layer with a mask or clip is never scaled: CSS scales a clip with the element, the canvas doesn't.
  */
-export function transitionFx(transition: Exclude<Transition, { type: 'cut' }>, mix: number, incomingOnTop: boolean): { outgoing: LayerFx; incoming: LayerFx; dip: Dip | null } {
+function transitionFx(transition: Exclude<Transition, { type: 'cut' }>, mix: number, incomingOnTop: boolean): { outgoing: LayerFx; incoming: LayerFx; dip: Dip | null } {
     const p = clamp01(mix);
     const d = transition.duration;
     const [dx, dy] = DIRECTION_VECTOR[transition.direction ?? 'left'];
@@ -1124,11 +1132,6 @@ export function autoZooms(cursor: CursorData, duration: number, scale = DEFAULT_
     return zooms;
 }
 
-const smoothstep = (x: number) => {
-    const t = Math.min(1, Math.max(0, x));
-    return t * t * (3 - 2 * t);
-};
-
 export interface TimedItem {
     id: string;
     start: number;
@@ -1162,10 +1165,7 @@ export function timedSegments<T extends TimedItem>(timeline: TimelineItem[], ite
 
 export const TEXT_FADE = 0.3;
 
-const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
-const easeOutCubic = (x: number) => 1 - (1 - x) ** 3;
 /** Overshoots slightly before settling, for a springy "pop". */
-const easeOutBack = (x: number) => 1 + 2.2 * (x - 1) ** 3 + 1.2 * (x - 1) ** 2;
 
 /** Where a text is in its animation at time `t` (source seconds). */
 export interface TextFrame {
@@ -1318,9 +1318,6 @@ export function retimeCaption(caption: Caption, text: string): Caption {
     });
     return { ...caption, text, words };
 }
-
-/** The caption on screen at source time t, if any. */
-export const captionAt = (captions: Caption[], t: number) => captions.find((c) => t >= c.start && t < c.end) ?? null;
 
 /** What placing captions on the output timeline needs. */
 export type CaptionTimeline = { items: TimelineItem[]; captions: Pick<Captions, 'items'>; audio: Pick<AudioMix, 'voiceovers'> };

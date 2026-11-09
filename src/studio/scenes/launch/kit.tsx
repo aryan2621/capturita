@@ -1,6 +1,8 @@
 // Shared building blocks for the launch scenes: one look (cards, windows, type) so 50 scenes read as a set.
 import type { CSSProperties, ReactNode } from 'react';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import type { Zoom } from '../../../editor/model';
+import { makeTransform, scale as scaleBy, translateY } from '@remotion/animation-utils';
+import { AbsoluteFill, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import '../fonts';
 import { BrandTexture, Depth, SceneImage, clamp, sceneGradient, useExit } from '../SceneBase';
 import { bodyFont, displayFont, type Brand, type RecordingInfo, type SceneAssets, type Segment } from '../assets';
@@ -27,11 +29,12 @@ export interface LaunchProps {
     /** The project's screen recording (injected) and the part of it the scene shows; whole-scene length from its start when unset. */
     recording?: RecordingInfo;
     segment?: Segment;
+    /** Zoom-ins on the clicks in the segment, seconds from its start. */
+    zooms?: Zoom[];
     /** Screenshots the user added; the first one stands in for the product on screen. */
     images?: { image?: string }[];
 }
 
-export const str = (value: unknown, fallback = '') => (typeof value === 'string' ? value : fallback);
 /** The list a scene shows: real entries only, capped, padded from the defaults when short. */
 export const listOf = (items: unknown, fallback: LaunchItem[], max = 6): LaunchItem[] => {
     const real = (Array.isArray(items) ? items : []).filter((item): item is LaunchItem => typeof item?.text === 'string' && item.text.trim() !== '');
@@ -41,12 +44,15 @@ export const listOf = (items: unknown, fallback: LaunchItem[], max = 6): LaunchI
 export const numberIn = (text = '') => Number(/-?\d+(\.\d+)?/.exec(text.replace(/,/g, ''))?.[0] ?? 0);
 /** The first `fraction` of a string, for typing effects. */
 export const typed = (text: string, fraction: number) => text.slice(0, Math.round(text.length * Math.max(0, Math.min(1, fraction))));
-export const easeOut = (t: number) => 1 - (1 - Math.max(0, Math.min(1, t))) ** 3;
-/** A repeatable pseudo-random 0–1 (renders must not use Math.random). */
-export const seeded = (n: number) => {
-    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
-    return x - Math.floor(x);
-};
+import { easeOutCubic as easeOut } from '../../../lib/math';
+export { easeOut };
+/** Fast start, long settle: the curve behind most pro motion graphics. */
+const expoOut = (t: number) => (t >= 1 ? 1 : t <= 0 ? 0 : 1 - 2 ** (-10 * t));
+/** A repeatable pseudo-random 0–1 from Remotion (renders must not use Math.random). */
+export const seeded = (n: number) => random(n);
+
+/** 1 at time `t0`, cooling to 0 (a flash that fades); 0 before it. */
+export const pulse = (k: Kit, t0: number, rate = 3) => (k.s < t0 ? 0 : Math.exp(-(k.s - t0) * rate));
 
 /** Time, springs and sizes for a scene. `u` is 1% of the short side; `tx` is `u` boosted for text in tall frames. */
 export function useKit(p: LaunchProps) {
@@ -70,6 +76,8 @@ export function useKit(p: LaunchProps) {
         body: bodyFont(p.brand),
         /** 0→1 spring starting `delay` seconds in. */
         pop: (delay = 0, damping = 18) => spring({ frame: frame - delay * fps, fps, config: { damping, stiffness: 140 } }),
+        /** 0→1 on an expo-out curve over `seconds`, starting `delay` seconds in. */
+        expo: (delay = 0, seconds = 0.9) => expoOut((frame / fps - delay) / seconds),
         /** Value from `a` to `b` as time runs from `t0` to `t1` seconds. */
         ramp: (t0: number, t1: number, a = 0, b = 1) => interpolate(frame, [t0 * fps, t1 * fps], [a, b], clamp),
     };
@@ -87,6 +95,12 @@ export function Stage({ p, children }: { p: LaunchProps; children: ReactNode }) 
     );
 }
 
+/** Expo-out entrance from `t0`: fades in, rises `y` units, grows by `scale` and unblurs. */
+export const enter = (k: Kit, t0 = 0, { y = 3, scale = 0 } = {}): CSSProperties => {
+    const a = k.expo(t0);
+    return { opacity: Math.min(1, a * 2), transform: makeTransform([translateY((1 - a) * k.u * y * 1.8), scaleBy(1 - (1 - a) * (scale + 0.08))]), filter: a < 1 ? `blur(${(1 - a) * k.u * 0.7}px)` : 'none' };
+};
+
 export const Col = ({ k, gap = 3, children, style }: { k: Kit; gap?: number; children: ReactNode; style?: CSSProperties }) => (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: k.u * gap, width: '100%', ...style }}>{children}</div>
 );
@@ -94,12 +108,16 @@ export const Col = ({ k, gap = 3, children, style }: { k: Kit; gap?: number; chi
 export const Kicker = ({ k, children, style }: { k: Kit; children?: ReactNode; style?: CSSProperties }) =>
     children ? <div style={{ color: k.c.accent, fontSize: k.tx * 2.3, fontWeight: 700, letterSpacing: k.u * 0.4, textTransform: 'uppercase', textAlign: 'center', ...style }}>{children}</div> : null;
 
-export const Headline = ({ k, size = 9, children, style }: { k: Kit; size?: number; children: ReactNode; style?: CSSProperties }) => (
-    <div style={{ fontFamily: k.display, fontSize: k.tx * size * (k.portrait ? 0.9 : 1), fontWeight: 850, lineHeight: 1.05, letterSpacing: -k.u * 0.035 * size, textAlign: 'center', maxWidth: '86%', textWrap: 'balance', ...style }}>{children}</div>
-);
+const SMALL_HEADLINE = 9;
+const SMALL_HEADLINE_BOOST = 1.25;
+
+export const Headline = ({ k, size = SMALL_HEADLINE, children, style }: { k: Kit; size?: number; children: ReactNode; style?: CSSProperties }) => {
+    const scaled = size < SMALL_HEADLINE ? size * SMALL_HEADLINE_BOOST : size;
+    return <div style={{ fontFamily: k.display, fontSize: k.tx * scaled * (k.portrait ? 0.9 : 1), fontWeight: 850, lineHeight: 1.05, letterSpacing: -k.u * 0.035 * scaled, textAlign: 'center', maxWidth: '86%', textWrap: 'balance', ...style }}>{children}</div>;
+};
 
 export const Sub = ({ k, children, style }: { k: Kit; children?: ReactNode; style?: CSSProperties }) =>
-    children ? <div style={{ color: k.c.muted, fontSize: k.tx * 3, textAlign: 'center', maxWidth: '72%', textWrap: 'balance', ...style }}>{children}</div> : null;
+    children ? <div style={{ color: k.c.muted, fontSize: k.tx * 3.4, textAlign: 'center', maxWidth: '72%', textWrap: 'balance', ...style }}>{children}</div> : null;
 
 export const Rule = ({ k, width = 20, progress = 1 }: { k: Kit; width?: number; progress?: number }) => (
     <div style={{ width: k.u * width, height: k.u * 0.6, borderRadius: k.u, background: k.c.accent, transform: `scaleX(${progress})`, boxShadow: `0 0 ${k.u * 3}px ${k.c.accent}88` }} />
@@ -164,7 +182,7 @@ export function Screen({ p, k, index = 0, fallback, style }: { p: LaunchProps; k
     if (image) return <SceneImage src={image} assets={p.assets} brand={p.brand} style={{ width: '100%', height: '100%', ...style }} />;
     if (index === 0 && p.recording?.file) {
         const start = p.segment?.start ?? p.recording.offset;
-        return <RecordingVideo recording={p.recording} assets={p.assets} segment={p.segment ?? { start, end: start + k.seconds }} style={style} />;
+        return <RecordingVideo recording={p.recording} assets={p.assets} segment={p.segment ?? { start, end: start + k.seconds }} zooms={p.zooms} style={style} />;
     }
     return <>{fallback}</>;
 }

@@ -19,7 +19,7 @@ import { initialSceneProps, recordingRange, sceneInputProps } from './sceneEnv';
 
 export type Placement = 'start' | 'playhead' | 'end' | 'over';
 
-export interface SceneChange {
+interface SceneChange {
     label: string;
     before?: string;
     after: string;
@@ -657,7 +657,7 @@ function checkText(key: string, name: string, value: unknown, errors: string[]) 
 }
 
 /** Value rules on the settings the model wrote (`only`), plus the recording parts of `props`. */
-export function validateProps(scene: string, props: Record<string, unknown>, project: Project, only?: Set<string>): string[] {
+function validateProps(scene: string, props: Record<string, unknown>, project: Project, only?: Set<string>): string[] {
     const errors: string[] = [];
     const range = recordingRange(project);
     for (const field of SCENES[scene].fields) {
@@ -744,7 +744,7 @@ const ownText = (el: Element) =>
  * Draws the scene's middle frame offscreen at a small size and looks for text that runs off the
  * frame or is cut off, and for an empty frame. Returns the problems, worded for the model.
  */
-export async function dryCheck(scene: string, props: Record<string, unknown>, duration: number, ctx: SceneAiContext, overlay: boolean): Promise<string[]> {
+async function dryCheck(scene: string, props: Record<string, unknown>, duration: number, ctx: SceneAiContext, overlay: boolean): Promise<string[]> {
     const definition = SCENES[scene];
     const width = 480;
     const height = Math.round((width * ctx.size.height) / ctx.size.width);
@@ -810,7 +810,7 @@ export async function dryCheck(scene: string, props: Record<string, unknown>, du
 const deepEqual = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Rows with a unique numeric id each: missing or repeated ids get the next free number. */
-export function withRowIds<T extends Record<string, unknown>>(rows: T[]): T[] {
+function withRowIds<T extends Record<string, unknown>>(rows: T[]): T[] {
     const seen = new Set<number>();
     let next = Math.max(0, ...rows.map((r) => (typeof r.id === 'number' ? r.id : 0))) + 1;
     return rows.map((r) => {

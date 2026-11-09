@@ -1,6 +1,7 @@
 // Shared pieces for the device, window and UI-walkthrough scenes: motion helpers, device chrome, cursor, light effects, text block.
 import type { CSSProperties, ReactNode } from 'react';
-import { Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, spring } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from './clock';
 import { clamp } from './SceneBase';
 import { frameLayout } from './layout';
 import { fitSize } from './text';
@@ -12,11 +13,10 @@ import { bodyFont, displayFont, type Brand } from './assets';
 /** Overshoots about 12% and settles in 0.6 s: the entrance every pop-in shares. */
 export const SNAP = { damping: 12, stiffness: 180, mass: 0.7 };
 /** No overshoot, settles in about 0.5 s: text and fades. */
-export const GLIDE = { damping: 200, stiffness: 200 };
+const GLIDE = { damping: 200, stiffness: 200 };
 
-export const smooth = (x: number) => x * x * (3 - 2 * x);
-export const easeOut = (x: number) => 1 - (1 - x) ** 3;
-export const inOut = Easing.inOut(Easing.cubic);
+import { easeInOutCubic as inOut, smoothstep as smooth, easeOutCubic as easeOut } from '../../lib/math';
+export { inOut, easeOut };
 
 /** Springs and ramps keyed to the scene's frame, so scenes say "pop at frame 8" instead of repeating the spring call. */
 export function useTiming() {
@@ -130,7 +130,7 @@ const RIM = 'linear-gradient(145deg, #5b5c64 0%, #1b1c20 38%, #2d2e34 70%, #4a4b
 const GLASS = 'linear-gradient(125deg, rgba(255,255,255,0.11) 0%, rgba(255,255,255,0.03) 32%, transparent 33%)';
 
 /** Frame a device lands on (see Landing): its light sweep and ring fire here. */
-export const LAND = 9;
+const LAND = 9;
 
 /** `children` on a drawn device's screen (`sw` × `sh` px): bezels, a glass reflection, a contact shadow, and a light sweep as it lands. */
 export function DeviceFrame({ kind, sw, sh, u, brand, url = '', children }: { kind: FrameKind; sw: number; sh: number; u: number; brand: Brand; url?: string; children: ReactNode }) {

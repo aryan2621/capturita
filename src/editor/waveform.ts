@@ -1,5 +1,5 @@
 /** Loudness peaks per bucket of source time, for drawing the audio lane. */
-export const WAVEFORM_RATE = 100; // buckets per second
+const WAVEFORM_RATE = 100; // buckets per second
 
 export interface WaveformSource {
     /** Channel data of the decoded track. */

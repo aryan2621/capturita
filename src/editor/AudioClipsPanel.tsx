@@ -20,14 +20,14 @@ export async function projectFileLength(project: Project, file: string) {
 }
 
 /** A display name for a project or pack file: no folder, no extension. */
-export const soundName = (file: string) =>
+const soundName = (file: string) =>
     file
         .split('/')
         .pop()!
         .replace(/\.[^.]+$/, '');
 
 /** The licensed sound pack in Capturita/Sounds: its files, adding to it, and auditioning a sound. */
-export function useSoundPack() {
+function useSoundPack() {
     const [pack, setPack] = useState<{ dir: string; files: string[] } | null>(null);
     const refresh = useCallback(() => {
         api.listSounds()

@@ -26,7 +26,7 @@ import { api, errorMessage, type AiCloud, type AiModels, type AiOpenAi, type Cap
 import { useLicense } from '../lib/license';
 import { useTheme, type ThemeChoice } from '../lib/theme';
 import { ProFeatureGate } from './ProFeatureGate';
-import { Badge, Button, Card, Field, IconButton, Modal, ProgressBar, SectionHeader, Segmented, SettingRow, TextArea, TextInput, cx } from './ui';
+import { Badge, Button, Field, IconButton, Modal, ProgressBar, SectionHeader, Segmented, SettingRow, TextArea, TextInput, cx } from './ui';
 
 export type SettingsSection = 'general' | 'ai' | 'captions' | 'google' | 'license';
 
@@ -164,6 +164,8 @@ export function SettingsDialog({
     );
 }
 
+const PRO_FEATURES = ['On-device captions', 'AI editing', 'Animated titles', 'Studio motion graphics'];
+
 function LicenseSection() {
     const { license, refresh } = useLicense();
     const [key, setKey] = useState('');
@@ -198,63 +200,74 @@ function LicenseSection() {
 
     if (!license.supported) {
         return (
-            <Card>
-                <p className='text-sm font-medium'>Source build — Pro features unlocked</p>
-                <p className='mt-1 text-xs text-muted'>License activation is only used by official Capturita builds. The source remains MIT-licensed.</p>
-            </Card>
+            <div className='mx-auto w-full max-w-md space-y-1 text-center'>
+                <p className='text-base font-semibold'>Source build, Pro features unlocked</p>
+                <p className='text-xs text-muted'>License activation is only used by official Capturita builds. The source remains MIT-licensed.</p>
+            </div>
         );
     }
 
     return (
-        <div className='space-y-5'>
-            <Card>
-                <div className='flex items-center gap-4'>
-                    <span className={cx('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', license.pro ? 'bg-success-soft text-success-fg' : 'bg-raised text-muted')}>
-                        {license.pro ? <Check className='h-4 w-4' /> : <KeyRound className='h-4 w-4' />}
-                    </span>
-                    <div className='min-w-0 flex-1'>
-                        <p className='flex items-center gap-2 text-sm font-semibold'>
-                            {license.pro ? 'Capturita Pro is active' : 'Capturita Free'}
-                            <Badge tone={license.pro ? 'success' : 'neutral'}>{license.pro ? 'Pro' : 'Not activated'}</Badge>
-                        </p>
-                        {!license.pro && <p className='mt-0.5 text-xs text-muted'>Paste a key below to unlock Pro.</p>}
-                        {license.email && <p className='mt-0.5 truncate text-xs text-muted'>{license.email}</p>}
-                        {license.updatesUntil && <p className='mt-1 text-xs text-muted'>Updates through {new Date(license.updatesUntil * 1000).toLocaleDateString()}.</p>}
-                    </div>
-                    {license.pro && (
-                        <Button size='sm' variant='secondary' disabled={busy} onClick={remove}>
-                            <LogOut className='h-3.5 w-3.5' /> Remove
-                        </Button>
-                    )}
+        <div className='mx-auto w-full max-w-md space-y-6'>
+            <div className='flex flex-col items-center gap-2 text-center'>
+                <span className={cx('flex h-10 w-10 items-center justify-center rounded-md', license.pro ? 'bg-success-soft text-success-fg' : 'bg-raised text-muted')}>
+                    {license.pro ? <Check className='h-4 w-4' /> : <KeyRound className='h-4 w-4' />}
+                </span>
+                <div className='flex items-center gap-2'>
+                    <h3 className='text-base font-semibold'>{license.pro ? 'Capturita Pro is active' : 'Capturita Free'}</h3>
+                    <Badge tone={license.pro ? 'success' : 'neutral'}>{license.pro ? 'Pro' : 'Not activated'}</Badge>
                 </div>
-                {license.error && (
-                    <p role='alert' className='mt-3 rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger-fg'>
-                        {license.error}
-                    </p>
+                {license.pro ? (
+                    <div className='space-y-0.5 text-xs text-muted'>
+                        {license.email && <p className='truncate'>{license.email}</p>}
+                        {license.updatesUntil && <p>Updates through {new Date(license.updatesUntil * 1000).toLocaleDateString()}</p>}
+                    </div>
+                ) : (
+                    <p className='text-xs text-muted'>One-time purchase, includes one year of updates.</p>
                 )}
-                {license.notice && <p className='mt-3 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning-fg'>{license.notice}</p>}
-            </Card>
+            </div>
 
-            {!license.pro && (
-                <div className='space-y-3'>
-                    <Field label='License key' htmlFor='license-key' hint='Paste the key from your Capturita Pro purchase email. The key is stored in this Mac’s Keychain.'>
-                        <TextArea
-                            id='license-key'
-                            value={key}
-                            onChange={(event) => setKey(event.target.value)}
-                            aria-label='Capturita Pro license key'
-                            placeholder='Paste your license key'
-                            rows={3}
-                            spellCheck={false}
-                            className='font-mono text-xs'
-                        />
-                    </Field>
-                    <div className='flex justify-end'>
-                        <Button variant='primary' size='sm' disabled={busy || !key.trim()} onClick={activate}>
+            {license.error && (
+                <p role='alert' className='rounded-md bg-danger-soft px-3 py-2 text-center text-xs text-danger-fg'>
+                    {license.error}
+                </p>
+            )}
+            {license.notice && <p className='rounded-md bg-warning-soft px-3 py-2 text-center text-xs text-warning-fg'>{license.notice}</p>}
+
+            {license.pro ? (
+                <div className='flex justify-center'>
+                    <Button size='sm' variant='secondary' disabled={busy} onClick={remove}>
+                        <LogOut className='h-3.5 w-3.5' /> Remove license
+                    </Button>
+                </div>
+            ) : (
+                <>
+                    <ul className='divide-y divide-line rounded-md border border-line text-sm'>
+                        {PRO_FEATURES.map((feature) => (
+                            <li key={feature} className='flex items-center gap-2 px-3 py-2'>
+                                <Check className='h-3.5 w-3.5 shrink-0 text-success-fg' />
+                                {feature}
+                            </li>
+                        ))}
+                    </ul>
+                    <div className='space-y-3'>
+                        <Field label='License key' htmlFor='license-key' hint='Paste the key from your Capturita Pro purchase email. It is stored in this Mac’s Keychain.'>
+                            <TextArea
+                                id='license-key'
+                                value={key}
+                                onChange={(event) => setKey(event.target.value)}
+                                aria-label='Capturita Pro license key'
+                                placeholder='Paste your license key'
+                                rows={3}
+                                spellCheck={false}
+                                className='font-mono text-xs'
+                            />
+                        </Field>
+                        <Button variant='primary' size='sm' className='w-full' disabled={busy || !key.trim()} onClick={activate}>
                             {busy && <Loader2 className='h-3.5 w-3.5 animate-spin' />} Activate license
                         </Button>
                     </div>
-                </div>
+                </>
             )}
         </div>
     );

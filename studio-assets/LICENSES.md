@@ -10,8 +10,10 @@ Files: award, barChart, calendar, checkCircle, clock, download, heart, loading, 
 notification, settings, star, trendingUp, userPlus, zap.
 
 ## music/
-Empty until tracks are added. Use only CC0 / public-domain music (e.g. FreePD.com) and add
-each file's source URL here. Name files `<mood>-<bpm>.mp3` (e.g. `upbeat-120.mp3`).
+`upbeat-120.mp3` is the default Studio music, made from scratch with `scripts/make-music.sh`
+(a synthesised kick, hat, bass and pad through ffmpeg). Original work, no licence to carry. Any other
+track added must be CC0 / public domain (e.g. FreePD.com) with its source URL listed here, named `<mood>-<bpm>.mp3`.
+The first file by name is the one Studio adds when the user picks no song.
 
 ## sfx/
 Transition sounds (whoosh, swoosh, pop, click, riser, impact) made from scratch with

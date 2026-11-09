@@ -43,6 +43,19 @@ MIT-licensed, and source builds are not restricted. Activation is configured in 
 3. Zooms are added on your clicks. Press **S** to split, **C** to cut a part, **Z** to add a zoom, **T** to add text (Pro), **H** to hide something. **?** shows every shortcut.
 4. **⌘E** to export an MP4 or upload. Files are saved in `~/Movies/Capturita`.
 
+## Studio (Pro)
+
+Studio makes launch videos from motion scenes, with or without a screen recording.
+
+- **130 scenes:** hooks, problems, product reveals, text, UI demos, code and AI, data, diagrams, social proof, shapes and closers. Pick **Add scene** below the preview, or ask the AI to add one.
+- **Templates:** **New Studio video** lists 13 ready-made seven-scene launch stories. Each sets its own colours, fonts and style, and every line is placeholder copy to edit.
+- **AI draft:** paste your README or a product description, set **Scenes** (up to 16), and the AI reads the facts (name, features, steps, numbers, pricing, quote, link) and builds a video from the whole scene library. It writes only what the text says, so a short description gives fewer scenes.
+- **Brand kits:** colours, fonts and logo apply to every scene. Light and dark brands both work.
+- **Looks:** each video style sets the transitions, the slow camera push, atmosphere and light leaks (film, cinematic, vapor and dreamy).
+- **Music and beats:** add a song, or let the AI draft use the built-in loop. In the Music panel, use **Cut scenes on the beat** (shown once the song's beats are found) so every cut lands on a beat.
+- **Recordings:** scenes that show your recording follow your clicks with the same smooth zoom as the editor.
+- **Export:** scenes render at 60 fps. Export MP4 or GIF, or a transparent ProRes `.mov` of the scenes alone for another editor. The first export downloads the Chrome headless shell.
+
 ## Build from source
 
 ```bash

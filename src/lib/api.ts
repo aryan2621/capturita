@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 
-export type PermissionState = 'granted' | 'denied' | 'notDetermined';
+type PermissionState = 'granted' | 'denied' | 'notDetermined';
 export type PermissionKind = 'screen' | 'microphone' | 'camera';
 export type Permissions = Record<PermissionKind, PermissionState>;
 
@@ -30,7 +30,7 @@ export interface Thumbnails {
     windows: Record<string, string>;
 }
 
-export interface Device {
+interface Device {
     id: string;
     name: string;
 }
@@ -49,7 +49,7 @@ export interface Rect {
     height: number;
 }
 
-export type CaptureSource = { type: 'display'; displayId: number; rect?: Rect } | { type: 'window'; windowId: number };
+type CaptureSource = { type: 'display'; displayId: number; rect?: Rect } | { type: 'window'; windowId: number };
 
 export interface RecordingOptions {
     source: CaptureSource;
@@ -75,14 +75,24 @@ export interface Track {
 export type VideoTrack = Track & { width: number; height: number };
 
 export const isStudio = (project: Project) => project.kind === 'studio';
+export const projectTitle = (project: Project) => project.title || project.source.name;
+
+export const matchesQuery = (project: Project, needle: string) =>
+    [projectTitle(project), project.source.name, ...(project.tags ?? []), project.text ?? ''].some((field) => field.toLowerCase().includes(needle));
+
+export const isScreenshot = (project: Project) => project.kind === 'screenshot';
 
 export interface Project {
     version: number;
     /** 'studio': motion scenes only. Its screen track is a placeholder with an empty `file`. */
-    kind?: 'recording' | 'studio';
+    kind?: 'recording' | 'studio' | 'screenshot';
     id: string;
     path: string;
     createdAt: string;
+    /** Set by the screenshot analysis (local AI): a name, search tags and the text found in the image. */
+    title?: string;
+    tags?: string[];
+    text?: string;
     duration: number;
     source: { type: 'display' | 'window' | 'area'; name: string; area: Rect };
     tracks: {
@@ -101,7 +111,7 @@ export interface CursorData {
     clicks: [number, number, number, 'left' | 'right'][];
 }
 
-export type Status = 'idle' | 'countdown' | 'recording' | 'paused' | 'stopping';
+type Status = 'idle' | 'countdown' | 'recording' | 'paused' | 'stopping';
 
 export interface RecordingStatus {
     status: Status;
@@ -138,7 +148,7 @@ export interface GoogleStatus {
     account: GoogleAccount | null;
 }
 
-export interface AiModel {
+interface AiModel {
     id: string;
     name: string;
     note: string;
@@ -219,6 +229,9 @@ export const api = {
     cancel: () => invoke<void>('cancel_recording'),
 
     listRecordings: () => invoke<Project[]>('list_recordings'),
+    analyzeScreenshot: (id: string) => invoke<Project>('analyze_screenshot', { id }),
+    takeScreenshot: (source: RecordingOptions['source'], scrolling = false) => invoke<Project>('take_screenshot', { source, scrolling }),
+    captureWebpage: (url: string, width: number, dark: boolean, full: boolean) => invoke<Project>('capture_webpage', { url, width, dark, full }),
     createStudioProject: () => invoke<Project>('create_studio_project'),
     deleteRecording: (id: string) => invoke<void>('delete_recording', { id }),
     loadEdit: (id: string) => invoke<unknown | null>('load_edit', { id }),
